@@ -41,6 +41,7 @@ export function Navbar({
             <button
               type="button"
               className="vf-brand"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => onNavigate("dashboard")}
               aria-label="ViệtFlow — Về trang tổng quan"
             >
@@ -106,6 +107,7 @@ export function Navbar({
               type="button"
               className={`vf-mobile-tab ${isActive ? "is-active" : ""}`}
               aria-current={isActive ? "page" : undefined}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => onNavigate(item.id)}
             >
               <Icon size={17} aria-hidden="true" />

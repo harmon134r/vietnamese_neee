@@ -210,7 +210,7 @@ export function AuthModal({
               </div>
 
               <div>
-                <p style={{ margin: "0 0 6px", fontSize: "0.84rem", fontWeight: 600 }}>
+                <p style={{ margin: "0 0 6px", fontSize: "0.85rem", fontWeight: 500 }}>
                   Bật đồng bộ tài khoản với Supabase
                 </p>
                 <p style={{ margin: "0 0 10px", fontSize: "0.82rem", color: "var(--text-muted)" }}>
@@ -282,7 +282,7 @@ export function AuthModal({
               )}
 
               <div className="vf-sync-panel">
-                <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                <span style={{ fontSize: "0.86rem", fontWeight: 500 }}>
                   Gộp dữ liệu từ trình duyệt
                 </span>
                 <p style={{ margin: 0, fontSize: "0.81rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>

@@ -1,67 +1,68 @@
 /* ==========================================================================
-   ViệtFlow — Warm Charcoal + Sơn Mài Terracotta Editorial Studio
+   ViệtFlow — Claude Warm-Stone Dark Editorial Design System
    Shared :root tokens + App Shell, Dashboard, TopicOverview & AuthModal styles
    ========================================================================== */
 
 :root {
-  /* Core Canvas & Surfaces — Warm Charcoal */
-  --bg-canvas: #111316;
-  --bg-surface: #171a1f;
-  --bg-card: #1d2128;
-  --bg-elevated: #242933;
-  --bg-card-elevated: #242933;
-  --bg-card-hover: #242933;
-  --bg-input: #14171c;
+  /* Core Canvas & Surfaces — Claude Warm Stone */
+  --bg-canvas: #262624;
+  --bg-surface: #1f1e1d;
+  --bg-card: #2e2e2b;
+  --bg-elevated: #363532;
+  --bg-card-elevated: #363532;
+  --bg-card-hover: #363532;
+  --bg-input: #1f1e1d;
 
-  /* Hairline Borders */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --border-highlight: rgba(224, 109, 79, 0.44);
+  /* Warm Hairline Borders */
+  --border-subtle: rgba(236, 235, 228, 0.10);
+  --border-strong: rgba(236, 235, 228, 0.18);
+  --border-highlight: rgba(217, 119, 87, 0.44);
 
-  /* Warm Ink Typography */
-  --text-primary: #f2f0eb;
-  --text-secondary: #a6aab3;
-  --text-muted: #767b85;
-  --text-dim: #5d626c;
+  /* Warm Cream Ink Typography */
+  --text-primary: #ecebe4;
+  --text-secondary: #b4b2a7;
+  --text-muted: #8a887e;
+  --text-dim: #6e6c63;
 
-  /* Single Primary Accent — Sơn Mài Terracotta */
-  --accent-primary: #e06d4f;
-  --accent-primary-hover: #eb7c5f;
-  --accent-primary-soft: rgba(224, 109, 79, 0.14);
+  /* Single Primary Accent — Claude Clay Terracotta */
+  --accent-primary: #d97757;
+  --accent-primary-hover: #e28566;
+  --accent-primary-soft: rgba(217, 119, 87, 0.15);
 
-  /* Semantic Status — Muted Mineral Tones */
-  --status-good: #4ea885;
-  --status-good-soft: rgba(78, 168, 133, 0.14);
-  --status-warn: #d89b44;
-  --status-warn-soft: rgba(216, 155, 68, 0.14);
-  --status-bad: #d96262;
-  --status-bad-soft: rgba(217, 98, 98, 0.14);
+  /* Semantic Status — Muted Warm Mineral Tones */
+  --status-good: #5fa888;
+  --status-good-soft: rgba(95, 168, 136, 0.15);
+  --status-warn: #d9a04e;
+  --status-warn-soft: rgba(217, 160, 78, 0.15);
+  --status-bad: #d96b6b;
+  --status-bad-soft: rgba(217, 107, 107, 0.15);
 
-  /* Backwards-compatible Aliases (refined earth/mineral tones) */
-  --accent-indigo: #e06d4f;
-  --accent-indigo-strong: #c95d40;
-  --accent-emerald: #4ea885;
-  --accent-emerald-strong: #3e8e6f;
-  --accent-amber: #d89b44;
-  --accent-amber-strong: #bf8535;
-  --accent-coral: #d96262;
-  --accent-coral-strong: #c04f4f;
-  --accent-sky: #7da6c7;
-  --accent-violet: #9e8cc4;
+  /* Backwards-compatible Aliases */
+  --accent-indigo: #d97757;
+  --accent-indigo-strong: #c26546;
+  --accent-emerald: #5fa888;
+  --accent-emerald-strong: #4d9173;
+  --accent-amber: #d9a04e;
+  --accent-amber-strong: #c0893c;
+  --accent-coral: #d96b6b;
+  --accent-coral-strong: #c15757;
+  --accent-sky: #7ea6c4;
+  --accent-violet: #a292c4;
 
-  /* Typography */
-  --font-display: "Lora", Georgia, serif;
-  --font-sans: "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  /* Claude Typography Stack (Native Vietnamese Diacritics) */
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  /* Radii & Subtle Depth */
+  /* Soft Matte Radii & Subtle Depth */
   --radius-xs: 6px;
   --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 14px;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28);
-  --shadow-elevated: 0 20px 48px rgba(0, 0, 0, 0.56);
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-elevated: 0 18px 44px rgba(0, 0, 0, 0.46);
 
   /* Layout & Motion */
   --nav-height: 58px;
@@ -71,7 +72,7 @@
 }
 
 /* ==========================================================================
-   Base & Resets
+   Base & Typography Craft
    ========================================================================== */
 
 *,
@@ -84,6 +85,9 @@ html {
   color-scheme: dark;
   scroll-behavior: smooth;
   background-color: var(--bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -92,10 +96,32 @@ body {
   background-color: var(--bg-canvas);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.6;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  font-optical-sizing: auto;
+}
+
+strong,
+b {
+  font-weight: 500;
+}
+
+::selection {
+  background: rgba(217, 119, 87, 0.28);
+  color: var(--text-primary);
 }
 
 button,
@@ -128,10 +154,10 @@ a:hover {
   outline-offset: 2px;
 }
 
-/* Quiet Dark Scrollbars */
+/* Quiet Warm-Stone Scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  scrollbar-color: rgba(236, 235, 228, 0.16) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -144,14 +170,14 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(236, 235, 228, 0.14);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.26);
+  background: rgba(236, 235, 228, 0.24);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -171,7 +197,7 @@ a:hover {
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 36px 24px 72px;
+  padding: 40px 24px 76px;
 }
 
 .vf-view-enter {
@@ -194,13 +220,14 @@ a:hover {
   justify-content: space-between;
   gap: 12px;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .vf-footer-brand {
-  font-family: var(--font-display);
+  font-family: var(--font-serif);
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
 /* ==========================================================================
@@ -215,8 +242,9 @@ a:hover {
   padding: 9px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
+  font-family: var(--font-sans);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
   white-space: nowrap;
   transition:
@@ -232,7 +260,7 @@ a:hover {
 
 .vf-btn--primary {
   background: var(--accent-primary);
-  color: #141210;
+  color: #1b1917;
   border-color: var(--accent-primary);
 }
 
@@ -242,14 +270,14 @@ a:hover {
 }
 
 .vf-btn--secondary {
-  background: var(--bg-surface);
+  background: var(--bg-card);
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
 
 .vf-btn--secondary:hover:not(:disabled) {
-  background: var(--bg-card);
-  border-color: rgba(255, 255, 255, 0.26);
+  background: var(--bg-elevated);
+  border-color: rgba(236, 235, 228, 0.28);
 }
 
 .vf-btn--ghost {
@@ -259,35 +287,35 @@ a:hover {
 }
 
 .vf-btn--ghost:hover:not(:disabled) {
-  background: var(--bg-surface);
+  background: var(--bg-card);
   border-color: var(--border-strong);
 }
 
 .vf-btn--good {
   background: var(--status-good-soft);
   color: var(--status-good);
-  border-color: rgba(78, 168, 133, 0.3);
+  border-color: rgba(95, 168, 136, 0.30);
 }
 
 .vf-btn--good:hover:not(:disabled) {
-  background: rgba(78, 168, 133, 0.22);
-  border-color: rgba(78, 168, 133, 0.45);
+  background: rgba(95, 168, 136, 0.22);
+  border-color: rgba(95, 168, 136, 0.45);
 }
 
 .vf-btn--danger {
   background: var(--status-bad-soft);
   color: var(--status-bad);
-  border-color: rgba(217, 98, 98, 0.28);
+  border-color: rgba(217, 107, 107, 0.30);
 }
 
 .vf-btn--danger:hover:not(:disabled) {
-  background: rgba(217, 98, 98, 0.22);
-  border-color: rgba(217, 98, 98, 0.45);
+  background: rgba(217, 107, 107, 0.22);
+  border-color: rgba(217, 107, 107, 0.45);
 }
 
 .vf-btn--sm {
-  padding: 7px 12px;
-  font-size: 0.8125rem;
+  padding: 7px 13px;
+  font-size: 0.84rem;
 }
 
 .vf-btn--lg {
@@ -301,7 +329,8 @@ a:hover {
   gap: 5px;
   padding: 2px 8px;
   border-radius: var(--radius-xs);
-  font-size: 0.74rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   font-weight: 500;
   background: var(--bg-elevated);
   color: var(--text-secondary);
@@ -311,7 +340,7 @@ a:hover {
 .vf-tag--good {
   background: var(--status-good-soft);
   color: var(--status-good);
-  border-color: rgba(78, 168, 133, 0.24);
+  border-color: rgba(95, 168, 136, 0.26);
 }
 
 /* ==========================================================================
@@ -323,7 +352,7 @@ a:hover {
   top: 0;
   z-index: 40;
   height: var(--nav-height);
-  background: rgba(17, 19, 22, 0.94);
+  background: rgba(31, 30, 29, 0.94);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-subtle);
@@ -359,12 +388,17 @@ a:hover {
   flex-shrink: 0;
 }
 
+.vf-brand:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .vf-brand-name {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-family: var(--font-serif);
+  font-size: 1.22rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
+  font-optical-sizing: auto;
 }
 
 .vf-brand-level {
@@ -390,8 +424,9 @@ a:hover {
   border: none;
   background: transparent;
   color: var(--text-secondary);
+  font-family: var(--font-sans);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
   transition: color var(--transition-fast);
 }
@@ -412,7 +447,7 @@ a:hover {
 
 .vf-nav-link.is-active {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vf-nav-link.is-active::after {
@@ -447,10 +482,11 @@ a:hover {
   height: 32px;
   padding: 0 12px;
   border-radius: var(--radius-xs);
-  background: var(--bg-surface);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
-  font-size: 0.8125rem;
+  font-family: var(--font-sans);
+  font-size: 0.84rem;
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
@@ -460,7 +496,7 @@ a:hover {
 }
 
 .vf-nav-auth-btn:hover {
-  background: var(--bg-card);
+  background: var(--bg-elevated);
   border-color: var(--border-strong);
 }
 
@@ -481,13 +517,13 @@ a:hover {
 }
 
 /* ==========================================================================
-   Dashboard — Editorial Study Desk ("Bàn học")
+   Dashboard — Claude Editorial Study Desk ("Bàn học")
    ========================================================================== */
 
 .vf-desk {
   display: flex;
   flex-direction: column;
-  gap: 36px;
+  gap: 38px;
 }
 
 .vf-desk-header {
@@ -507,24 +543,28 @@ a:hover {
 }
 
 .vf-desk-intro {
-  max-width: 58ch;
+  max-width: 60ch;
 }
 
 .vf-desk-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.65rem, 2.8vw, 2.15rem);
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: clamp(1.8rem, 3vw, 2.3rem);
+  font-weight: 400;
   line-height: 1.24;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.022em;
   color: var(--text-primary);
+  font-optical-sizing: auto;
 }
 
 .vf-desk-subtitle {
-  margin: 8px 0 0;
-  font-size: 0.9375rem;
+  margin: 10px 0 0;
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 400;
   color: var(--text-secondary);
-  line-height: 1.6;
+  line-height: 1.7;
+  font-optical-sizing: auto;
 }
 
 .vf-desk-actions {
@@ -539,7 +579,7 @@ a:hover {
 .vf-skill-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  background: var(--bg-surface);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -549,7 +589,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  padding: 13px 16px;
+  padding: 14px 16px;
   border: none;
   border-right: 1px solid var(--border-subtle);
   background: transparent;
@@ -562,7 +602,7 @@ a:hover {
 }
 
 .vf-skill-cell:hover {
-  background: var(--bg-card);
+  background: var(--bg-elevated);
 }
 
 .vf-skill-cell-head {
@@ -573,8 +613,9 @@ a:hover {
 }
 
 .vf-skill-cell-name {
-  font-size: 0.84rem;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -589,7 +630,7 @@ a:hover {
   width: 100%;
   height: 4px;
   border-radius: 2px;
-  background: var(--bg-elevated);
+  background: rgba(236, 235, 228, 0.10);
   overflow: hidden;
 }
 
@@ -618,17 +659,20 @@ a:hover {
 
 .vf-col-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.28rem;
+  font-weight: 500;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 1.28;
+  font-optical-sizing: auto;
 }
 
 .vf-col-label {
   margin: 0;
+  font-family: var(--font-sans);
   font-size: 0.74rem;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -642,7 +686,8 @@ a:hover {
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.82rem;
+  font-family: var(--font-sans);
+  font-size: 0.84rem;
   font-weight: 500;
   transition: color var(--transition-fast);
 }
@@ -660,20 +705,20 @@ a:hover {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   gap: 14px;
-  padding: 18px 8px;
+  padding: 19px 10px;
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color var(--transition-fast);
 }
 
 .vf-chapter-row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(236, 235, 228, 0.03);
 }
 
 .vf-chapter-num {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
-  padding-top: 3px;
+  padding-top: 4px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -693,11 +738,13 @@ a:hover {
   border: none;
   background: transparent;
   text-align: left;
-  font-family: var(--font-display);
-  font-size: 1.04rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.12rem;
+  font-weight: 500;
+  letter-spacing: -0.018em;
   color: var(--text-primary);
   line-height: 1.35;
+  font-optical-sizing: auto;
   transition: color var(--transition-fast);
 }
 
@@ -714,17 +761,19 @@ a:hover {
 }
 
 .vf-chapter-desc {
-  margin: 4px 0 10px;
-  font-size: 0.86rem;
+  margin: 5px 0 11px;
+  font-family: var(--font-serif);
+  font-size: 0.93rem;
+  font-weight: 400;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.65;
 }
 
 .vf-chapter-links {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 .vf-inline-action {
@@ -732,8 +781,9 @@ a:hover {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 400;
   transition: color var(--transition-fast);
 }
 
@@ -778,7 +828,7 @@ a:hover {
 }
 
 .vf-shortcut-row:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(236, 235, 228, 0.03);
 }
 
 .vf-shortcut-left {
@@ -801,18 +851,21 @@ a:hover {
 
 .vf-shortcut-title {
   display: block;
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--text-primary);
-  line-height: 1.35;
+  line-height: 1.38;
 }
 
 .vf-shortcut-sub {
   display: block;
   margin-top: 2px;
-  font-size: 0.79rem;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 400;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.48;
 }
 
 .vf-shortcut-arrow {
@@ -831,10 +884,10 @@ a:hover {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
+  gap: 7px;
+  padding: 18px 20px;
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   text-align: left;
   transition:
@@ -843,7 +896,7 @@ a:hover {
 }
 
 .vf-quick-card:hover {
-  background: var(--bg-card);
+  background: var(--bg-elevated);
   border-color: var(--border-strong);
 }
 
@@ -855,8 +908,10 @@ a:hover {
 }
 
 .vf-quick-card-title {
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
 }
 
@@ -868,9 +923,11 @@ a:hover {
 
 .vf-quick-card-desc {
   margin: 0;
-  font-size: 0.82rem;
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  font-weight: 400;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.65;
 }
 
 .vf-quick-card-cta {
@@ -878,8 +935,9 @@ a:hover {
   align-items: center;
   gap: 5px;
   margin-top: 4px;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 0.84rem;
+  font-weight: 500;
   color: var(--accent-primary);
 }
 
@@ -903,7 +961,8 @@ a:hover {
 
 .vf-log-title {
   margin: 0;
-  font-size: 0.86rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
@@ -913,7 +972,8 @@ a:hover {
 
 .vf-log-meta {
   margin-top: 2px;
-  font-size: 0.76rem;
+  font-family: var(--font-sans);
+  font-size: 0.77rem;
   color: var(--text-muted);
 }
 
@@ -945,19 +1005,21 @@ a:hover {
 
 .vf-log-empty p {
   margin: 0 0 10px;
-  font-size: 0.84rem;
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  font-weight: 400;
   color: var(--text-secondary);
-  line-height: 1.55;
+  line-height: 1.68;
 }
 
 /* ==========================================================================
-   TopicOverview — Editorial Chapter View
+   TopicOverview — Claude Editorial Chapter View
    ========================================================================== */
 
 .vf-chapter-page {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 34px;
 }
 
 .vf-chapter-tabs-wrap {
@@ -986,8 +1048,9 @@ a:hover {
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.86rem;
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
   white-space: nowrap;
   transition: color var(--transition-fast);
 }
@@ -996,9 +1059,13 @@ a:hover {
   color: var(--text-primary);
 }
 
+.vf-chapter-tab:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .vf-chapter-tab.is-active {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vf-chapter-tab.is-active::after {
@@ -1040,46 +1107,52 @@ a:hover {
 
 .vf-chapter-heading {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.55rem, 2.7vw, 2rem);
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: clamp(1.7rem, 2.9vw, 2.2rem);
+  font-weight: 400;
   line-height: 1.24;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.022em;
   color: var(--text-primary);
+  font-optical-sizing: auto;
 }
 
 .vf-chapter-en {
-  margin: 4px 0 0;
-  font-family: var(--font-display);
+  margin: 5px 0 0;
+  font-family: var(--font-serif);
   font-style: italic;
-  font-size: 0.92rem;
+  font-weight: 400;
+  font-size: 0.96rem;
   color: var(--text-muted);
 }
 
 .vf-chapter-summary {
   margin: 12px 0 0;
   max-width: 64ch;
-  font-size: 0.92rem;
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  font-weight: 400;
   color: var(--text-secondary);
-  line-height: 1.65;
+  line-height: 1.7;
+  font-optical-sizing: auto;
 }
 
 .vf-chapter-side {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px 18px;
+  padding: 18px 20px;
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
 }
 
 .vf-chapter-progress-head {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
   color: var(--text-secondary);
-  margin-bottom: 7px;
+  margin-bottom: 8px;
 }
 
 .vf-chapter-progress-head strong {
@@ -1089,7 +1162,8 @@ a:hover {
 }
 
 .vf-chapter-counts {
-  font-size: 0.79rem;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -1105,16 +1179,22 @@ a:hover {
 
 .vf-section-h2 {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.18rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.28;
   color: var(--text-primary);
+  font-optical-sizing: auto;
 }
 
 .vf-section-sub {
-  margin: 3px 0 0;
-  font-size: 0.85rem;
+  margin: 4px 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.92rem;
+  font-weight: 400;
   color: var(--text-muted);
+  line-height: 1.6;
 }
 
 .vf-rate-toggle {
@@ -1132,7 +1212,7 @@ a:hover {
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 0.76rem;
-  font-weight: 500;
+  font-weight: 400;
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
@@ -1143,13 +1223,14 @@ a:hover {
 .vf-rate-btn.is-active {
   background: var(--bg-elevated);
   color: var(--text-primary);
+  font-weight: 500;
 }
 
 .vf-phrases-table {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
+  background: var(--bg-card);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
@@ -1159,7 +1240,7 @@ a:hover {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  padding: 18px 20px;
+  padding: 20px 22px;
   border-right: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color var(--transition-fast);
@@ -1181,43 +1262,42 @@ a:hover {
 }
 
 .vf-phrase-cell:hover {
-  background: var(--bg-card);
+  background: var(--bg-elevated);
 }
 
 .vf-phrase-cell.is-playing {
-  background: var(--bg-card);
+  background: var(--bg-elevated);
 }
 
 .vf-phrase-vi {
   margin: 0;
-  font-size: 0.98rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.08rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
   line-height: 1.48;
-}
-
-.vf-phrase-ipa {
-  margin: 4px 0 0;
-  font-family: var(--font-mono);
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-  word-break: break-word;
+  font-optical-sizing: auto;
 }
 
 .vf-phrase-en {
-  margin: 7px 0 0;
-  font-size: 0.85rem;
+  margin: 6px 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.92rem;
+  font-weight: 400;
   color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .vf-phrase-note {
-  margin: 7px 0 0;
-  padding-left: 10px;
+  margin: 8px 0 0;
+  padding-left: 11px;
   border-left: 2px solid var(--border-strong);
-  font-size: 0.79rem;
+  font-family: var(--font-serif);
+  font-size: 0.86rem;
+  font-weight: 400;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.65;
 }
 
 .vf-audio-btn {
@@ -1237,6 +1317,7 @@ a:hover {
 }
 
 .vf-audio-btn:hover {
+  background: var(--bg-surface);
   border-color: var(--border-strong);
   color: var(--text-primary);
 }
@@ -1249,19 +1330,20 @@ a:hover {
 
 /* Textbook Sidebar Grammar Box */
 .vf-grammar-box {
-  padding: 20px 24px;
-  background: var(--bg-surface);
+  padding: 22px 26px;
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--accent-primary);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 13px;
 }
 
 .vf-grammar-kicker {
+  font-family: var(--font-sans);
   font-size: 0.74rem;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--accent-primary);
@@ -1271,20 +1353,23 @@ a:hover {
   align-self: flex-start;
   padding: 6px 11px;
   border-radius: var(--radius-xs);
-  background: var(--bg-canvas);
+  background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   font-family: var(--font-mono);
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: 0.86rem;
+  font-weight: 400;
   color: var(--text-primary);
 }
 
 .vf-grammar-explanation {
   margin: 0;
   max-width: 72ch;
-  font-size: 0.9rem;
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  font-weight: 400;
   color: var(--text-secondary);
-  line-height: 1.65;
+  line-height: 1.72;
+  font-optical-sizing: auto;
 }
 
 .vf-grammar-example {
@@ -1292,21 +1377,28 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding-top: 12px;
+  padding-top: 14px;
   border-top: 1px solid var(--border-subtle);
 }
 
 .vf-grammar-example-vi {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.06rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
+  line-height: 1.55;
+  font-optical-sizing: auto;
 }
 
 .vf-grammar-example-en {
-  margin: 3px 0 0;
-  font-size: 0.83rem;
+  margin: 4px 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  font-weight: 400;
   color: var(--text-muted);
+  line-height: 1.6;
 }
 
 /* Flat Practice Links Strip */
@@ -1315,7 +1407,7 @@ a:hover {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  background: var(--bg-card);
   overflow: hidden;
 }
 
@@ -1323,7 +1415,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 15px 16px;
+  padding: 16px 17px;
   border: none;
   border-right: 1px solid var(--border-subtle);
   background: transparent;
@@ -1336,7 +1428,7 @@ a:hover {
 }
 
 .vf-practice-link:hover {
-  background: var(--bg-card);
+  background: var(--bg-elevated);
 }
 
 .vf-practice-link-icon {
@@ -1349,26 +1441,29 @@ a:hover {
 }
 
 .vf-practice-link-title {
-  font-size: 0.86rem;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
 .vf-practice-link-sub {
-  font-size: 0.77rem;
+  font-family: var(--font-sans);
+  font-size: 0.79rem;
+  font-weight: 400;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.48;
 }
 
 /* ==========================================================================
-   AuthModal — Crisp Matte Dialog
+   AuthModal — Crisp Warm Matte Dialog
    ========================================================================== */
 
 .vf-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgba(8, 10, 13, 0.76);
+  background: rgba(18, 18, 16, 0.72);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: grid;
@@ -1399,16 +1494,22 @@ a:hover {
 
 .vf-modal-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.18rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.28rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
   color: var(--text-primary);
+  font-optical-sizing: auto;
 }
 
 .vf-modal-subtitle {
-  margin: 4px 0 0;
-  font-size: 0.83rem;
+  margin: 5px 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  font-weight: 400;
   color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .vf-modal-close {
@@ -1451,15 +1552,16 @@ a:hover {
   border: none;
   background: transparent;
   color: var(--text-muted);
+  font-family: var(--font-sans);
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 400;
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .vf-auth-tab.is-active {
   background: var(--bg-elevated);
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vf-form {
@@ -1475,7 +1577,8 @@ a:hover {
 }
 
 .vf-field label {
-  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -1493,7 +1596,9 @@ a:hover {
   background: var(--bg-input);
   border: 1px solid var(--border-strong);
   color: var(--text-primary);
-  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
   transition: border-color var(--transition-fast);
 }
 
@@ -1534,7 +1639,7 @@ a:hover {
   padding: 11px 13px;
   border-radius: var(--radius-sm);
   font-size: 0.84rem;
-  line-height: 1.5;
+  line-height: 1.58;
 }
 
 .vf-alert--info {
@@ -1545,21 +1650,21 @@ a:hover {
 
 .vf-alert--success {
   background: var(--status-good-soft);
-  border: 1px solid rgba(78, 168, 133, 0.28);
-  color: #bce4d4;
+  border: 1px solid rgba(95, 168, 136, 0.30);
+  color: #cde8dc;
 }
 
 .vf-alert--error {
   background: var(--status-bad-soft);
-  border: 1px solid rgba(217, 98, 98, 0.28);
-  color: #f3c1c1;
+  border: 1px solid rgba(217, 107, 107, 0.30);
+  color: #f4c8c8;
 }
 
 .vf-code-box {
   position: relative;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
-  background: var(--bg-canvas);
+  background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   font-family: var(--font-mono);
   font-size: 0.76rem;
@@ -1579,7 +1684,7 @@ a:hover {
   padding: 4px 9px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
+  background: var(--bg-card);
   color: var(--text-secondary);
   font-family: var(--font-sans);
   font-size: 0.72rem;
@@ -1600,9 +1705,14 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  font-size: 0.83rem;
+  font-size: 0.84rem;
   color: var(--text-secondary);
-  line-height: 1.55;
+  line-height: 1.6;
+}
+
+.vf-steps-list strong {
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .vf-steps-list code,
@@ -1612,7 +1722,7 @@ a:hover {
   font-size: 0.78rem;
   padding: 1px 5px;
   border-radius: 4px;
-  background: var(--bg-canvas);
+  background: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
 }
@@ -1634,8 +1744,8 @@ a:hover {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   color: var(--text-primary);
-  font-family: var(--font-display);
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-weight: 500;
   font-size: 1.05rem;
   display: grid;
   place-items: center;
@@ -1644,8 +1754,9 @@ a:hover {
 
 .vf-profile-name {
   margin: 0;
-  font-size: 0.96rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.02rem;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -1694,7 +1805,7 @@ a:hover {
   box-shadow: var(--shadow-elevated);
   color: var(--text-primary);
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 400;
   animation: vfFadeIn 160ms ease-out;
 }
 
@@ -1727,7 +1838,8 @@ a:hover {
   justify-content: center;
   gap: 12px;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-family: var(--font-serif);
+  font-size: 0.96rem;
 }
 
 .vf-spinner {
@@ -1809,7 +1921,7 @@ a:hover {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-    background: rgba(17, 19, 22, 0.96);
+    background: rgba(31, 30, 29, 0.96);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid var(--border-subtle);
@@ -1826,13 +1938,14 @@ a:hover {
     border: none;
     background: transparent;
     color: var(--text-muted);
+    font-family: var(--font-sans);
     font-size: 0.72rem;
-    font-weight: 500;
+    font-weight: 400;
   }
 
   .vf-mobile-tab.is-active {
     color: var(--accent-primary);
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .vf-main {

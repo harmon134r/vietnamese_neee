@@ -165,7 +165,7 @@ export function FlashcardStudio({
 
   return (
     <section className="fc-studio" aria-label="Flashcard tiếng Việt">
-      {/* Single Hairline Top Bar: Lora Title + Minimal Underline Tabs */}
+      {/* Single Hairline Top Bar: Source Serif 4 Title + Minimal Underline Tabs */}
       <header className="fc-header">
         <h2 className="fc-studio-title">Flashcard tiếng Việt</h2>
 

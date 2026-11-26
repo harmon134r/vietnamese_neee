@@ -607,14 +607,19 @@ export function PronunciationLab({
           <div style={{ marginBottom: "14px" }}>
             <h3
               className="vf-g-serif"
-              style={{ margin: "0 0 4px", fontSize: "1.12rem", fontWeight: 600 }}
+              style={{
+                margin: "0 0 4px",
+                fontSize: "1.2rem",
+                fontWeight: 500,
+                letterSpacing: "-0.02em",
+              }}
             >
               Biểu đồ 6 thanh điệu tiếng Việt
             </h3>
             <p
               style={{
                 margin: 0,
-                fontSize: "0.85rem",
+                fontSize: "0.86rem",
                 color: "var(--g-text-secondary)",
               }}
             >
@@ -661,7 +666,7 @@ export function PronunciationLab({
                     y1="17"
                     x2="76"
                     y2="17"
-                    stroke="rgba(255,255,255,0.1)"
+                    stroke="rgba(236,235,228,0.12)"
                     strokeDasharray="3 3"
                   />
                   <path
@@ -744,7 +749,12 @@ export function PronunciationLab({
               >
                 <h3
                   className="vf-g-serif"
-                  style={{ margin: 0, fontSize: "1.18rem", fontWeight: 600 }}
+                  style={{
+                    margin: 0,
+                    fontSize: "1.22rem",
+                    fontWeight: 500,
+                    letterSpacing: "-0.02em",
+                  }}
                 >
                   {currentPair.focusLabel}
                 </h3>
@@ -759,7 +769,7 @@ export function PronunciationLab({
 
               {currentPair.tipVi && (
                 <div className="vf-g-drawer vf-g-drawer--hint">
-                  <strong style={{ fontWeight: 600 }}>Mẹo phát âm:</strong>{" "}
+                  <strong style={{ fontWeight: 500 }}>Mẹo phát âm:</strong>{" "}
                   {currentPair.tipVi}
                 </div>
               )}
@@ -787,26 +797,17 @@ export function PronunciationLab({
                             alignItems: "center",
                             justifyContent: "space-between",
                             gap: "8px",
-                            marginBottom: "10px",
+                            marginBottom: "8px",
                           }}
                         >
                           <span
                             style={{
                               fontSize: "0.78rem",
                               color: "var(--g-text-muted)",
-                              fontWeight: 500,
+                              fontWeight: 450,
                             }}
                           >
                             {formatToneBadge(item.tone)}
-                          </span>
-                          <span
-                            className="vf-g-mono"
-                            style={{
-                              fontSize: "0.82rem",
-                              color: "var(--g-text-muted)",
-                            }}
-                          >
-                            {item.ipa}
                           </span>
                         </div>
 
@@ -816,7 +817,7 @@ export function PronunciationLab({
                             margin: "6px 0 12px",
                             color: "var(--g-text-secondary)",
                             fontSize: "0.9rem",
-                            lineHeight: 1.5,
+                            lineHeight: 1.55,
                           }}
                         >
                           {item.meaningVi}
@@ -829,7 +830,7 @@ export function PronunciationLab({
                             style={{ width: "100%", justifyContent: "space-between" }}
                             onClick={() => speak(item.exampleVi, { rate: 0.95 })}
                           >
-                            <span>“{item.exampleVi}”</span>
+                            <span className="vf-g-phrase-vi">“{item.exampleVi}”</span>
                             <Volume2 size={14} />
                           </button>
                         )}
@@ -895,9 +896,16 @@ export function PronunciationLab({
                                 }}
                               >
                                 Bạn nói:{" "}
-                                <strong style={{ color: "var(--g-text)" }}>
+                                <span
+                                  className="vf-g-serif"
+                                  style={{
+                                    color: "var(--g-text)",
+                                    fontWeight: 500,
+                                    fontSize: "0.94rem",
+                                  }}
+                                >
                                   {evalEntry.spoken}
-                                </strong>
+                                </span>
                               </span>
                               <span
                                 className={`vf-g-tag vf-g-mono ${
@@ -1062,37 +1070,16 @@ export function PronunciationLab({
 
               {/* Target Sentence Card */}
               <div className="vf-g-audio-stage">
-                <p
-                  className="vf-g-serif"
-                  style={{
-                    margin: "0 0 8px",
-                    fontSize: "clamp(1.24rem, 2.4vw, 1.52rem)",
-                    fontWeight: 600,
-                    lineHeight: 1.5,
-                    color: "var(--g-text)",
-                  }}
-                >
+                <p className="vf-g-shadow-sentence">
                   “{currentSentence.textVi}”
                 </p>
 
-                {currentSentence.ipaGuide && (
-                  <div
-                    className="vf-g-mono"
-                    style={{
-                      fontSize: "0.82rem",
-                      color: "var(--g-text-muted)",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    {currentSentence.ipaGuide}
-                  </div>
-                )}
-
                 <div
                   style={{
-                    fontSize: "0.91rem",
+                    fontSize: "0.92rem",
                     color: "var(--g-text-secondary)",
                     marginBottom: "10px",
+                    lineHeight: 1.55,
                   }}
                 >
                   {currentSentence.meaningEn}
@@ -1101,8 +1088,8 @@ export function PronunciationLab({
                 {currentSentence.focusNoteVi && (
                   <div
                     style={{
-                      fontSize: "0.83rem",
-                      color: "#e2be84",
+                      fontSize: "0.84rem",
+                      color: "#e6c48c",
                       marginBottom: "14px",
                     }}
                   >
@@ -1127,7 +1114,13 @@ export function PronunciationLab({
                             className="vf-g-vocab-chip"
                             onClick={() => speak(word, { rate: 0.85 })}
                           >
-                            <Volume2 size={13} /> {word}
+                            <Volume2 size={13} />{" "}
+                            <span
+                              className="vf-g-serif"
+                              style={{ fontSize: "0.95rem", fontWeight: 400 }}
+                            >
+                              {word}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -1290,10 +1283,13 @@ export function PronunciationLab({
                         Nội dung nhận diện được
                       </span>
                       <div
+                        className="vf-g-serif"
                         style={{
-                          fontWeight: 500,
+                          fontSize: "1.02rem",
+                          fontWeight: 400,
                           color: "var(--g-text)",
-                          marginTop: "2px",
+                          marginTop: "3px",
+                          lineHeight: 1.55,
                         }}
                       >
                         “{currentSentenceEval.spoken}”

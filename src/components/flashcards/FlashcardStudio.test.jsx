@@ -88,14 +88,16 @@ describe("FlashcardStudio", () => {
     cleanup();
   });
 
-  it("renders the dark flashcard front with Vietnamese word, POS - /IPA/, tooltip, controls, and shortcut legend", () => {
+  it("renders the flashcard front with Vietnamese word, POS only (no IPA), tooltip, controls, and shortcut legend", () => {
     render(<FlashcardStudio decks={MOCK_DECKS} activeDeckId="deck-food" />);
 
     expect(screen.getByRole("heading", { level: 3, name: "hài lòng" })).toBeInTheDocument();
     const subline = screen.getByTestId("fc-front-subline");
     expect(subline).toHaveTextContent("tính từ");
-    expect(subline).toHaveTextContent("-");
-    expect(subline).toHaveTextContent("/haːj˨˩ lɔŋ˨˩/");
+    expect(subline.textContent).not.toContain("-");
+    expect(subline.textContent).not.toContain("/haːj˨˩ lɔŋ˨˩/");
+    expect(screen.queryByText(/\/haːj˨˩ lɔŋ˨˩\//)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Phiên âm/i)).not.toBeInTheDocument();
 
     expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent(
       "Tự động phát âm khi chuyển thẻ"
@@ -189,8 +191,11 @@ describe("FlashcardStudio", () => {
       );
     });
 
-    // Hide POS & IPA subline
-    fireEvent.click(screen.getByLabelText("Hiển thị loại từ & phiên âm"));
+    // Settings popover has no IPA toggle, only POS visibility
+    expect(screen.queryByText(/phiên âm|IPA/i)).not.toBeInTheDocument();
+
+    // Hide POS subline
+    fireEvent.click(screen.getByLabelText("Hiển thị loại từ"));
     expect(screen.queryByTestId("fc-front-subline")).not.toBeInTheDocument();
   });
 
@@ -257,6 +262,7 @@ describe("FlashcardStudio", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ mới" }));
     expect(screen.getByTestId("fc-creator-panel")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Phiên âm/i)).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Từ vựng \/ cụm từ tiếng Việt/), {
       target: { value: "bữa sáng" },
@@ -354,8 +360,10 @@ describe("FlashcardStudio", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Quản lý/ }));
     expect(screen.getByTestId("fc-deck-manager")).toBeInTheDocument();
+    expect(screen.queryByText(/\/haːj˨˩ lɔŋ˨˩\//)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Chỉnh sửa thẻ hài lòng" }));
+    expect(screen.queryByLabelText(/Sửa phiên âm/i)).not.toBeInTheDocument();
     const defInput = screen.getByLabelText("Sửa định nghĩa");
     fireEvent.change(defInput, { target: { value: "cảm thấy rất vừa ý và vui" } });
     fireEvent.click(screen.getByRole("button", { name: /Lưu thẻ/ }));

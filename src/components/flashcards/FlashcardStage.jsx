@@ -19,7 +19,6 @@ import {
   stopSpeaking,
 } from "../../lib/speech.js";
 import { scoreVietnamesePronunciation } from "../../lib/pronunciation.js";
-import { formatIpaDisplay } from "../../lib/flashcardParser.js";
 
 const SPEED_OPTIONS = [0.75, 0.9, 1, 1.15];
 
@@ -94,7 +93,7 @@ export function FlashcardStage({
   const [rate, setRate] = useState(1);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [autoSpeakExample, setAutoSpeakExample] = useState(false);
-  const [showMeta, setShowMeta] = useState(true);
+  const [showPos, setShowPos] = useState(true);
   const [reverseMode, setReverseMode] = useState(false);
   const [showTooltipHint, setShowTooltipHint] = useState(true);
 
@@ -384,7 +383,6 @@ export function FlashcardStage({
     );
   }
 
-  const formattedIpa = formatIpaDisplay(card.ipa);
   const isMastered = (card.masteryLevel || 0) >= MASTERY_LEVELS.STRONG;
   const isReview = (card.masteryLevel || 0) >= MASTERY_LEVELS.REVIEW && !isMastered;
 
@@ -511,11 +509,11 @@ export function FlashcardStage({
 
           <div className="fc-popover-section">
             <label className="fc-setting-toggle-row">
-              <span>Hiển thị loại từ &amp; phiên âm</span>
+              <span>Hiển thị loại từ</span>
               <input
                 type="checkbox"
-                checked={showMeta}
-                onChange={(e) => setShowMeta(e.target.checked)}
+                checked={showPos}
+                onChange={(e) => setShowPos(e.target.checked)}
               />
             </label>
             <label className="fc-setting-toggle-row">
@@ -610,11 +608,9 @@ export function FlashcardStage({
                 {reverseMode ? card.definition : card.frontVi}
               </h3>
 
-              {showMeta && !reverseMode && (card.pos || formattedIpa) && (
+              {showPos && !reverseMode && card.pos && (
                 <div className="fc-word-subline" data-testid="fc-front-subline">
-                  {card.pos && <span className="fc-pos-text">{card.pos}</span>}
-                  {card.pos && formattedIpa && <span className="fc-subline-sep">-</span>}
-                  {formattedIpa && <span className="fc-ipa-text">{formattedIpa}</span>}
+                  <span className="fc-pos-text">{card.pos}</span>
                 </div>
               )}
 

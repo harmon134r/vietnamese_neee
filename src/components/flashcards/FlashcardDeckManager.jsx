@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Check, Pencil, Plus, Trash2, Volume2, X } from "lucide-react";
 import { MASTERY_LEVELS, TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
 import { speakVietnamese } from "../../lib/speech.js";
-import { VIETNAMESE_POS_OPTIONS, formatIpaDisplay } from "../../lib/flashcardParser.js";
+import { VIETNAMESE_POS_OPTIONS } from "../../lib/flashcardParser.js";
 
 export function FlashcardDeckManager({
   deck,
@@ -55,7 +55,6 @@ export function FlashcardDeckManager({
     setEditDraft({
       frontVi: card.frontVi || "",
       pos: card.pos || "",
-      ipa: card.ipa || "",
       definition: card.definition || "",
       exampleVi: card.exampleVi || "",
       exampleEn: card.exampleEn || "",
@@ -71,7 +70,6 @@ export function FlashcardDeckManager({
       await onUpdateCard?.(cardId, {
         frontVi: editDraft.frontVi.trim(),
         pos: editDraft.pos.trim(),
-        ipa: formatIpaDisplay(editDraft.ipa),
         definition: editDraft.definition.trim(),
         exampleVi: editDraft.exampleVi.trim(),
         exampleEn: editDraft.exampleEn.trim(),
@@ -206,7 +204,6 @@ export function FlashcardDeckManager({
               const isMastered = (card.masteryLevel || 0) >= MASTERY_LEVELS.STRONG;
               const isReview =
                 (card.masteryLevel || 0) >= MASTERY_LEVELS.REVIEW && !isMastered;
-              const ipaFormatted = formatIpaDisplay(card.ipa);
 
               if (isEditing && editDraft) {
                 return (
@@ -226,32 +223,21 @@ export function FlashcardDeckManager({
                         aria-label="Sửa từ vựng tiếng Việt"
                         required
                       />
-                      <div className="fc-form-row fc-inline-subrow">
-                        <select
-                          className="fc-select"
-                          value={editDraft.pos}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({ ...d, pos: e.target.value }))
-                          }
-                          aria-label="Sửa loại từ"
-                        >
-                          <option value="">Loại từ</option>
-                          {VIETNAMESE_POS_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          className="fc-input"
-                          value={editDraft.ipa}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({ ...d, ipa: e.target.value }))
-                          }
-                          placeholder="Phiên âm"
-                          aria-label="Sửa phiên âm"
-                        />
-                      </div>
+                      <select
+                        className="fc-select"
+                        value={editDraft.pos}
+                        onChange={(e) =>
+                          setEditDraft((d) => ({ ...d, pos: e.target.value }))
+                        }
+                        aria-label="Sửa loại từ"
+                      >
+                        <option value="">Loại từ</option>
+                        {VIETNAMESE_POS_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <input
                       className="fc-input"
@@ -312,10 +298,9 @@ export function FlashcardDeckManager({
                 <div key={card.id} className="fc-card-list-item">
                   <div className="fc-table-term">
                     <strong>{card.frontVi}</strong>
-                    {(card.pos || ipaFormatted) && (
+                    {card.pos && (
                       <div className="fc-table-meta">
-                        {card.pos && <span className="fc-list-pos">{card.pos}</span>}
-                        {ipaFormatted && <span className="fc-list-ipa">{ipaFormatted}</span>}
+                        <span className="fc-list-pos">{card.pos}</span>
                       </div>
                     )}
                   </div>

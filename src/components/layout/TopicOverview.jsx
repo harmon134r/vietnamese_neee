@@ -154,6 +154,7 @@ export function TopicOverview({
                 role="tab"
                 aria-selected={isActive}
                 className={`vf-chapter-tab ${isActive ? "is-active" : ""}`}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onSelectTopic(topic.id)}
               >
                 <span className="vf-chapter-tab-idx">{num}</span>
@@ -244,7 +245,6 @@ export function TopicOverview({
               >
                 <div style={{ minWidth: 0 }}>
                   <p className="vf-phrase-vi">{phrase.vi}</p>
-                  {phrase.ipa && <p className="vf-phrase-ipa">{phrase.ipa}</p>}
                   {phrase.en && <p className="vf-phrase-en">{phrase.en}</p>}
                   {phrase.noteVi && <p className="vf-phrase-note">{phrase.noteVi}</p>}
                 </div>

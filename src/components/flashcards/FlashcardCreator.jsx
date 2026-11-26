@@ -13,18 +13,23 @@ import {
 import { TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
 import { speakVietnamese } from "../../lib/speech.js";
 import {
-  SAMPLE_BULK_TEMPLATE,
   VIETNAMESE_POS_OPTIONS,
-  formatIpaDisplay,
   parseBulkFlashcards,
 } from "../../lib/flashcardParser.js";
 
 const NEW_DECK_VALUE = "__new__";
 
+const CREATOR_SAMPLE_BULK_TEMPLATE = `hài lòng | tính từ | cảm thấy vừa ý, thỏa mãn với điều gì đó | Tôi rất hài lòng với món phở ở quán này.
+ẩm thực | danh từ | nghệ thuật nấu nướng và văn hóa ăn uống | Ẩm thực Việt Nam có sự cân bằng tuyệt vời giữa các vị.
+thói quen | danh từ | hành động lặp đi lặp lại hằng ngày | Anh ấy có thói quen uống cà phê sữa đá mỗi sáng.
+Từ: dễ chịu
+Loại từ: tính từ
+Định nghĩa: mang lại cảm giác thoải mái, êm dịu
+Ví dụ: Thời tiết Đà Lạt buổi tối rất mát mẻ và dễ chịu.`;
+
 const EMPTY_SINGLE_FORM = {
   frontVi: "",
   pos: "danh từ",
-  ipa: "",
   definition: "",
   exampleVi: "",
   exampleEn: "",
@@ -98,7 +103,7 @@ export function FlashcardCreator({
         throw new Error("Vui lòng nhập tên bộ thẻ mới.");
       }
       const topicId = newDeckTopicId || null;
-      const color = topicId && TOPIC_META[topicId] ? TOPIC_META[topicId].accent : "#e06d4f";
+      const color = topicId && TOPIC_META[topicId] ? TOPIC_META[topicId].accent : "#d97757";
       const createdDeck = await onCreateDeck?.({
         title: cleanTitle,
         description: `Bộ thẻ tự tạo (${cardsToSave.length} thẻ)`,
@@ -165,7 +170,7 @@ export function FlashcardCreator({
       const cardPayload = {
         frontVi,
         pos: form.pos.trim(),
-        ipa: formatIpaDisplay(form.ipa),
+        ipa: "",
         definition,
         exampleVi: form.exampleVi.trim(),
         exampleEn: form.exampleEn.trim(),
@@ -201,7 +206,7 @@ export function FlashcardCreator({
       .map((c) => ({
         frontVi: String(c.frontVi || "").trim(),
         pos: String(c.pos || "").trim(),
-        ipa: formatIpaDisplay(c.ipa || ""),
+        ipa: "",
         definition: String(c.definition || "").trim(),
         exampleVi: String(c.exampleVi || "").trim(),
         exampleEn: String(c.exampleEn || "").trim(),
@@ -229,8 +234,6 @@ export function FlashcardCreator({
       setIsSubmitting(false);
     }
   };
-
-  const previewIpa = formatIpaDisplay(form.ipa);
 
   return (
     <div className="fc-creator-panel" data-testid="fc-creator-panel">
@@ -339,32 +342,20 @@ export function FlashcardCreator({
               />
             </div>
 
-            <div className="fc-form-row">
-              <div className="fc-field">
-                <label htmlFor="fc-pos">Loại từ</label>
-                <select
-                  id="fc-pos"
-                  className="fc-select"
-                  value={form.pos}
-                  onChange={(e) => setForm((f) => ({ ...f, pos: e.target.value }))}
-                >
-                  {VIETNAMESE_POS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="fc-field">
-                <label htmlFor="fc-ipa">Phiên âm (tuỳ chọn)</label>
-                <input
-                  id="fc-ipa"
-                  className="fc-input"
-                  value={form.ipa}
-                  onChange={(e) => setForm((f) => ({ ...f, ipa: e.target.value }))}
-                  placeholder="VD: /haːj˨˩ lɔŋ˨˩/"
-                />
-              </div>
+            <div className="fc-field">
+              <label htmlFor="fc-pos">Loại từ</label>
+              <select
+                id="fc-pos"
+                className="fc-select"
+                value={form.pos}
+                onChange={(e) => setForm((f) => ({ ...f, pos: e.target.value }))}
+              >
+                {VIETNAMESE_POS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="fc-field">
@@ -466,13 +457,7 @@ export function FlashcardCreator({
               <div className="fc-preview-word">
                 {form.frontVi.trim() || "từ vựng tiếng Việt"}
               </div>
-              {(form.pos || previewIpa) && (
-                <div className="fc-preview-sub">
-                  {form.pos}
-                  {form.pos && previewIpa ? " - " : ""}
-                  {previewIpa && <i>{previewIpa}</i>}
-                </div>
-              )}
+              {form.pos && <div className="fc-preview-sub">{form.pos}</div>}
             </div>
 
             <div className="fc-preview-card back">
@@ -514,7 +499,7 @@ export function FlashcardCreator({
               <button
                 type="button"
                 className="fc-field-inline-action"
-                onClick={() => setBulkText(SAMPLE_BULK_TEMPLATE)}
+                onClick={() => setBulkText(CREATOR_SAMPLE_BULK_TEMPLATE)}
               >
                 <ClipboardList size={13} />
                 <span>Chèn ví dụ mẫu</span>

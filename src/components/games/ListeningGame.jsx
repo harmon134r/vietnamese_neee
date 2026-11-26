@@ -304,10 +304,17 @@ export function ListeningGame({
                 ) : (
                   <XCircle size={16} color="var(--g-bad)" />
                 )}
-                <span style={{ fontSize: "0.87rem", color: "var(--g-text)" }}>
+                <span
+                  className="vf-g-serif"
+                  style={{ fontSize: "0.95rem", color: "var(--g-text)" }}
+                >
                   <span
                     className="vf-g-mono"
-                    style={{ color: "var(--g-text-muted)", marginRight: "6px" }}
+                    style={{
+                      color: "var(--g-text-muted)",
+                      marginRight: "8px",
+                      fontSize: "0.8rem",
+                    }}
                   >
                     {String(idx + 1).padStart(2, "0")}
                   </span>
@@ -486,14 +493,14 @@ export function ListeningGame({
 
         {showHint && currentExercise.hintVi && (
           <div className="vf-g-drawer vf-g-drawer--hint">
-            <strong style={{ fontWeight: 600 }}>Gợi ý:</strong>{" "}
+            <strong style={{ fontWeight: 500 }}>Gợi ý:</strong>{" "}
             {currentExercise.hintVi}
           </div>
         )}
 
         {showTranscript && (
           <div className="vf-g-drawer" data-testid="listening-transcript">
-            <div style={{ fontWeight: 500, marginBottom: "4px" }}>
+            <div className="vf-g-transcript-text">
               “{currentExercise.transcriptVi || currentExercise.audioTextVi}”
             </div>
             {currentExercise.translationEn && (
@@ -570,7 +577,8 @@ export function ListeningGame({
                 alignItems: "center",
                 gap: "7px",
                 fontSize: "0.94rem",
-                color: isCurrentCorrect ? "#8ad3b5" : "#eba0a0",
+                fontWeight: 500,
+                color: isCurrentCorrect ? "#9ad4b8" : "#eea7a7",
               }}
             >
               {isCurrentCorrect ? (
@@ -615,12 +623,15 @@ export function ListeningGame({
               style={{
                 margin: "0 0 6px",
                 fontSize: "0.88rem",
-                color: "#9fdcc2",
+                color: "#a4dbc0",
                 lineHeight: 1.55,
               }}
             >
-              <strong>Đáp án đúng:</strong> {correctOptionObj.textVi} —{" "}
-              {correctOptionObj.explanationVi}
+              <strong style={{ fontWeight: 500 }}>Đáp án đúng:</strong>{" "}
+              <span className="vf-g-serif" style={{ fontSize: "0.95rem" }}>
+                {correctOptionObj.textVi}
+              </span>{" "}
+              — {correctOptionObj.explanationVi}
             </p>
           )}
 
@@ -645,7 +656,12 @@ export function ListeningGame({
                       onClick={() => handleSpeakVocab(kv.word)}
                     >
                       <Volume2 size={13} />
-                      <strong style={{ fontWeight: 600 }}>{kv.word}</strong>
+                      <span
+                        className="vf-g-serif"
+                        style={{ fontWeight: 500, fontSize: "0.94rem" }}
+                      >
+                        {kv.word}
+                      </span>
                       <span style={{ color: "var(--g-text-muted)" }}>
                         — {kv.meaning}
                       </span>

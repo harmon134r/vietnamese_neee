@@ -423,7 +423,12 @@ export function DialogueRoleplay({
           <div>
             <h3
               className="vf-g-serif"
-              style={{ margin: "0 0 4px", fontSize: "1.22rem", fontWeight: 600 }}
+              style={{
+                margin: "0 0 4px",
+                fontSize: "1.28rem",
+                fontWeight: 500,
+                letterSpacing: "-0.02em",
+              }}
             >
               Chọn tình huống hội thoại
             </h3>
@@ -482,8 +487,9 @@ export function DialogueRoleplay({
                     className="vf-g-serif"
                     style={{
                       margin: "0 0 6px",
-                      fontSize: "1.08rem",
-                      fontWeight: 600,
+                      fontSize: "1.14rem",
+                      fontWeight: 500,
+                      letterSpacing: "-0.015em",
                       color: "var(--g-text)",
                     }}
                   >
@@ -526,7 +532,7 @@ export function DialogueRoleplay({
                   <span
                     style={{
                       color: "var(--g-accent)",
-                      fontWeight: 600,
+                      fontWeight: 500,
                       fontSize: "0.83rem",
                     }}
                   >
@@ -578,7 +584,14 @@ export function DialogueRoleplay({
                 flexWrap: "wrap",
               }}
             >
-              <strong style={{ fontSize: "0.96rem", fontWeight: 600 }}>
+              <strong
+                className="vf-g-serif"
+                style={{
+                  fontSize: "1.04rem",
+                  fontWeight: 500,
+                  letterSpacing: "-0.01em",
+                }}
+              >
                 {activeScenario.partnerName}
               </strong>
               <span
@@ -699,11 +712,13 @@ export function DialogueRoleplay({
                 {showEnglish && msg.textEn && (
                   <div
                     style={{
-                      marginTop: "6px",
+                      marginTop: "7px",
+                      fontFamily: "var(--g-font-sans)",
                       fontSize: "0.82rem",
+                      lineHeight: 1.5,
                       color: "var(--g-text-muted)",
                       borderTop: "1px solid var(--g-border)",
-                      paddingTop: "5px",
+                      paddingTop: "6px",
                     }}
                   >
                     {msg.textEn}
@@ -714,7 +729,9 @@ export function DialogueRoleplay({
                   <div
                     style={{
                       marginTop: "6px",
+                      fontFamily: "var(--g-font-sans)",
                       fontSize: "0.78rem",
+                      lineHeight: 1.48,
                       color: "var(--g-text-secondary)",
                     }}
                   >
@@ -860,7 +877,7 @@ export function DialogueRoleplay({
                   <div
                     style={{
                       fontSize: "0.77rem",
-                      fontWeight: 600,
+                      fontWeight: 500,
                       marginBottom: "6px",
                     }}
                   >
@@ -874,7 +891,7 @@ export function DialogueRoleplay({
                           fontSize: "0.84rem",
                           padding: "3px 9px",
                           borderRadius: "6px",
-                          background: "rgba(255,255,255,0.05)",
+                          background: "rgba(236,235,228,0.06)",
                           border: "1px solid var(--g-border)",
                         }}
                       >
@@ -1047,9 +1064,11 @@ export function DialogueRoleplay({
                           {opt.labelVi}
                         </div>
                         <div
+                          className="vf-g-serif"
                           style={{
-                            fontSize: "0.95rem",
-                            fontWeight: 500,
+                            fontSize: "1.02rem",
+                            fontWeight: 400,
+                            lineHeight: 1.58,
                             color: "var(--g-text)",
                           }}
                         >

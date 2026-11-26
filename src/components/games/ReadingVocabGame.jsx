@@ -537,8 +537,9 @@ export function ReadingVocabGame({
                         <strong
                           className="vf-g-serif"
                           style={{
-                            fontSize: "1.18rem",
-                            fontWeight: 600,
+                            fontSize: "1.26rem",
+                            fontWeight: 500,
+                            letterSpacing: "-0.02em",
                             color: "var(--g-text)",
                           }}
                         >
@@ -555,24 +556,15 @@ export function ReadingVocabGame({
                             {activeGlossaryEntry.pos}
                           </span>
                         )}
-                        {activeGlossaryEntry.ipa && (
-                          <span
-                            className="vf-g-mono"
-                            style={{
-                              fontSize: "0.8rem",
-                              color: "var(--g-text-muted)",
-                            }}
-                          >
-                            {activeGlossaryEntry.ipa}
-                          </span>
-                        )}
                       </div>
                       <p
+                        className="vf-g-serif"
                         style={{
                           margin: "8px 0 4px",
-                          fontSize: "0.93rem",
+                          fontSize: "0.99rem",
+                          fontWeight: 400,
                           color: "var(--g-text)",
-                          lineHeight: 1.55,
+                          lineHeight: 1.62,
                         }}
                       >
                         {activeGlossaryEntry.definitionVi}
@@ -665,7 +657,12 @@ export function ReadingVocabGame({
                 >
                   <h4
                     className="vf-g-serif"
-                    style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600 }}
+                    style={{
+                      margin: 0,
+                      fontSize: "1.16rem",
+                      fontWeight: 500,
+                      letterSpacing: "-0.015em",
+                    }}
                   >
                     Câu hỏi đọc hiểu{" "}
                     <span
@@ -693,20 +690,14 @@ export function ReadingVocabGame({
 
                   return (
                     <div key={q.id} className="vf-g-reading-q-card">
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          marginBottom: "12px",
-                          fontSize: "0.95rem",
-                          lineHeight: 1.5,
-                        }}
-                      >
+                      <div className="vf-g-reading-q-title">
                         <span
                           className="vf-g-mono"
                           style={{
                             color: "var(--g-text-muted)",
                             marginRight: "8px",
-                            fontWeight: 500,
+                            fontSize: "0.84rem",
+                            fontWeight: 400,
                           }}
                         >
                           {String(qIdx + 1).padStart(2, "0")}.
@@ -747,11 +738,11 @@ export function ReadingVocabGame({
                           style={{
                             marginTop: "10px",
                             fontSize: "0.86rem",
-                            lineHeight: 1.55,
-                            color: isCorrect ? "#9bdcc0" : "#e5c58e",
+                            lineHeight: 1.58,
+                            color: isCorrect ? "#9ed8bc" : "#e8c891",
                           }}
                         >
-                          <strong>
+                          <strong style={{ fontWeight: 500 }}>
                             {isCorrect ? "Chính xác: " : "Giải thích: "}
                           </strong>
                           {q.explanationVi}
@@ -775,7 +766,13 @@ export function ReadingVocabGame({
                   data-testid="reading-passage-complete"
                 >
                   <div>
-                    <strong style={{ color: "#8ad3b5", fontSize: "0.95rem" }}>
+                    <strong
+                      style={{
+                        color: "#9ad4b8",
+                        fontSize: "0.95rem",
+                        fontWeight: 500,
+                      }}
+                    >
                       Hoàn thành bài đọc · Đạt{" "}
                       {Math.round(
                         (readingCorrectCount /
@@ -922,10 +919,11 @@ export function ReadingVocabGame({
                 <div
                   className="vf-g-serif"
                   style={{
-                    fontSize: "1.2rem",
-                    fontWeight: 600,
+                    fontSize: "1.26rem",
+                    fontWeight: 400,
+                    letterSpacing: "-0.015em",
                     color: "var(--g-text)",
-                    lineHeight: 1.45,
+                    lineHeight: 1.48,
                   }}
                 >
                   “{currentBuilderItem.promptEn}”
@@ -1083,11 +1081,12 @@ export function ReadingVocabGame({
                 <div className="vf-g-feedback-box vf-g-feedback-box--err">
                   <strong
                     style={{
-                      color: "#eba0a0",
+                      color: "#eea7a7",
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "7px",
                       fontSize: "0.9rem",
+                      fontWeight: 500,
                     }}
                   >
                     <XCircle size={16} /> Trật tự chưa đúng — thử đổi lại vị trí các cụm từ nhé.
@@ -1105,14 +1104,31 @@ export function ReadingVocabGame({
                 >
                   <div
                     style={{
-                      fontWeight: 600,
-                      color:
-                        builderStatus === "correct" ? "#8ad3b5" : "#e7c285",
                       marginBottom: "6px",
+                      lineHeight: 1.55,
                     }}
                   >
-                    {builderStatus === "correct" ? "Chính xác: " : "Câu chuẩn: "}
-                    “{currentBuilderItem.targetSentenceVi}”
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        color:
+                          builderStatus === "correct" ? "#9ad4b8" : "#e9c78f",
+                      }}
+                    >
+                      {builderStatus === "correct"
+                        ? "Chính xác: "
+                        : "Câu chuẩn: "}
+                    </span>
+                    <span
+                      className="vf-g-serif"
+                      style={{
+                        fontSize: "1.06rem",
+                        fontWeight: 400,
+                        color: "var(--g-text)",
+                      }}
+                    >
+                      “{currentBuilderItem.targetSentenceVi}”
+                    </span>
                   </div>
                   {currentBuilderItem.grammarNoteVi && (
                     <p
@@ -1120,10 +1136,12 @@ export function ReadingVocabGame({
                         margin: 0,
                         fontSize: "0.88rem",
                         color: "var(--g-text-secondary)",
-                        lineHeight: 1.55,
+                        lineHeight: 1.58,
                       }}
                     >
-                      <strong>Ghi chú ngữ pháp:</strong>{" "}
+                      <strong style={{ fontWeight: 500 }}>
+                        Ghi chú ngữ pháp:
+                      </strong>{" "}
                       {currentBuilderItem.grammarNoteVi}
                     </p>
                   )}

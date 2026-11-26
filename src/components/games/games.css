@@ -1,39 +1,56 @@
 /* ==========================================================================
-   ViệtFlow — 4-Skill Editorial Studio Stylesheet (games.css)
+   ViệtFlow — 4-Skill Claude-Inspired Warm-Stone Studio Stylesheet (games.css)
    Namespace: .vf-g-* (isolated from global styles.css and flashcards.css)
-   Aesthetic: Warm Charcoal + Sơn Mài Terracotta Editorial Language Studio
+   Aesthetic: Claude Dark Mode Warm Stone (#262624) + Source Serif 4 Typography
    ========================================================================== */
 
 .vf-g-root {
-  --g-canvas: var(--bg-canvas, #111316);
-  --g-surface: var(--bg-surface, #171a1f);
-  --g-card: var(--bg-card, #1d2128);
-  --g-elevated: var(--bg-elevated, #242933);
-  --g-hover: #2a303c;
+  --g-canvas: var(--bg-canvas, #262624);
+  --g-surface: var(--bg-surface, #1f1e1d);
+  --g-card: var(--bg-card, #2e2e2b);
+  --g-elevated: var(--bg-elevated, #363532);
+  --g-hover: #3e3d3a;
 
-  --g-border: var(--border-subtle, rgba(255, 255, 255, 0.08));
-  --g-border-strong: var(--border-strong, rgba(255, 255, 255, 0.16));
+  --g-border: var(--border-subtle, rgba(236, 235, 228, 0.1));
+  --g-border-strong: var(--border-strong, rgba(236, 235, 228, 0.18));
 
-  --g-text: var(--text-primary, #f2f0eb);
-  --g-text-secondary: var(--text-secondary, #a6aab3);
-  --g-text-muted: var(--text-muted, #767b85);
+  --g-text: var(--text-primary, #ecebe4);
+  --g-text-secondary: var(--text-secondary, #b4b2a7);
+  --g-text-muted: var(--text-muted, #8a887e);
 
-  --g-accent: var(--accent-primary, #e06d4f);
-  --g-accent-hover: var(--accent-primary-hover, #eb7c5f);
-  --g-accent-soft: var(--accent-primary-soft, rgba(224, 109, 79, 0.14));
+  --g-accent: var(--accent-primary, #d97757);
+  --g-accent-hover: var(--accent-primary-hover, #e28566);
+  --g-accent-soft: var(--accent-primary-soft, rgba(217, 119, 87, 0.15));
 
-  --g-good: var(--status-good, #4ea885);
-  --g-good-soft: var(--status-good-soft, rgba(78, 168, 133, 0.14));
-  --g-warn: var(--status-warn, #d89b44);
-  --g-warn-soft: var(--status-warn-soft, rgba(216, 155, 68, 0.14));
-  --g-bad: var(--status-bad, #d96262);
-  --g-bad-soft: var(--status-bad-soft, rgba(217, 98, 98, 0.14));
-  --g-slate: #7da6c7;
-  --g-slate-soft: rgba(125, 166, 199, 0.14);
+  --g-good: var(--status-good, #5fa888);
+  --g-good-soft: var(--status-good-soft, rgba(95, 168, 136, 0.15));
+  --g-warn: var(--status-warn, #d9a04e);
+  --g-warn-soft: var(--status-warn-soft, rgba(217, 160, 78, 0.15));
+  --g-bad: var(--status-bad, #d96b6b);
+  --g-bad-soft: var(--status-bad-soft, rgba(217, 107, 107, 0.15));
+  --g-slate: #89aec9;
+  --g-slate-soft: rgba(137, 174, 201, 0.15);
 
-  --g-font-display: var(--font-display, "Lora", Georgia, serif);
-  --g-font-sans: var(--font-sans, "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, sans-serif);
-  --g-font-mono: var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, monospace);
+  --g-font-serif: var(
+    --font-serif,
+    var(--font-display, "Source Serif 4", Georgia, "Times New Roman", serif)
+  );
+  --g-font-display: var(--g-font-serif);
+  --g-font-sans: var(
+    --font-sans,
+    "Inter",
+    "Be Vietnam Pro",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif
+  );
+  --g-font-mono: var(
+    --font-mono,
+    "JetBrains Mono",
+    ui-monospace,
+    SFMono-Regular,
+    monospace
+  );
 
   color: var(--g-text);
   font-family: var(--g-font-sans);
@@ -41,6 +58,9 @@
   max-width: 1080px;
   margin: 0 auto;
   padding: 4px 0 56px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
 }
 
 .vf-g-root *,
@@ -55,10 +75,11 @@
 }
 
 .vf-g-serif {
-  font-family: var(--g-font-display);
+  font-family: var(--g-font-serif);
+  font-optical-sizing: auto;
 }
 
-/* ---------- Shared Flat Buttons ---------- */
+/* ---------- Shared Flat Buttons (Crisp Claude Sans Controls) ---------- */
 
 .vf-g-btn {
   display: inline-flex;
@@ -69,9 +90,9 @@
   border: 1px solid var(--g-border-strong);
   background: var(--g-elevated);
   color: var(--g-text);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 450;
   padding: 9px 15px;
   cursor: pointer;
   line-height: 1.25;
@@ -84,7 +105,7 @@
 
 .vf-g-btn:hover:not(:disabled) {
   background: var(--g-hover);
-  border-color: rgba(255, 255, 255, 0.24);
+  border-color: rgba(236, 235, 228, 0.26);
 }
 
 .vf-g-btn:focus-visible {
@@ -100,8 +121,8 @@
 .vf-g-btn--primary {
   background: var(--g-accent);
   border-color: var(--g-accent);
-  color: #ffffff;
-  font-weight: 600;
+  color: #faf9f5;
+  font-weight: 500;
 }
 
 .vf-g-btn--primary:hover:not(:disabled) {
@@ -111,35 +132,35 @@
 
 .vf-g-btn--good {
   background: var(--g-good-soft);
-  border-color: rgba(78, 168, 133, 0.4);
-  color: #8ad3b5;
+  border-color: rgba(95, 168, 136, 0.4);
+  color: #9ad4b8;
 }
 
 .vf-g-btn--good:hover:not(:disabled) {
-  background: rgba(78, 168, 133, 0.22);
-  border-color: rgba(78, 168, 133, 0.6);
-  color: #b7e8d4;
+  background: rgba(95, 168, 136, 0.22);
+  border-color: rgba(95, 168, 136, 0.6);
+  color: #bee8d4;
 }
 
 .vf-g-btn--warn {
   background: var(--g-warn-soft);
-  border-color: rgba(216, 155, 68, 0.42);
-  color: #ebd0a0;
+  border-color: rgba(217, 160, 78, 0.42);
+  color: #edd2a4;
 }
 
 .vf-g-btn--warn:hover:not(:disabled) {
-  background: rgba(216, 155, 68, 0.22);
-  border-color: rgba(216, 155, 68, 0.62);
+  background: rgba(217, 160, 78, 0.22);
+  border-color: rgba(217, 160, 78, 0.62);
 }
 
 .vf-g-btn--bad {
   background: var(--g-bad-soft);
-  border-color: rgba(217, 98, 98, 0.46);
-  color: #f2a8a8;
+  border-color: rgba(217, 107, 107, 0.46);
+  color: #f2aeae;
 }
 
 .vf-g-btn--bad:hover:not(:disabled) {
-  background: rgba(217, 98, 98, 0.24);
+  background: rgba(217, 107, 107, 0.24);
 }
 
 .vf-g-btn--ghost {
@@ -149,7 +170,7 @@
 }
 
 .vf-g-btn--ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(236, 235, 228, 0.06);
   border-color: var(--g-border);
   color: var(--g-text);
 }
@@ -162,7 +183,7 @@
 
 .vf-g-btn--lg {
   padding: 11px 19px;
-  font-size: 0.93rem;
+  font-size: 0.92rem;
   border-radius: 10px;
 }
 
@@ -177,7 +198,7 @@
 .vf-g-mode-card:hover .vf-g-btn--card-cta {
   background: var(--g-accent);
   border-color: var(--g-accent);
-  color: #ffffff;
+  color: #faf9f5;
 }
 
 /* ---------- Restrained Functional Tags ---------- */
@@ -188,36 +209,37 @@
   gap: 5px;
   padding: 3px 9px;
   border-radius: 6px;
+  font-family: var(--g-font-sans);
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid var(--g-border);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(236, 235, 228, 0.04);
   color: var(--g-text-secondary);
   white-space: nowrap;
 }
 
 .vf-g-tag--good {
   background: var(--g-good-soft);
-  border-color: rgba(78, 168, 133, 0.34);
-  color: #8ad3b5;
+  border-color: rgba(95, 168, 136, 0.34);
+  color: #9ad4b8;
 }
 
 .vf-g-tag--warn {
   background: var(--g-warn-soft);
-  border-color: rgba(216, 155, 68, 0.34);
-  color: #e7c285;
+  border-color: rgba(217, 160, 78, 0.34);
+  color: #e9c78f;
 }
 
 .vf-g-tag--bad {
   background: var(--g-bad-soft);
-  border-color: rgba(217, 98, 98, 0.36);
-  color: #eba0a0;
+  border-color: rgba(217, 107, 107, 0.36);
+  color: #eea7a7;
 }
 
 .vf-g-tag--slate {
   background: var(--g-slate-soft);
-  border-color: rgba(125, 166, 199, 0.34);
-  color: #a9c7df;
+  border-color: rgba(137, 174, 201, 0.34);
+  color: #b5cfe2;
 }
 
 /* ---------- Game Hub Layout ---------- */
@@ -233,9 +255,9 @@
 
 .vf-g-hub-title {
   margin: 0;
-  font-family: var(--g-font-display);
-  font-size: clamp(1.65rem, 2.8vw, 2.1rem);
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: clamp(1.75rem, 2.9vw, 2.2rem);
+  font-weight: 400;
   letter-spacing: -0.02em;
   line-height: 1.22;
   color: var(--g-text);
@@ -244,9 +266,10 @@
 .vf-g-hub-subtitle {
   margin: 8px 0 0;
   color: var(--g-text-secondary);
-  font-size: 0.93rem;
+  font-size: 0.94rem;
+  font-weight: 400;
   max-width: 58ch;
-  line-height: 1.6;
+  line-height: 1.62;
 }
 
 /* Flat Horizontal Underline Topic Filter Strip */
@@ -272,9 +295,9 @@
   border: none;
   background: transparent;
   color: var(--g-text-muted);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 450;
   white-space: nowrap;
   cursor: pointer;
   transition: color 0.16s ease;
@@ -292,7 +315,7 @@
 
 .vf-g-topic-tab--active {
   color: var(--g-text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vf-g-topic-tab--active::after {
@@ -311,8 +334,8 @@
   background: var(--g-surface);
   border: 1px solid var(--g-border);
   border-left: 2px solid var(--g-accent);
-  border-radius: 12px;
-  padding: 20px 24px;
+  border-radius: 14px;
+  padding: 22px 24px;
   margin-bottom: 28px;
   display: grid;
   grid-template-columns: 1.25fr 1fr;
@@ -330,9 +353,10 @@
 
 .vf-g-topic-spotlight__title {
   margin: 0;
-  font-family: var(--g-font-display);
-  font-size: 1.16rem;
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: 1.22rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--g-text);
 }
 
@@ -344,13 +368,14 @@
 
 .vf-g-topic-spotlight__desc {
   margin: 0 0 14px;
-  font-size: 0.875rem;
+  font-size: 0.88rem;
   color: var(--g-text-secondary);
-  line-height: 1.6;
+  line-height: 1.62;
 }
 
 .vf-g-section-kicker {
-  font-size: 0.75rem;
+  font-family: var(--g-font-sans);
+  font-size: 0.76rem;
   font-weight: 500;
   color: var(--g-text-muted);
   margin-bottom: 8px;
@@ -359,21 +384,21 @@
 .vf-g-phrase-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .vf-g-phrase-row {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  padding: 8px 11px;
-  border-radius: 8px;
+  padding: 9px 12px;
+  border-radius: 9px;
   background: var(--g-card);
   border: 1px solid var(--g-border);
   color: var(--g-text);
-  font-family: inherit;
-  font-size: 0.84rem;
-  line-height: 1.48;
+  font-family: var(--g-font-sans);
+  font-size: 0.86rem;
+  line-height: 1.52;
   cursor: pointer;
   text-align: left;
   transition: border-color 0.16s ease, background-color 0.16s ease;
@@ -386,7 +411,7 @@
 
 .vf-g-phrase-row svg {
   color: var(--g-text-muted);
-  margin-top: 2px;
+  margin-top: 3px;
   flex-shrink: 0;
   transition: color 0.16s ease;
 }
@@ -395,11 +420,19 @@
   color: var(--g-accent);
 }
 
+.vf-g-phrase-vi {
+  font-family: var(--g-font-serif);
+  font-size: 0.98rem;
+  font-weight: 400;
+  color: var(--g-text);
+  line-height: 1.54;
+}
+
 .vf-g-grammar-box {
   background: var(--g-card);
   border: 1px solid var(--g-border);
-  border-radius: 10px;
-  padding: 16px 18px;
+  border-radius: 12px;
+  padding: 17px 19px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -407,8 +440,9 @@
 }
 
 .vf-g-grammar-label {
+  font-family: var(--g-font-sans);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--g-accent);
@@ -416,22 +450,22 @@
 
 .vf-g-grammar-pattern {
   font-family: var(--g-font-mono);
-  font-size: 0.88rem;
+  font-size: 0.87rem;
   font-weight: 500;
   color: var(--g-text);
-  line-height: 1.5;
+  line-height: 1.52;
   margin-top: 6px;
 }
 
 .vf-g-grammar-explain {
-  font-size: 0.84rem;
+  font-size: 0.85rem;
   color: var(--g-text-secondary);
-  line-height: 1.58;
+  line-height: 1.6;
   margin: 6px 0 0;
 }
 
 .vf-g-grammar-example {
-  font-size: 0.84rem;
+  font-size: 0.85rem;
   color: var(--g-text);
   padding-top: 10px;
   border-top: 1px solid var(--g-border);
@@ -439,6 +473,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.vf-g-grammar-example-vi {
+  font-family: var(--g-font-serif);
+  font-size: 0.99rem;
+  font-weight: 400;
+  line-height: 1.56;
+  color: var(--g-text);
 }
 
 /* 4-Game Studio Modules Grid */
@@ -454,7 +496,7 @@
   justify-content: space-between;
   background: var(--g-card);
   border: 1px solid var(--g-border);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 24px;
   transition:
     background-color 0.18s ease,
@@ -462,7 +504,7 @@
 }
 
 .vf-g-mode-card:hover {
-  background: #20252e;
+  background: var(--g-elevated);
   border-color: var(--g-border-strong);
 }
 
@@ -483,7 +525,7 @@
 .vf-g-mode-index {
   font-family: var(--g-font-mono);
   font-size: 0.78rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--g-text-muted);
   letter-spacing: 0.02em;
 }
@@ -501,19 +543,19 @@
 
 .vf-g-mode-title {
   margin: 0 0 8px;
-  font-family: var(--g-font-display);
-  font-size: 1.2rem;
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-family: var(--g-font-serif);
+  font-size: 1.24rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--g-text);
   line-height: 1.3;
 }
 
 .vf-g-mode-desc {
   margin: 0 0 18px;
-  font-size: 0.88rem;
+  font-size: 0.89rem;
   color: var(--g-text-secondary);
-  line-height: 1.6;
+  line-height: 1.62;
 }
 
 .vf-g-mode-meta-line {
@@ -544,7 +586,7 @@
 .vf-g-mini-track {
   width: 100%;
   height: 3px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(236, 235, 228, 0.09);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -602,9 +644,10 @@
 
 .vf-g-topbar-title {
   margin: 0;
-  font-family: var(--g-font-display);
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: 1.22rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--g-text);
 }
 
@@ -652,9 +695,9 @@
   border: none;
   background: transparent;
   color: var(--g-text-muted);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   font-size: 0.88rem;
-  font-weight: 500;
+  font-weight: 450;
   cursor: pointer;
   transition: color 0.16s ease;
 }
@@ -665,7 +708,7 @@
 
 .vf-g-subtab--active {
   color: var(--g-text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vf-g-subtab--active::after {
@@ -700,7 +743,7 @@
 
 .vf-g-session-meta strong {
   color: var(--g-text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vf-g-dot-sep {
@@ -711,14 +754,14 @@
 .vf-g-panel {
   background: var(--g-surface);
   border: 1px solid var(--g-border);
-  border-radius: 14px;
-  padding: 24px 28px;
+  border-radius: 16px;
+  padding: 26px 28px;
 }
 
 .vf-g-progress-track {
   width: 100%;
   height: 3px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(236, 235, 228, 0.08);
   border-radius: 999px;
   overflow: hidden;
   margin-bottom: 22px;
@@ -731,13 +774,13 @@
   transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ---------- Listening Game (Distraction-Free Audio Studio) ---------- */
+/* ---------- Listening Game (Calm Audio Studio) ---------- */
 
 .vf-g-audio-stage {
   background: var(--g-card);
   border: 1px solid var(--g-border);
-  border-radius: 12px;
-  padding: 20px 22px;
+  border-radius: 14px;
+  padding: 22px 24px;
   margin-bottom: 24px;
 }
 
@@ -753,14 +796,15 @@
 .vf-g-audio-speaker {
   font-size: 0.77rem;
   color: var(--g-text-muted);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .vf-g-audio-title {
   margin: 0;
-  font-family: var(--g-font-display);
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: 1.2rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--g-text);
 }
 
@@ -773,7 +817,7 @@
   padding: 12px 14px;
   background: var(--g-surface);
   border: 1px solid var(--g-border);
-  border-radius: 10px;
+  border-radius: 11px;
 }
 
 .vf-g-audio-bar-left {
@@ -797,7 +841,7 @@
   width: 2.5px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(236, 235, 228, 0.18);
   transition: height 0.2s ease, background-color 0.2s ease;
 }
 
@@ -830,7 +874,7 @@
   color: var(--g-text-muted);
   font-family: var(--g-font-mono);
   font-size: 0.76rem;
-  font-weight: 500;
+  font-weight: 450;
   padding: 5px 9px;
   border-radius: 6px;
   cursor: pointer;
@@ -860,8 +904,8 @@
 
 .vf-g-drawer {
   margin-top: 12px;
-  padding: 13px 16px;
-  border-radius: 9px;
+  padding: 14px 17px;
+  border-radius: 10px;
   background: var(--g-canvas);
   border: 1px solid var(--g-border);
   font-size: 0.9rem;
@@ -871,17 +915,27 @@
 
 .vf-g-drawer--hint {
   border-left: 2px solid var(--g-warn);
-  background: rgba(216, 155, 68, 0.06);
-  color: #e6d4b5;
+  background: rgba(217, 160, 78, 0.08);
+  color: #ead7b7;
+}
+
+.vf-g-transcript-text {
+  font-family: var(--g-font-serif);
+  font-size: 1.05rem;
+  font-weight: 400;
+  line-height: 1.68;
+  color: var(--g-text);
+  margin-bottom: 5px;
 }
 
 /* Test-Booklet Answer Rows */
 .vf-g-question-text {
   margin: 0 0 14px;
-  font-family: var(--g-font-display);
-  font-size: 1.12rem;
-  font-weight: 600;
-  line-height: 1.48;
+  font-family: var(--g-font-serif);
+  font-size: 1.16rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.5;
   color: var(--g-text);
 }
 
@@ -898,13 +952,14 @@
   text-align: left;
   width: 100%;
   padding: 13px 16px;
-  border-radius: 10px;
+  border-radius: 11px;
   border: 1px solid var(--g-border);
   background: var(--g-card);
   color: var(--g-text);
-  font-family: inherit;
-  font-size: 0.93rem;
-  line-height: 1.5;
+  font-family: var(--g-font-serif);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.56;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -920,12 +975,12 @@
 
 .vf-g-option-row--correct {
   background: var(--g-good-soft);
-  border-color: rgba(78, 168, 133, 0.52);
+  border-color: rgba(95, 168, 136, 0.52);
 }
 
 .vf-g-option-row--wrong {
   background: var(--g-bad-soft);
-  border-color: rgba(217, 98, 98, 0.52);
+  border-color: rgba(217, 107, 107, 0.52);
 }
 
 .vf-g-option-row--dim {
@@ -944,27 +999,27 @@
   color: var(--g-text-secondary);
   font-family: var(--g-font-mono);
   font-weight: 500;
-  font-size: 0.78rem;
+  font-size: 0.77rem;
   flex-shrink: 0;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .vf-g-option-row--correct .vf-g-option-key {
-  background: rgba(78, 168, 133, 0.22);
-  border-color: rgba(78, 168, 133, 0.55);
-  color: #9be0c4;
+  background: rgba(95, 168, 136, 0.22);
+  border-color: rgba(95, 168, 136, 0.55);
+  color: #a6dfc5;
 }
 
 .vf-g-option-row--wrong .vf-g-option-key {
-  background: rgba(217, 98, 98, 0.22);
-  border-color: rgba(217, 98, 98, 0.55);
-  color: #f3b1b1;
+  background: rgba(217, 107, 107, 0.22);
+  border-color: rgba(217, 107, 107, 0.55);
+  color: #f3b5b5;
 }
 
 .vf-g-feedback-box {
   margin-top: 18px;
   padding: 16px 18px;
-  border-radius: 10px;
+  border-radius: 11px;
   border: 1px solid var(--g-border);
   background: var(--g-card);
 }
@@ -988,12 +1043,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  border-radius: 7px;
+  padding: 6px 11px;
+  border-radius: 8px;
   border: 1px solid var(--g-border);
   background: var(--g-surface);
   color: var(--g-text);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   font-size: 0.82rem;
   cursor: pointer;
   transition: border-color 0.15s ease, background-color 0.15s ease;
@@ -1012,7 +1067,7 @@
   color: var(--g-accent);
 }
 
-/* ---------- Pronunciation Lab (Modern Phonetics Studio) ---------- */
+/* ---------- Pronunciation Lab (Calm Phonetics Studio) ---------- */
 
 .vf-g-tone-legend {
   display: grid;
@@ -1027,11 +1082,11 @@
   align-items: flex-start;
   gap: 6px;
   padding: 13px 12px;
-  border-radius: 10px;
+  border-radius: 11px;
   border: 1px solid var(--g-border);
   background: var(--g-card);
   color: var(--g-text);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   text-align: left;
   cursor: pointer;
   transition: border-color 0.16s ease, background-color 0.16s ease;
@@ -1043,7 +1098,7 @@
 }
 
 .vf-g-tone-card--active {
-  border-color: rgba(224, 109, 79, 0.6);
+  border-color: rgba(217, 119, 87, 0.62);
   background: var(--g-elevated);
 }
 
@@ -1054,12 +1109,12 @@
 }
 
 .vf-g-tone-stroke {
-  stroke: #d6d3cc;
+  stroke: #d5d3ca;
   transition: stroke 0.16s ease;
 }
 
 .vf-g-tone-dot {
-  fill: #d6d3cc;
+  fill: #d5d3ca;
   transition: fill 0.16s ease;
 }
 
@@ -1075,7 +1130,7 @@
 
 .vf-g-tone-name {
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--g-text-secondary);
 }
 
@@ -1084,9 +1139,10 @@
 }
 
 .vf-g-tone-example {
-  font-family: var(--g-font-display);
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: 1.24rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
   color: var(--g-text);
 }
 
@@ -1097,7 +1153,7 @@
 .vf-g-tone-tip {
   font-size: 0.72rem;
   color: var(--g-text-muted);
-  line-height: 1.4;
+  line-height: 1.42;
 }
 
 .vf-g-pair-grid {
@@ -1110,8 +1166,8 @@
 .vf-g-pair-item {
   background: var(--g-card);
   border: 1px solid var(--g-border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1120,38 +1176,49 @@
 }
 
 .vf-g-pair-item--active {
-  border-color: rgba(224, 109, 79, 0.58);
+  border-color: rgba(217, 119, 87, 0.58);
 }
 
 .vf-g-pair-word {
-  font-family: var(--g-font-display);
-  font-size: clamp(1.8rem, 3.2vw, 2.3rem);
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: clamp(1.9rem, 3.2vw, 2.4rem);
+  font-weight: 500;
   letter-spacing: -0.02em;
+  line-height: 1.18;
   margin: 0;
   color: var(--g-text);
 }
 
-/* Tactile Restrained Mic Button (matches Flashcard matte off-white mic aesthetic) */
+.vf-g-shadow-sentence {
+  margin: 0 0 10px;
+  font-family: var(--g-font-serif);
+  font-size: clamp(1.28rem, 2.4vw, 1.58rem);
+  font-weight: 400;
+  letter-spacing: -0.018em;
+  line-height: 1.56;
+  color: var(--g-text);
+}
+
+/* Tactile Warm-Cream Mic Button (matches Flashcard matte mic aesthetic) */
 .vf-g-mic-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: 11px 18px;
+  padding: 10px 18px;
   border-radius: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: #f2f0eb;
-  color: #111316;
-  font-family: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
+  border: 1px solid rgba(236, 235, 228, 0.24);
+  background: #ecebe4;
+  color: #1f1e1d;
+  font-family: var(--g-font-sans);
+  font-size: 0.89rem;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .vf-g-mic-btn:hover:not(:disabled) {
-  background: #ffffff;
+  background: #f6f5ef;
 }
 
 .vf-g-mic-btn:disabled {
@@ -1177,23 +1244,23 @@
 .vf-g-mic-btn--listening {
   background: var(--g-bad);
   border-color: var(--g-bad);
-  color: #ffffff;
+  color: #faf9f5;
   animation: vf-g-mic-pulse 1.5s ease-out infinite;
 }
 
 .vf-g-mic-btn--listening:hover:not(:disabled) {
-  background: #e17070;
+  background: #e17878;
 }
 
 @keyframes vf-g-mic-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(217, 98, 98, 0.42);
+    box-shadow: 0 0 0 0 rgba(217, 107, 107, 0.42);
   }
   75% {
-    box-shadow: 0 0 0 10px rgba(217, 98, 98, 0);
+    box-shadow: 0 0 0 10px rgba(217, 107, 107, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(217, 98, 98, 0);
+    box-shadow: 0 0 0 0 rgba(217, 107, 107, 0);
   }
 }
 
@@ -1202,7 +1269,7 @@
   width: 100%;
   max-width: 240px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(236, 235, 228, 0.09);
   overflow: hidden;
 }
 
@@ -1213,7 +1280,7 @@
   transition: width 0.08s linear;
 }
 
-/* Word-by-word tone diff chips (muted academic palette) */
+/* Word-by-word tone diff chips (muted warm palette) */
 .vf-g-diff-list {
   display: flex;
   flex-wrap: wrap;
@@ -1231,7 +1298,7 @@
   border: 1px solid var(--g-border);
   background: var(--g-surface);
   color: var(--g-text);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   cursor: pointer;
   transition: border-color 0.14s ease, background-color 0.14s ease;
 }
@@ -1241,43 +1308,45 @@
 }
 
 .vf-g-word-chip__word {
-  font-size: 0.94rem;
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: 0.99rem;
+  font-weight: 500;
 }
 
 .vf-g-word-chip__meta {
+  font-family: var(--g-font-sans);
   font-size: 0.71rem;
   opacity: 0.9;
 }
 
 .vf-g-word-chip--exact {
   background: var(--g-good-soft);
-  border-color: rgba(78, 168, 133, 0.42);
-  color: #a6dfc7;
+  border-color: rgba(95, 168, 136, 0.42);
+  color: #a8dfc5;
 }
 
 .vf-g-word-chip--tone-mismatch {
   background: var(--g-warn-soft);
-  border-color: rgba(216, 155, 68, 0.46);
-  color: #edd09f;
+  border-color: rgba(217, 160, 78, 0.46);
+  color: #efd3a4;
 }
 
 .vf-g-word-chip--close {
   background: var(--g-slate-soft);
-  border-color: rgba(125, 166, 199, 0.42);
-  color: #b7d2e7;
+  border-color: rgba(137, 174, 201, 0.42);
+  color: #bcd5e8;
 }
 
 .vf-g-word-chip--missed {
   background: var(--g-bad-soft);
-  border: 1px dashed rgba(217, 98, 98, 0.52);
-  color: #f0b1b1;
+  border: 1px dashed rgba(217, 107, 107, 0.52);
+  color: #f0b5b5;
 }
 
 .vf-g-fallback-box {
   margin-top: 18px;
   padding: 14px 16px;
-  border-radius: 10px;
+  border-radius: 11px;
   background: var(--g-canvas);
   border: 1px solid var(--g-border);
 }
@@ -1285,11 +1354,11 @@
 .vf-g-input {
   width: 100%;
   padding: 9px 13px;
-  border-radius: 9px;
+  border-radius: 10px;
   border: 1px solid var(--g-border-strong);
-  background: var(--g-canvas);
+  background: var(--g-card);
   color: var(--g-text);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   font-size: 0.9rem;
   transition: border-color 0.15s ease;
 }
@@ -1307,7 +1376,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid var(--g-border);
-  border-radius: 10px;
+  border-radius: 11px;
   overflow: hidden;
   background: var(--g-surface);
   margin: 14px 0;
@@ -1324,8 +1393,8 @@
 }
 
 .vf-g-metric-value {
-  font-size: 1.32rem;
-  font-weight: 600;
+  font-size: 1.3rem;
+  font-weight: 500;
   line-height: 1.2;
   color: var(--g-text);
 }
@@ -1336,7 +1405,7 @@
   margin-top: 4px;
 }
 
-/* ---------- Dialogue Roleplay (Dark Messenger Feel) ---------- */
+/* ---------- Dialogue Roleplay (Claude Chat Aesthetic) ---------- */
 
 .vf-g-scenario-grid {
   display: grid;
@@ -1349,13 +1418,13 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px;
-  border-radius: 12px;
+  padding: 20px 22px;
+  border-radius: 14px;
   border: 1px solid var(--g-border);
   background: var(--g-card);
   text-align: left;
   color: var(--g-text);
-  font-family: inherit;
+  font-family: var(--g-font-sans);
   cursor: pointer;
   transition: background-color 0.16s ease, border-color 0.16s ease;
 }
@@ -1370,7 +1439,7 @@
   flex-direction: column;
   background: var(--g-surface);
   border: 1px solid var(--g-border);
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -1380,7 +1449,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 15px 20px;
   background: var(--g-surface);
   border-bottom: 1px solid var(--g-border);
 }
@@ -1392,8 +1461,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 0.88rem;
+  font-family: var(--g-font-sans);
+  font-weight: 500;
+  font-size: 0.86rem;
   background: var(--g-elevated);
   border: 1px solid var(--g-border-strong);
   color: var(--g-text);
@@ -1403,11 +1473,11 @@
 .vf-g-chat-feed {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   min-height: 260px;
-  max-height: 430px;
+  max-height: 440px;
   overflow-y: auto;
-  padding: 20px;
+  padding: 22px 22px;
   background: var(--g-canvas);
 }
 
@@ -1415,7 +1485,7 @@
   display: flex;
   flex-direction: column;
   max-width: 78%;
-  gap: 4px;
+  gap: 5px;
 }
 
 .vf-g-bubble-row--npc {
@@ -1431,35 +1501,38 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: var(--g-font-sans);
   font-size: 0.74rem;
   color: var(--g-text-muted);
-  padding: 0 2px;
+  padding: 0 3px;
 }
 
 .vf-g-bubble {
-  padding: 11px 15px;
-  border-radius: 14px;
-  font-size: 0.93rem;
-  line-height: 1.56;
+  padding: 13px 17px;
+  border-radius: 16px;
+  font-family: var(--g-font-serif);
+  font-size: 1.02rem;
+  font-weight: 400;
+  line-height: 1.65;
   color: var(--g-text);
 }
 
 .vf-g-bubble--npc {
   background: var(--g-card);
   border: 1px solid var(--g-border);
-  border-bottom-left-radius: 4px;
+  border-bottom-left-radius: 5px;
 }
 
 .vf-g-bubble--reaction {
-  background: #191d24;
+  background: #292826;
   border: 1px solid var(--g-border);
-  border-bottom-left-radius: 4px;
+  border-bottom-left-radius: 5px;
 }
 
 .vf-g-bubble--user {
-  background: #252a34;
-  border: 1px solid rgba(224, 109, 79, 0.28);
-  border-bottom-right-radius: 4px;
+  background: #383531;
+  border: 1px solid rgba(217, 119, 87, 0.24);
+  border-bottom-right-radius: 5px;
 }
 
 .vf-g-composer {
@@ -1485,14 +1558,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 11px;
-  border-radius: 8px;
+  padding: 7px 12px;
+  border-radius: 9px;
   border: 1px solid var(--g-border);
   background: var(--g-card);
   color: var(--g-text-secondary);
-  font-family: inherit;
-  font-size: 0.81rem;
-  line-height: 1.4;
+  font-family: var(--g-font-serif);
+  font-size: 0.92rem;
+  font-weight: 400;
+  line-height: 1.45;
   text-align: left;
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
@@ -1508,8 +1582,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 16px;
-  border-radius: 10px;
+  padding: 15px 17px;
+  border-radius: 12px;
   background: var(--g-card);
   border: 1px solid var(--g-border);
   transition: border-color 0.15s ease;
@@ -1519,7 +1593,7 @@
   border-color: var(--g-border-strong);
 }
 
-/* ---------- Reading Comprehension (Editorial Magazine Feel) & Sentence Builder ---------- */
+/* ---------- Reading Comprehension (Claude Essay Feel) & Sentence Builder ---------- */
 
 .vf-g-editorial-col {
   max-width: 68ch;
@@ -1527,6 +1601,7 @@
 }
 
 .vf-g-article-meta {
+  font-family: var(--g-font-sans);
   font-size: 0.78rem;
   color: var(--g-text-muted);
   margin-bottom: 6px;
@@ -1534,23 +1609,26 @@
 
 .vf-g-article-title {
   margin: 0;
-  font-family: var(--g-font-display);
-  font-size: clamp(1.38rem, 2.5vw, 1.72rem);
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.015em;
+  font-family: var(--g-font-serif);
+  font-size: clamp(1.45rem, 2.6vw, 1.82rem);
+  font-weight: 400;
+  line-height: 1.26;
+  letter-spacing: -0.02em;
   color: var(--g-text);
 }
 
 .vf-g-passage-box {
   background: var(--g-card);
   border: 1px solid var(--g-border);
-  border-radius: 12px;
-  padding: 28px 32px;
+  border-radius: 14px;
+  padding: 30px 34px;
   margin-bottom: 28px;
-  line-height: 1.85;
-  font-size: 1.03rem;
-  color: #e9e6df;
+  font-family: var(--g-font-serif);
+  font-size: 1.08rem;
+  font-weight: 400;
+  line-height: 1.82;
+  color: var(--g-text);
+  font-optical-sizing: auto;
 }
 
 .vf-g-passage-p {
@@ -1569,7 +1647,7 @@
   border: none;
   border-radius: 2px;
   background: transparent;
-  border-bottom: 1.5px dotted rgba(224, 109, 79, 0.65);
+  border-bottom: 1.5px dotted rgba(217, 119, 87, 0.68);
   color: inherit;
   font-family: inherit;
   font-size: inherit;
@@ -1589,26 +1667,36 @@
 
 .vf-g-glossary-popover {
   margin-bottom: 18px;
-  padding: 16px 18px;
-  border-radius: 10px;
+  padding: 17px 19px;
+  border-radius: 12px;
   background: var(--g-elevated);
   border: 1px solid var(--g-border-strong);
   border-left: 2px solid var(--g-accent);
 }
 
 .vf-g-reading-q-card {
-  padding: 18px 20px;
-  border-radius: 12px;
+  padding: 20px 22px;
+  border-radius: 14px;
   background: var(--g-canvas);
   border: 1px solid var(--g-border);
+}
+
+.vf-g-reading-q-title {
+  font-family: var(--g-font-serif);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+  font-size: 1.05rem;
+  line-height: 1.54;
+  color: var(--g-text);
 }
 
 /* Sentence Builder Physical Matte Word Tiles */
 .vf-g-tray {
   min-height: 76px;
   padding: 14px 16px;
-  border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 11px;
+  border: 1px dashed rgba(236, 235, 228, 0.18);
   background: var(--g-canvas);
   display: flex;
   flex-wrap: wrap;
@@ -1620,14 +1708,14 @@
 
 .vf-g-tray--correct {
   border-style: solid;
-  border-color: rgba(78, 168, 133, 0.56);
-  background: rgba(78, 168, 133, 0.06);
+  border-color: rgba(95, 168, 136, 0.56);
+  background: rgba(95, 168, 136, 0.07);
 }
 
 .vf-g-tray--wrong {
   border-style: solid;
-  border-color: rgba(217, 98, 98, 0.56);
-  background: rgba(217, 98, 98, 0.06);
+  border-color: rgba(217, 107, 107, 0.56);
+  background: rgba(217, 107, 107, 0.07);
 }
 
 .vf-g-tile-bank {
@@ -1638,27 +1726,27 @@
 }
 
 .vf-g-tile {
-  padding: 9px 14px;
-  border-radius: 8px;
+  padding: 9px 15px;
+  border-radius: 9px;
   border: 1px solid var(--g-border-strong);
   background: var(--g-elevated);
   color: var(--g-text);
-  font-family: inherit;
-  font-size: 0.92rem;
-  font-weight: 500;
+  font-family: var(--g-font-serif);
+  font-size: 0.99rem;
+  font-weight: 400;
   cursor: pointer;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.38);
   transition: background-color 0.14s ease, border-color 0.14s ease;
 }
 
 .vf-g-tile:hover:not(:disabled) {
   background: var(--g-hover);
-  border-color: rgba(255, 255, 255, 0.26);
+  border-color: rgba(236, 235, 228, 0.28);
 }
 
 .vf-g-tile--placed {
   background: var(--g-card);
-  border-color: rgba(224, 109, 79, 0.52);
+  border-color: rgba(217, 119, 87, 0.52);
   color: var(--g-text);
 }
 
@@ -1676,7 +1764,7 @@
   margin: 0 auto;
   background: var(--g-surface);
   border: 1px solid var(--g-border);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 32px 28px;
   text-align: center;
 }
@@ -1692,9 +1780,10 @@
 
 .vf-g-summary-title {
   margin: 0 0 8px;
-  font-family: var(--g-font-display);
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-family: var(--g-font-serif);
+  font-size: 1.58rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   color: var(--g-text);
 }
 
@@ -1702,15 +1791,15 @@
   margin: 0 auto;
   max-width: 48ch;
   color: var(--g-text-secondary);
-  font-size: 0.92rem;
-  line-height: 1.6;
+  font-size: 0.93rem;
+  line-height: 1.62;
 }
 
 .vf-g-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid var(--g-border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--g-card);
   margin: 24px 0;

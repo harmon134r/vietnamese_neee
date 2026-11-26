@@ -333,7 +333,7 @@ export function GameHub({
                       >
                         <Volume2 size={14} />
                         <span>
-                          <strong style={{ fontWeight: 500 }}>{phrase.vi}</strong>
+                          <span className="vf-g-phrase-vi">{phrase.vi}</span>
                           {phrase.en ? (
                             <span style={{ color: "var(--g-text-muted)" }}>
                               {" "}
@@ -362,7 +362,9 @@ export function GameHub({
               {currentTopicObj.grammarSpotlight.exampleVi && (
                 <div className="vf-g-grammar-example">
                   <div>
-                    <div>“{currentTopicObj.grammarSpotlight.exampleVi}”</div>
+                    <div className="vf-g-grammar-example-vi">
+                      “{currentTopicObj.grammarSpotlight.exampleVi}”
+                    </div>
                     {currentTopicObj.grammarSpotlight.exampleEn && (
                       <div
                         style={{
