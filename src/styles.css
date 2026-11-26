@@ -204,30 +204,20 @@ a:hover {
   animation: vfFadeIn 180ms ease-out;
 }
 
-.vf-footer {
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-canvas);
-  padding: 20px 24px;
-  margin-top: auto;
-}
-
-.vf-footer-inner {
-  max-width: 1120px;
-  margin: 0 auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.vf-credit {
+  position: fixed;
+  right: 18px;
+  bottom: 12px;
+  z-index: 20;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.01em;
   color: var(--text-muted);
-  font-size: 0.8125rem;
-}
-
-.vf-footer-brand {
-  font-family: var(--font-serif);
-  color: var(--text-secondary);
-  font-weight: 500;
-  letter-spacing: -0.015em;
+  opacity: 0.72;
+  pointer-events: none;
+  user-select: none;
 }
 
 /* ==========================================================================
@@ -1952,8 +1942,9 @@ a:hover {
     padding: 24px 16px 96px;
   }
 
-  .vf-footer {
-    padding-bottom: 84px;
+  .vf-credit {
+    right: 14px;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   .vf-toast-stack {

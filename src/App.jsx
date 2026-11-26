@@ -539,16 +539,7 @@ export function App() {
         )}
       </main>
 
-      <footer className="vf-footer">
-        <div className="vf-footer-inner">
-          <span className="vf-footer-brand">
-            ViệtFlow · Tiếng Việt A2–B1
-          </span>
-          <span>
-            Nghe · Nói · Đọc · Phát âm 6 thanh điệu &amp; Flashcard
-          </span>
-        </div>
-      </footer>
+      <div className="vf-credit">@thembanhkhoai</div>
 
       <AuthModal
         isOpen={authModalOpen}
