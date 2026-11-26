@@ -1,11 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  BookOpen,
-  ListChecks,
-  Plus,
-  Search,
-  Shuffle,
-} from "lucide-react";
+import { Plus, Search, Shuffle } from "lucide-react";
 import { MASTERY_LEVELS, TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
 import { FlashcardStage } from "./FlashcardStage.jsx";
 import { FlashcardCreator } from "./FlashcardCreator.jsx";
@@ -53,27 +47,23 @@ export function FlashcardStudio({
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
 
-  // Filter decks by topic filter
   const visibleDecks = useMemo(() => {
     if (!topicFilter || topicFilter === "all") return decks;
     return decks.filter((d) => d.topicId === topicFilter);
   }, [decks, topicFilter]);
 
-  // Resolve currently active deck
   const activeDeck = useMemo(() => {
     if (visibleDecks.length === 0) return decks[0] || null;
     const found = visibleDecks.find((d) => d.id === activeDeckId);
     return found || visibleDecks[0];
   }, [visibleDecks, decks, activeDeckId]);
 
-  // Keep parent activeDeckId synced when topic filter narrows deck list
   useEffect(() => {
     if (activeDeck && activeDeck.id !== activeDeckId) {
       onSelectDeck?.(activeDeck.id);
     }
   }, [activeDeck, activeDeckId, onSelectDeck]);
 
-  // Reset shuffle & index when switching deck
   useEffect(() => {
     setShuffledOrder(null);
     setCurrentIndex(0);
@@ -81,7 +71,6 @@ export function FlashcardStudio({
 
   const allDeckCards = useMemo(() => activeDeck?.cards || [], [activeDeck]);
 
-  // Compute mastery statistics for active deck
   const stats = useMemo(() => {
     let mastered = 0;
     let review = 0;
@@ -103,19 +92,23 @@ export function FlashcardStudio({
     };
   }, [allDeckCards]);
 
-  // Apply mastery filter, search query, and optional shuffle order
   const filteredCards = useMemo(() => {
     const q = searchQuery.trim().toLocaleLowerCase("vi");
     let list = allDeckCards.filter((card) => {
       const lvl = card.masteryLevel || 0;
       if (masteryFilter === "mastered" && lvl < MASTERY_LEVELS.STRONG) return false;
-      if (masteryFilter === "review" && (lvl < MASTERY_LEVELS.REVIEW || lvl >= MASTERY_LEVELS.STRONG)) {
+      if (
+        masteryFilter === "review" &&
+        (lvl < MASTERY_LEVELS.REVIEW || lvl >= MASTERY_LEVELS.STRONG)
+      ) {
         return false;
       }
       if (masteryFilter === "new" && lvl !== MASTERY_LEVELS.NEW) return false;
 
       if (q) {
-        const hay = `${card.frontVi} ${card.definition} ${card.exampleVi} ${card.pos}`.toLocaleLowerCase("vi");
+        const hay = `${card.frontVi} ${card.definition} ${card.exampleVi} ${card.pos}`.toLocaleLowerCase(
+          "vi"
+        );
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -133,7 +126,6 @@ export function FlashcardStudio({
     return list;
   }, [allDeckCards, masteryFilter, searchQuery, shuffledOrder]);
 
-  // Clamp currentIndex safely when filteredCards shrinks
   useEffect(() => {
     if (filteredCards.length === 0) {
       setCurrentIndex(0);
@@ -172,18 +164,12 @@ export function FlashcardStudio({
   );
 
   return (
-    <section className="fc-studio" aria-label="Flashcard Studio Tiếng Việt">
-      {/* Studio Top Header */}
-      <div className="fc-header">
-        <div className="fc-header-copy">
-          <span className="fc-eyebrow">Flashcard Studio · Luyện Phát Âm &amp; Từ Vựng</span>
-          <h2>{activeDeck ? activeDeck.title : "Bộ thẻ tiếng Việt của bạn"}</h2>
-          <p>
-            Lật thẻ, nghe giọng đọc tiếng Việt tự nhiên, bấm micro chấm phát âm ngay trên thẻ hoặc tự tạo bộ thẻ từ từ vựng của bạn.
-          </p>
-        </div>
+    <section className="fc-studio" aria-label="Flashcard tiếng Việt">
+      {/* Single Hairline Top Bar: Lora Title + Minimal Underline Tabs */}
+      <header className="fc-header">
+        <h2 className="fc-studio-title">Flashcard tiếng Việt</h2>
 
-        <div className="fc-mode-switcher" role="tablist" aria-label="Chế độ Flashcard Studio">
+        <div className="fc-mode-switcher" role="tablist" aria-label="Chế độ Flashcard">
           <button
             type="button"
             role="tab"
@@ -191,7 +177,6 @@ export function FlashcardStudio({
             className={`fc-mode-tab ${activeTab === "study" ? "is-active" : ""}`}
             onClick={() => setActiveTab("study")}
           >
-            <BookOpen size={16} />
             <span>Học thẻ</span>
           </button>
           <button
@@ -201,8 +186,7 @@ export function FlashcardStudio({
             className={`fc-mode-tab ${activeTab === "create" ? "is-active" : ""}`}
             onClick={() => handleOpenCreate(false)}
           >
-            <Plus size={16} />
-            <span>Tạo thẻ</span>
+            <span>Tạo thẻ mới</span>
           </button>
           <button
             type="button"
@@ -211,14 +195,14 @@ export function FlashcardStudio({
             className={`fc-mode-tab ${activeTab === "manage" ? "is-active" : ""}`}
             onClick={() => setActiveTab("manage")}
           >
-            <ListChecks size={16} />
-            <span>Quản lý ({allDeckCards.length})</span>
+            <span>Quản lý bộ thẻ</span>
+            <span className="fc-tab-count">{allDeckCards.length}</span>
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Deck Selector, Mastery Stats & Filters */}
-      <div className="fc-toolbar">
+      {/* Quiet Deck Switcher, Subtle Progress & Inline Filters */}
+      <div className="fc-controls-band">
         <div className="fc-deck-strip" role="listbox" aria-label="Danh sách bộ thẻ">
           {visibleDecks.map((deck) => {
             const isSelected = activeDeck?.id === deck.id;
@@ -228,26 +212,21 @@ export function FlashcardStudio({
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                className={`fc-deck-pill ${isSelected ? "is-active" : ""}`}
+                className={`fc-deck-item ${isSelected ? "is-active" : ""}`}
                 onClick={() => {
                   onSelectDeck?.(deck.id);
                   if (activeTab === "create") setCreateNewDeckMode(false);
                 }}
               >
-                <span
-                  className="fc-deck-dot"
-                  style={{ background: deck.color || "#38bdf8" }}
-                  aria-hidden="true"
-                />
                 <span>{deck.title}</span>
-                <span className="fc-deck-count">{deck.cards?.length || 0}</span>
+                <span className="fc-deck-count">{deck.cards?.length || 0} thẻ</span>
               </button>
             );
           })}
 
           <button
             type="button"
-            className="fc-new-deck-pill"
+            className="fc-new-deck-btn"
             onClick={() => handleOpenCreate(true)}
           >
             <Plus size={14} />
@@ -255,7 +234,6 @@ export function FlashcardStudio({
           </button>
         </div>
 
-        {/* Mastery Progress Track */}
         <div className="fc-mastery-bar">
           <div className="fc-mastery-track" aria-label="Tiến độ ghi nhớ bộ thẻ">
             <div
@@ -268,13 +246,12 @@ export function FlashcardStudio({
             />
           </div>
           <span className="fc-mastery-caption">
-            <strong>{stats.mastered}</strong>/{stats.total} đã thuộc ({stats.masteredPct}%)
+            <strong>{stats.mastered}</strong>/{stats.total} đã thuộc · {stats.masteredPct}%
           </span>
         </div>
 
-        {/* Filters + Search + Shuffle (shown in Study & Manage tabs) */}
         {activeTab !== "create" && (
-          <div className="fc-toolbar-meta">
+          <div className="fc-filter-bar">
             <div className="fc-filter-group">
               <button
                 type="button"
@@ -284,7 +261,8 @@ export function FlashcardStudio({
                   setCurrentIndex(0);
                 }}
               >
-                Tất cả ({stats.total})
+                <span>Tất cả</span>
+                <span className="fc-filter-count">{stats.total}</span>
               </button>
               <button
                 type="button"
@@ -294,7 +272,8 @@ export function FlashcardStudio({
                   setCurrentIndex(0);
                 }}
               >
-                Cần ôn ({stats.review})
+                <span>Cần ôn</span>
+                <span className="fc-filter-count">{stats.review}</span>
               </button>
               <button
                 type="button"
@@ -304,7 +283,8 @@ export function FlashcardStudio({
                   setCurrentIndex(0);
                 }}
               >
-                Chưa học ({stats.fresh})
+                <span>Chưa học</span>
+                <span className="fc-filter-count">{stats.fresh}</span>
               </button>
               <button
                 type="button"
@@ -314,14 +294,14 @@ export function FlashcardStudio({
                   setCurrentIndex(0);
                 }}
               >
-                Đã thuộc ({stats.mastered})
+                <span>Đã thuộc</span>
+                <span className="fc-filter-count">{stats.mastered}</span>
               </button>
             </div>
 
             <div className="fc-toolbar-actions">
               <select
-                className="fc-select"
-                style={{ width: "auto", padding: "6px 10px", fontSize: "0.78rem", height: 34 }}
+                className="fc-select fc-topic-select"
                 value={topicFilter}
                 onChange={(e) => setTopicFilter(e.target.value)}
                 aria-label="Lọc bộ thẻ theo chủ đề"
@@ -335,7 +315,7 @@ export function FlashcardStudio({
               </select>
 
               <div className="fc-search-box">
-                <Search size={14} />
+                <Search size={13} />
                 <input
                   type="search"
                   className="fc-search-input"
@@ -354,9 +334,13 @@ export function FlashcardStudio({
                 className={`fc-action-btn ${shuffledOrder ? "is-active" : ""}`}
                 onClick={handleToggleShuffle}
                 disabled={allDeckCards.length < 2}
-                title={shuffledOrder ? "Đang trộn thẻ — bấm để về thứ tự gốc" : "Trộn ngẫu nhiên thứ tự thẻ"}
+                title={
+                  shuffledOrder
+                    ? "Đang trộn thẻ — bấm để về thứ tự gốc"
+                    : "Trộn ngẫu nhiên thứ tự thẻ"
+                }
               >
-                <Shuffle size={14} />
+                <Shuffle size={13} />
                 <span>{shuffledOrder ? "Đang trộn" : "Trộn thẻ"}</span>
               </button>
             </div>
@@ -364,7 +348,7 @@ export function FlashcardStudio({
         )}
       </div>
 
-      {/* Main Content Tab */}
+      {/* Main Content */}
       {activeTab === "study" && (
         <FlashcardStage
           cards={filteredCards}

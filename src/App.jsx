@@ -330,7 +330,7 @@ export function App() {
             : d
         )
       );
-      notify(`Đã tạo thành công ${added.length} flashcard mới!`, "success");
+      notify(`Đã thêm ${added.length} thẻ mới.`, "success");
       return added;
     },
     [activeDeckId, decks, notify]
@@ -466,7 +466,7 @@ export function App() {
         {isLoading ? (
           <div className="vf-loading-screen" role="status" aria-live="polite">
             <div className="vf-spinner" />
-            <span>Đang khởi tạo không gian học ViệtFlow...</span>
+            <span>Đang chuẩn bị bàn học...</span>
           </div>
         ) : (
           <>
@@ -542,10 +542,10 @@ export function App() {
       <footer className="vf-footer">
         <div className="vf-footer-inner">
           <span className="vf-footer-brand">
-            ViệtFlow · Pre-Intermediate (A2–B1)
+            ViệtFlow · Tiếng Việt A2–B1
           </span>
           <span>
-            Nghe · Nói · Đọc · Phát âm 6 thanh điệu &amp; Flashcard Studio
+            Nghe · Nói · Đọc · Phát âm 6 thanh điệu &amp; Flashcard
           </span>
         </div>
       </footer>

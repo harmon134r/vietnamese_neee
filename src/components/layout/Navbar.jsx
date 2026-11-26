@@ -1,20 +1,11 @@
 import React from "react";
-import {
-  Cloud,
-  Compass,
-  Flame,
-  Gamepad2,
-  HardDrive,
-  Layers,
-  LayoutDashboard,
-  Zap,
-} from "lucide-react";
+import { BookOpen, Compass, Gamepad2, Layers } from "lucide-react";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Tổng quan", shortLabel: "Tổng quan", icon: LayoutDashboard },
-  { id: "games", label: "Trò chơi 4 kỹ năng", shortLabel: "Trò chơi", icon: Gamepad2 },
-  { id: "flashcards", label: "Flashcard Studio", shortLabel: "Flashcard", icon: Layers },
-  { id: "topics", label: "6 Chủ đề", shortLabel: "6 Chủ đề", icon: Compass },
+  { id: "dashboard", label: "Tổng quan", icon: BookOpen },
+  { id: "games", label: "Trò chơi", icon: Gamepad2 },
+  { id: "flashcards", label: "Flashcard", icon: Layers },
+  { id: "topics", label: "Chủ đề", icon: Compass },
 ];
 
 export function Navbar({
@@ -36,78 +27,69 @@ export function Navbar({
     user?.user_metadata?.display_name ||
     (user?.email ? user.email.split("@")[0] : "");
 
-  const syncButtonLabel = isCloud
-    ? `${userDisplayName || "Cloud"} · Supabase`
+  const authButtonLabel = isCloud
+    ? userDisplayName || "Tài khoản"
     : isSupabaseConfigured
-      ? "Chế độ Local · Đăng nhập"
-      : "Chế độ Local";
+      ? "Đăng nhập"
+      : "Lưu cục bộ";
 
   return (
     <>
       <header className="vf-navbar">
         <div className="vf-navbar-inner">
-          <button
-            type="button"
-            className="vf-brand"
-            onClick={() => onNavigate("dashboard")}
-            aria-label="ViệtFlow — Về trang tổng quan"
-          >
-            <span className="vf-brand-mark" aria-hidden="true">
-              V
-            </span>
-            <span className="vf-brand-text">
+          <div className="vf-navbar-left">
+            <button
+              type="button"
+              className="vf-brand"
+              onClick={() => onNavigate("dashboard")}
+              aria-label="ViệtFlow — Về trang tổng quan"
+            >
               <span className="vf-brand-name">ViệtFlow</span>
-              <span className="vf-brand-badge">Pre-Intermediate A2–B1</span>
-            </span>
-          </button>
+              <span className="vf-brand-level">A2–B1</span>
+            </button>
 
-          <nav className="vf-nav-tabs" aria-label="Điều hướng chính">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeView === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`vf-nav-tab ${isActive ? "is-active" : ""}`}
-                  aria-current={isActive ? "page" : undefined}
-                  onClick={() => onNavigate(item.id)}
-                >
-                  <Icon size={16} aria-hidden="true" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+            <nav className="vf-nav-links" aria-label="Điều hướng chính">
+              {NAV_ITEMS.map((item) => {
+                const isActive = activeView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`vf-nav-link ${isActive ? "is-active" : ""}`}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => onNavigate(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
 
           <div className="vf-nav-right">
-            <span className="vf-stat-pill vf-stat-pill--xp" title="Điểm kinh nghiệm tích lũy">
-              <Zap size={14} aria-hidden="true" />
-              <span>{xp.toLocaleString("vi-VN")} XP</span>
-            </span>
-
-            <span className="vf-stat-pill vf-stat-pill--streak" title="Chuỗi ngày luyện tập liên tiếp">
-              <Flame size={14} aria-hidden="true" />
-              <span>{streakDays} ngày</span>
+            <span
+              className="vf-nav-meta"
+              title="Điểm kinh nghiệm và chuỗi ngày luyện tập"
+            >
+              {xp.toLocaleString("vi-VN")} XP · {streakDays} ngày
             </span>
 
             <button
               type="button"
-              className={`vf-sync-btn ${isCloud ? "is-cloud" : ""}`}
+              className="vf-nav-auth-btn"
               onClick={onOpenAuth}
               title={
                 isCloud
-                  ? "Đang đồng bộ dữ liệu với Supabase"
-                  : "Xem trạng thái lưu trữ Local / Đồng bộ Supabase"
+                  ? `Đang đồng bộ tài khoản ${userDisplayName || ""}`
+                  : isSupabaseConfigured
+                    ? "Đăng nhập để đồng bộ tiến độ giữa các thiết bị"
+                    : "Đang lưu dữ liệu trên trình duyệt này"
               }
             >
-              <span className={`vf-status-dot ${isCloud ? "is-cloud" : ""}`} aria-hidden="true" />
-              {isCloud ? (
-                <Cloud size={15} aria-hidden="true" />
-              ) : (
-                <HardDrive size={15} aria-hidden="true" />
+              {isCloud && (
+                <span className="vf-status-dot is-cloud" aria-hidden="true" />
               )}
-              <span className="vf-sync-label">{syncButtonLabel}</span>
+              <span>{authButtonLabel}</span>
             </button>
           </div>
         </div>
@@ -125,8 +107,8 @@ export function Navbar({
               aria-current={isActive ? "page" : undefined}
               onClick={() => onNavigate(item.id)}
             >
-              <Icon size={18} aria-hidden="true" />
-              <span>{item.shortLabel}</span>
+              <Icon size={17} aria-hidden="true" />
+              <span>{item.label}</span>
             </button>
           );
         })}

@@ -810,7 +810,7 @@ export function FlashcardStage({
         <kbd>Space</kbd>
         <span className="fc-shortcut-sep">/</span>
         <kbd>Enter</kbd>
-        <span>hoặc click để lật thẻ</span>
+        <span>hoặc bấm để lật thẻ</span>
       </div>
     </div>
   );

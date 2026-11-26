@@ -255,7 +255,7 @@ describe("FlashcardStudio", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ mới" }));
     expect(screen.getByTestId("fc-creator-panel")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Từ vựng \/ cụm từ tiếng Việt/), {
@@ -292,7 +292,7 @@ describe("FlashcardStudio", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ mới" }));
     fireEvent.click(screen.getByRole("tab", { name: "Nhập nhanh hàng loạt" }));
 
     const bulkInput = screen.getByLabelText(/Dán danh sách từ vựng tiếng Việt/);

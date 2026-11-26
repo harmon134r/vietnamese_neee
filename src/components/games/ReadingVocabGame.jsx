@@ -4,12 +4,9 @@ import {
   ArrowRight,
   BookOpen,
   CheckCircle2,
-  Flame,
   Lightbulb,
   Puzzle,
   RotateCcw,
-  Sparkles,
-  Trophy,
   Undo2,
   Volume2,
   X,
@@ -44,7 +41,10 @@ function tokenizeParagraphWithGlossary(paragraph, glossary) {
   const alternation = keys.map(escapeRegex).join("|");
   let regex;
   try {
-    regex = new RegExp(`(?<![\\p{L}\\p{M}])(${alternation})(?![\\p{L}\\p{M}])`, "giu");
+    regex = new RegExp(
+      `(?<![\\p{L}\\p{M}])(${alternation})(?![\\p{L}\\p{M}])`,
+      "giu"
+    );
   } catch {
     regex = new RegExp(`(${alternation})`, "gi");
   }
@@ -60,7 +60,8 @@ function tokenizeParagraphWithGlossary(paragraph, glossary) {
       });
     }
     const matchedText = match[0];
-    const canonicalKey = lowerToCanonical.get(matchedText.toLowerCase()) || matchedText;
+    const canonicalKey =
+      lowerToCanonical.get(matchedText.toLowerCase()) || matchedText;
     tokens.push({
       type: "glossary",
       value: matchedText,
@@ -98,7 +99,6 @@ function createShuffledTiles(item) {
 
   if (tiles.length <= 1) return tiles;
 
-  // Fisher-Yates shuffle ensuring order differs from solved order when possible
   const shuffled = [...tiles];
   for (let attempt = 0; attempt < 4; attempt += 1) {
     for (let i = shuffled.length - 1; i > 0; i -= 1) {
@@ -117,7 +117,6 @@ function buildSentenceRound(allItems, activeTopicId) {
     const filtered = safe.filter((item) => item.topicId === activeTopicId);
     if (filtered.length > 0) return filtered;
   }
-  // Balanced pick of 6 items across topics when 'all' is selected
   const byTopic = new Map();
   for (const item of safe) {
     if (!byTopic.has(item.topicId)) {
@@ -128,13 +127,24 @@ function buildSentenceRound(allItems, activeTopicId) {
   return picked.length > 0 ? picked.slice(0, 6) : safe.slice(0, 6);
 }
 
+const PASSAGE_SHORT_LABELS = {
+  self: "Bản thân",
+  food: "Ẩm thực",
+  routine: "Sinh hoạt",
+  weather: "Thời tiết",
+  emotions: "Cảm xúc",
+  opinions: "Quan điểm",
+};
+
 export function ReadingVocabGame({
   activeTopicId = "all",
   initialSubMode = "reading",
   onCompleteSession,
   onBack,
 }) {
-  const { isSpeaking, speak, stopSpeak } = useVietnameseSpeech({ defaultRate: 0.95 });
+  const { isSpeaking, speak, stopSpeak } = useVietnameseSpeech({
+    defaultRate: 0.95,
+  });
 
   const [subMode, setSubMode] = useState(
     initialSubMode === "builder" ? "builder" : "reading"
@@ -169,7 +179,7 @@ export function ReadingVocabGame({
   const [builderIndex, setBuilderIndex] = useState(0);
   const [bankTiles, setBankTiles] = useState([]);
   const [placedTiles, setPlacedTiles] = useState([]);
-  const [builderStatus, setBuilderStatus] = useState("idle"); // 'idle' | 'correct' | 'wrong' | 'revealed'
+  const [builderStatus, setBuilderStatus] = useState("idle");
   const [showBuilderHint, setShowBuilderHint] = useState(false);
   const [builderScore, setBuilderScore] = useState(0);
   const [builderCombo, setBuilderCombo] = useState(0);
@@ -274,7 +284,10 @@ export function ReadingVocabGame({
   };
 
   // Sentence Builder handlers
-  const placedIds = useMemo(() => new Set(placedTiles.map((t) => t.uid)), [placedTiles]);
+  const placedIds = useMemo(
+    () => new Set(placedTiles.map((t) => t.uid)),
+    [placedTiles]
+  );
 
   const handlePickTile = (tile) => {
     if (builderStatus === "correct" || builderStatus === "revealed") return;
@@ -333,7 +346,10 @@ export function ReadingVocabGame({
     stopSpeak();
     if (builderIndex + 1 >= sentenceRound.length) {
       setBuilderCompleted(true);
-      if (!builderReportedRef.current && typeof onCompleteSession === "function") {
+      if (
+        !builderReportedRef.current &&
+        typeof onCompleteSession === "function"
+      ) {
         builderReportedRef.current = true;
         const maxScore = Math.max(1, sentenceRound.length);
         const accuracy = Math.round((builderScore / maxScore) * 100);
@@ -370,55 +386,74 @@ export function ReadingVocabGame({
   const readingQuestions = currentPassage?.questions || [];
   const readingAnsweredCount = Object.keys(readingAnswers).length;
   const readingDone =
-    readingQuestions.length > 0 && readingAnsweredCount === readingQuestions.length;
+    readingQuestions.length > 0 &&
+    readingAnsweredCount === readingQuestions.length;
   const readingCorrectCount = readingQuestions.filter(
     (q) => readingAnswers[q.id] === q.correctIndex
   ).length;
 
   return (
     <div data-testid="reading-vocab-game">
-      {/* Sub-mode switcher */}
-      <div className="vf-g-tabs">
-        <button
-          type="button"
-          className={`vf-g-tab ${subMode === "reading" ? "vf-g-tab--active" : ""}`}
-          onClick={() => {
-            stopSpeak();
-            setSubMode("reading");
-          }}
-          data-testid="reading-tab-passage"
-        >
-          <BookOpen size={16} /> Đọc Hiểu Thực Tế
-        </button>
-        <button
-          type="button"
-          className={`vf-g-tab ${subMode === "builder" ? "vf-g-tab--active" : ""}`}
-          onClick={() => {
-            stopSpeak();
-            setSubMode("builder");
-          }}
-          data-testid="reading-tab-builder"
-        >
-          <Puzzle size={16} /> Ghép Câu Phản Xạ
-        </button>
+      {/* Sub-mode Underline Tabs */}
+      <div className="vf-g-subtabs-row">
+        <div className="vf-g-subtabs">
+          <button
+            type="button"
+            className={`vf-g-subtab ${
+              subMode === "reading" ? "vf-g-subtab--active" : ""
+            }`}
+            onClick={() => {
+              stopSpeak();
+              setSubMode("reading");
+            }}
+            data-testid="reading-tab-passage"
+          >
+            <BookOpen size={15} /> Đọc hiểu
+          </button>
+          <button
+            type="button"
+            className={`vf-g-subtab ${
+              subMode === "builder" ? "vf-g-subtab--active" : ""
+            }`}
+            onClick={() => {
+              stopSpeak();
+              setSubMode("builder");
+            }}
+            data-testid="reading-tab-builder"
+          >
+            <Puzzle size={15} /> Ghép câu
+          </button>
+        </div>
       </div>
 
       {subMode === "reading" ? (
         <div className="vf-g-panel" data-testid="reading-passage-view">
           {passages.length > 1 && (
-            <div className="vf-g-topic-bar" style={{ marginBottom: "16px" }}>
+            <div
+              className="vf-g-topic-bar"
+              style={{ marginBottom: "24px" }}
+              role="tablist"
+              aria-label="Chọn bài đọc"
+            >
               {passages.map((p, idx) => {
-                const tMeta = getTopicById?.(p.topicId) || TOPIC_META[p.topicId];
+                const tMeta =
+                  getTopicById?.(p.topicId) || TOPIC_META[p.topicId];
+                const label =
+                  PASSAGE_SHORT_LABELS[p.topicId] ||
+                  tMeta?.titleVi ||
+                  p.titleVi;
                 return (
                   <button
                     key={p.id}
                     type="button"
-                    className={`vf-g-topic-pill ${
-                      idx === passageIndex ? "vf-g-topic-pill--active" : ""
+                    role="tab"
+                    aria-selected={idx === passageIndex}
+                    className={`vf-g-topic-tab ${
+                      idx === passageIndex ? "vf-g-topic-tab--active" : ""
                     }`}
                     onClick={() => handleSelectPassage(idx)}
                   >
-                    {tMeta?.titleVi || p.titleVi}
+                    {label}
                   </button>
                 );
               })}
@@ -426,28 +461,26 @@ export function ReadingVocabGame({
           )}
 
           {currentPassage && (
-            <>
+            <div className="vf-g-editorial-col">
+              {/* Editorial Article Header */}
               <div
                 style={{
                   display: "flex",
                   flexWrap: "wrap",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   justifyContent: "space-between",
-                  gap: "12px",
+                  gap: "14px",
                   marginBottom: "14px",
                 }}
               >
                 <div>
-                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "6px" }}>
-                    <span className="vf-g-badge vf-g-badge--amber">
-                      {currentPassage.formatLabel || "Bài đọc thực tế"}
-                    </span>
-                    <span className="vf-g-badge">
-                      {getTopicById?.(currentPassage.topicId)?.titleVi ||
-                        TOPIC_META[currentPassage.topicId]?.titleVi}
-                    </span>
+                  <div className="vf-g-article-meta">
+                    {currentPassage.formatLabel || "Bài đọc"}
+                    {" · "}
+                    {getTopicById?.(currentPassage.topicId)?.titleVi ||
+                      TOPIC_META[currentPassage.topicId]?.titleVi}
                   </div>
-                  <h3 style={{ margin: 0, fontSize: "1.2rem" }}>
+                  <h3 className="vf-g-article-title">
                     {currentPassage.titleVi}
                   </h3>
                 </div>
@@ -458,27 +491,32 @@ export function ReadingVocabGame({
                   onClick={() =>
                     isSpeaking
                       ? stopSpeak()
-                      : speak((currentPassage.paragraphs || []).join(" "), { rate: 0.92 })
+                      : speak((currentPassage.paragraphs || []).join(" "), {
+                          rate: 0.92,
+                        })
                   }
                 >
-                  <Volume2 size={15} />
-                  {isSpeaking ? "Dừng đọc bài" : "Nghe toàn bài"}
+                  <Volume2 size={14} />
+                  {isSpeaking ? "Dừng đọc" : "Nghe toàn bài"}
                 </button>
               </div>
 
               <div
                 style={{
-                  fontSize: "0.82rem",
+                  fontSize: "0.81rem",
                   color: "var(--g-text-muted)",
-                  marginBottom: "10px",
+                  marginBottom: "14px",
                 }}
               >
-                Nhấn vào các từ gạch chân nét đứt để tra nghĩa tiếng Việt, phiên âm IPA và nghe phát âm:
+                Nhấn vào từ có gạch chấm bên dưới để xem nghĩa và nghe phát âm.
               </div>
 
-              {/* Floating / Inline Glossary Word Card */}
+              {/* Clean Dictionary Popover Card */}
               {selectedGlossaryKey && activeGlossaryEntry && (
-                <div className="vf-g-glossary-popover" data-testid="glossary-word-card">
+                <div
+                  className="vf-g-glossary-popover"
+                  data-testid="glossary-word-card"
+                >
                   <div
                     style={{
                       display: "flex",
@@ -488,27 +526,65 @@ export function ReadingVocabGame({
                     }}
                   >
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                        <strong style={{ fontSize: "1.12rem", color: "#ffffff" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <strong
+                          className="vf-g-serif"
+                          style={{
+                            fontSize: "1.18rem",
+                            fontWeight: 600,
+                            color: "var(--g-text)",
+                          }}
+                        >
                           {selectedGlossaryKey}
                         </strong>
                         {activeGlossaryEntry.pos && (
-                          <span className="vf-g-badge vf-g-badge--sky">
+                          <span
+                            style={{
+                              fontSize: "0.8rem",
+                              fontStyle: "italic",
+                              color: "var(--g-text-secondary)",
+                            }}
+                          >
                             {activeGlossaryEntry.pos}
                           </span>
                         )}
                         {activeGlossaryEntry.ipa && (
-                          <span className="vf-g-mono" style={{ fontSize: "0.84rem", color: "#94a3b8" }}>
+                          <span
+                            className="vf-g-mono"
+                            style={{
+                              fontSize: "0.8rem",
+                              color: "var(--g-text-muted)",
+                            }}
+                          >
                             {activeGlossaryEntry.ipa}
                           </span>
                         )}
                       </div>
-                      <p style={{ margin: "8px 0 4px", fontSize: "0.94rem", color: "#f1f5f9" }}>
+                      <p
+                        style={{
+                          margin: "8px 0 4px",
+                          fontSize: "0.93rem",
+                          color: "var(--g-text)",
+                          lineHeight: 1.55,
+                        }}
+                      >
                         {activeGlossaryEntry.definitionVi}
                       </p>
                       {activeGlossaryEntry.en && (
-                        <div style={{ fontSize: "0.84rem", color: "var(--g-text-muted)" }}>
-                          Nghĩa tiếng Anh: {activeGlossaryEntry.en}
+                        <div
+                          style={{
+                            fontSize: "0.82rem",
+                            color: "var(--g-text-muted)",
+                          }}
+                        >
+                          {activeGlossaryEntry.en}
                         </div>
                       )}
                     </div>
@@ -517,7 +593,9 @@ export function ReadingVocabGame({
                       <button
                         type="button"
                         className="vf-g-btn vf-g-btn--primary vf-g-btn--sm"
-                        onClick={() => speak(selectedGlossaryKey, { rate: 0.9 })}
+                        onClick={() =>
+                          speak(selectedGlossaryKey, { rate: 0.9 })
+                        }
                         data-testid="glossary-speak-btn"
                       >
                         <Volume2 size={14} /> Nghe
@@ -535,8 +613,11 @@ export function ReadingVocabGame({
                 </div>
               )}
 
-              {/* Interactive Passage Paragraphs */}
-              <div className="vf-g-passage-box" data-testid="reading-passage-text">
+              {/* Editorial Passage Body */}
+              <article
+                className="vf-g-passage-box"
+                data-testid="reading-passage-text"
+              >
                 {(currentPassage.paragraphs || []).map((para, pIdx) => {
                   const tokens = tokenizeParagraphWithGlossary(
                     para,
@@ -568,7 +649,7 @@ export function ReadingVocabGame({
                     </p>
                   );
                 })}
-              </div>
+              </article>
 
               {/* Comprehension Questions */}
               <div style={{ display: "grid", gap: "16px" }}>
@@ -578,14 +659,29 @@ export function ReadingVocabGame({
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: "10px",
+                    paddingBottom: "8px",
+                    borderBottom: "1px solid var(--g-border)",
                   }}
                 >
-                  <h4 style={{ margin: 0, fontSize: "1.02rem" }}>
-                    Câu hỏi đọc hiểu ({readingAnsweredCount}/{readingQuestions.length})
+                  <h4
+                    className="vf-g-serif"
+                    style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600 }}
+                  >
+                    Câu hỏi đọc hiểu{" "}
+                    <span
+                      className="vf-g-mono"
+                      style={{
+                        fontSize: "0.84rem",
+                        fontWeight: 400,
+                        color: "var(--g-text-muted)",
+                      }}
+                    >
+                      ({readingAnsweredCount}/{readingQuestions.length})
+                    </span>
                   </h4>
                   {readingDone && (
-                    <span className="vf-g-badge vf-g-badge--emerald vf-g-mono">
-                      Đúng {readingCorrectCount}/{readingQuestions.length} câu
+                    <span className="vf-g-tag vf-g-tag--good vf-g-mono">
+                      Đúng {readingCorrectCount}/{readingQuestions.length}
                     </span>
                   )}
                 </div>
@@ -596,26 +692,37 @@ export function ReadingVocabGame({
                   const isCorrect = isAnswered && pickedIdx === q.correctIndex;
 
                   return (
-                    <div
-                      key={q.id}
-                      style={{
-                        padding: "16px",
-                        borderRadius: "16px",
-                        background: "rgba(11, 16, 27, 0.45)",
-                        border: "1px solid var(--g-border)",
-                      }}
-                    >
-                      <div style={{ fontWeight: 700, marginBottom: "12px", fontSize: "0.96rem" }}>
-                        Câu {qIdx + 1}: {q.questionVi}
+                    <div key={q.id} className="vf-g-reading-q-card">
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          marginBottom: "12px",
+                          fontSize: "0.95rem",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        <span
+                          className="vf-g-mono"
+                          style={{
+                            color: "var(--g-text-muted)",
+                            marginRight: "8px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {String(qIdx + 1).padStart(2, "0")}.
+                        </span>
+                        {q.questionVi}
                       </div>
 
-                      <div className="vf-g-options-grid">
+                      <div className="vf-g-options-list">
                         {(q.options || []).map((optText, oIdx) => {
                           let stateCls = "";
                           if (isAnswered) {
-                            if (oIdx === q.correctIndex) stateCls = "vf-g-option-card--correct";
-                            else if (oIdx === pickedIdx) stateCls = "vf-g-option-card--wrong";
-                            else stateCls = "vf-g-option-card--dim";
+                            if (oIdx === q.correctIndex)
+                              stateCls = "vf-g-option-row--correct";
+                            else if (oIdx === pickedIdx)
+                              stateCls = "vf-g-option-row--wrong";
+                            else stateCls = "vf-g-option-row--dim";
                           }
                           return (
                             <button
@@ -623,7 +730,7 @@ export function ReadingVocabGame({
                               type="button"
                               disabled={isAnswered}
                               onClick={() => handleReadingAnswer(q, oIdx)}
-                              className={`vf-g-option-card ${stateCls}`}
+                              className={`vf-g-option-row ${stateCls}`}
                               data-testid={`reading-q-${qIdx}-opt-${oIdx}`}
                             >
                               <span className="vf-g-option-key">
@@ -640,10 +747,13 @@ export function ReadingVocabGame({
                           style={{
                             marginTop: "10px",
                             fontSize: "0.86rem",
-                            color: isCorrect ? "#a7f3d0" : "#fde68a",
+                            lineHeight: 1.55,
+                            color: isCorrect ? "#9bdcc0" : "#e5c58e",
                           }}
                         >
-                          <strong>{isCorrect ? "Chính xác: " : "Giải thích: "}</strong>
+                          <strong>
+                            {isCorrect ? "Chính xác: " : "Giải thích: "}
+                          </strong>
                           {q.explanationVi}
                         </div>
                       )}
@@ -665,15 +775,23 @@ export function ReadingVocabGame({
                   data-testid="reading-passage-complete"
                 >
                   <div>
-                    <strong style={{ color: "#6ee7b7" }}>
-                      Hoàn thành bài đọc! Đạt{" "}
+                    <strong style={{ color: "#8ad3b5", fontSize: "0.95rem" }}>
+                      Hoàn thành bài đọc · Đạt{" "}
                       {Math.round(
-                        (readingCorrectCount / Math.max(1, readingQuestions.length)) * 100
+                        (readingCorrectCount /
+                          Math.max(1, readingQuestions.length)) *
+                          100
                       )}
                       %
                     </strong>
-                    <div style={{ fontSize: "0.84rem", color: "var(--g-text-muted)", marginTop: "2px" }}>
-                      Đã lưu tiến độ kỹ năng Đọc. Bạn có thể chuyển sang bài tiếp theo hoặc luyện Ghép Câu Phản Xạ.
+                    <div
+                      style={{
+                        fontSize: "0.83rem",
+                        color: "var(--g-text-secondary)",
+                        marginTop: "3px",
+                      }}
+                    >
+                      Tiến độ đọc đã được lưu. Bạn có thể đọc tiếp bài sau hoặc chuyển sang ghép câu.
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -683,55 +801,55 @@ export function ReadingVocabGame({
                         className="vf-g-btn vf-g-btn--primary vf-g-btn--sm"
                         onClick={() => handleSelectPassage(passageIndex + 1)}
                       >
-                        Bài đọc tiếp theo <ArrowRight size={14} />
+                        Bài tiếp theo <ArrowRight size={14} />
                       </button>
                     )}
                     <button
                       type="button"
-                      className="vf-g-btn vf-g-btn--amber vf-g-btn--sm"
+                      className="vf-g-btn vf-g-btn--sm"
                       onClick={() => setSubMode("builder")}
                     >
-                      <Puzzle size={14} /> Sang Ghép Câu Phản Xạ
+                      <Puzzle size={14} /> Sang Ghép câu
                     </button>
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       ) : builderCompleted ? (
         /* Sentence Builder Summary */
         <div className="vf-g-summary" data-testid="builder-summary">
-          <div className="vf-g-summary-icon">
-            <Trophy size={30} />
-          </div>
-          <h2 style={{ margin: "0 0 6px", fontSize: "1.45rem" }}>
-            Hoàn thành Ghép Câu Phản Xạ!
-          </h2>
-          <p style={{ margin: 0, color: "var(--g-text-muted)" }}>
-            Bạn đã luyện sắp xếp cấu trúc câu tiếng Việt tự nhiên cho trình độ A2–B1.
+          <div className="vf-g-summary-kicker">Tổng kết ghép câu</div>
+          <h2 className="vf-g-summary-title">Hoàn thành phần ghép câu</h2>
+          <p className="vf-g-summary-sub">
+            Bạn đã ôn lại các cấu trúc sắp xếp câu tiếng Việt tự nhiên ở trình độ A2–B1.
           </p>
 
           <div className="vf-g-summary-grid">
             <div className="vf-g-metric-box">
-              <div className="vf-g-metric-value vf-g-mono" style={{ color: "#34d399" }}>
-                {Math.round((builderScore / Math.max(1, sentenceRound.length)) * 100)}%
+              <div
+                className="vf-g-metric-value vf-g-mono"
+                style={{ color: "var(--g-good)" }}
+              >
+                {Math.round(
+                  (builderScore / Math.max(1, sentenceRound.length)) * 100
+                )}
+                %
               </div>
               <div className="vf-g-metric-label">
                 Đúng ngay ({builderScore}/{sentenceRound.length})
               </div>
             </div>
             <div className="vf-g-metric-box">
-              <div className="vf-g-metric-value vf-g-mono" style={{ color: "#fbbf24" }}>
-                +{builderXp} XP
-              </div>
-              <div className="vf-g-metric-label">Điểm kinh nghiệm</div>
+              <div className="vf-g-metric-value vf-g-mono">+{builderXp} XP</div>
+              <div className="vf-g-metric-label">Điểm luyện tập</div>
             </div>
             <div className="vf-g-metric-box">
-              <div className="vf-g-metric-value vf-g-mono" style={{ color: "#38bdf8" }}>
+              <div className="vf-g-metric-value vf-g-mono">
                 {builderBestCombo}
               </div>
-              <div className="vf-g-metric-label">Combo cao nhất</div>
+              <div className="vf-g-metric-label">Chuỗi cao nhất</div>
             </div>
           </div>
 
@@ -741,11 +859,11 @@ export function ReadingVocabGame({
               className="vf-g-btn vf-g-btn--primary"
               onClick={() => setBuilderSeed((s) => s + 1)}
             >
-              <RotateCcw size={16} /> Chơi vòng mới
+              <RotateCcw size={15} /> Luyện vòng mới
             </button>
             {onBack && (
               <button type="button" className="vf-g-btn" onClick={onBack}>
-                <ArrowLeft size={16} /> Về Trung tâm trò chơi
+                <ArrowLeft size={15} /> Về danh sách bài tập
               </button>
             )}
           </div>
@@ -755,23 +873,21 @@ export function ReadingVocabGame({
         <div className="vf-g-panel" data-testid="sentence-builder-view">
           {currentBuilderItem && (
             <>
-              <div className="vf-g-topbar" style={{ marginBottom: "16px" }}>
-                <div className="vf-g-topbar-left">
-                  <span className="vf-g-badge vf-g-badge--amber">
-                    <Puzzle size={14} /> Câu {builderIndex + 1} / {sentenceRound.length}
-                  </span>
-                  <span className="vf-g-badge">
+              <div className="vf-g-session-meta">
+                <div className="vf-g-session-meta-group">
+                  <strong className="vf-g-mono">
+                    Câu {builderIndex + 1} / {sentenceRound.length}
+                  </strong>
+                  <span className="vf-g-dot-sep">·</span>
+                  <span>
                     {getTopicById?.(currentBuilderItem.topicId)?.titleVi ||
                       TOPIC_META[currentBuilderItem.topicId]?.titleVi}
                   </span>
                 </div>
-                <div className="vf-g-topbar-right">
-                  <span className="vf-g-badge vf-g-badge--amber vf-g-mono">
-                    <Flame size={14} /> Combo {builderCombo}
-                  </span>
-                  <span className="vf-g-badge vf-g-badge--emerald vf-g-mono">
-                    <Sparkles size={14} /> {builderXp} XP
-                  </span>
+                <div className="vf-g-session-meta-group vf-g-mono">
+                  <span>Chuỗi {builderCombo}</span>
+                  <span className="vf-g-dot-sep">·</span>
+                  <span>{builderXp} XP</span>
                 </div>
               </div>
 
@@ -780,7 +896,11 @@ export function ReadingVocabGame({
                   className="vf-g-progress-fill"
                   style={{
                     width: `${
-                      ((builderIndex + (builderStatus === "correct" || builderStatus === "revealed" ? 1 : 0)) /
+                      ((builderIndex +
+                        (builderStatus === "correct" ||
+                        builderStatus === "revealed"
+                          ? 1
+                          : 0)) /
                         Math.max(1, sentenceRound.length)) *
                       100
                     }%`,
@@ -789,11 +909,25 @@ export function ReadingVocabGame({
               </div>
 
               {/* Meaning Prompt */}
-              <div className="vf-g-audio-stage" style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "0.78rem", color: "var(--g-text-muted)", marginBottom: "6px" }}>
-                  Hãy ghép thành câu tiếng Việt tự nhiên mang nghĩa:
+              <div className="vf-g-audio-stage" style={{ marginBottom: "18px" }}>
+                <div
+                  style={{
+                    fontSize: "0.79rem",
+                    color: "var(--g-text-muted)",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Ghép thành câu tiếng Việt tự nhiên mang nghĩa
                 </div>
-                <div style={{ fontSize: "1.16rem", fontWeight: 700, color: "#f8fafc" }}>
+                <div
+                  className="vf-g-serif"
+                  style={{
+                    fontSize: "1.2rem",
+                    fontWeight: 600,
+                    color: "var(--g-text)",
+                    lineHeight: 1.45,
+                  }}
+                >
                   “{currentBuilderItem.promptEn}”
                 </div>
 
@@ -801,11 +935,13 @@ export function ReadingVocabGame({
                   <div style={{ marginTop: "12px" }}>
                     <button
                       type="button"
-                      className={`vf-g-btn vf-g-btn--sm ${showBuilderHint ? "vf-g-btn--amber" : ""}`}
+                      className={`vf-g-btn vf-g-btn--sm ${
+                        showBuilderHint ? "vf-g-btn--warn" : "vf-g-btn--ghost"
+                      }`}
                       onClick={() => setShowBuilderHint((prev) => !prev)}
                     >
                       <Lightbulb size={14} />{" "}
-                      {showBuilderHint ? "Ẩn gợi ý cấu trúc" : "Gợi ý cấu trúc"}
+                      {showBuilderHint ? "Ẩn gợi ý" : "Gợi ý cấu trúc"}
                     </button>
                     {showBuilderHint && (
                       <div className="vf-g-drawer vf-g-drawer--hint">
@@ -828,8 +964,13 @@ export function ReadingVocabGame({
                 data-testid="builder-tray"
               >
                 {placedTiles.length === 0 ? (
-                  <span style={{ color: "var(--g-text-muted)", fontSize: "0.88rem" }}>
-                    Nhấn vào các thẻ từ bên dưới theo đúng thứ tự để ghép câu...
+                  <span
+                    style={{
+                      color: "var(--g-text-muted)",
+                      fontSize: "0.87rem",
+                    }}
+                  >
+                    Chọn các thẻ từ bên dưới theo đúng trật tự để tạo thành câu...
                   </span>
                 ) : (
                   placedTiles.map((tile) => (
@@ -845,7 +986,7 @@ export function ReadingVocabGame({
                 )}
               </div>
 
-              {/* Shuffled Tile Bank */}
+              {/* Matte Physical Tile Bank */}
               <div className="vf-g-tile-bank" data-testid="builder-bank">
                 {bankTiles.map((tile) => {
                   const isUsed = placedIds.has(tile.uid);
@@ -864,7 +1005,14 @@ export function ReadingVocabGame({
               </div>
 
               {/* Action Controls */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  alignItems: "center",
+                }}
+              >
                 {builderStatus === "idle" || builderStatus === "wrong" ? (
                   <>
                     <button
@@ -874,7 +1022,7 @@ export function ReadingVocabGame({
                       onClick={handleCheckSentence}
                       data-testid="builder-check-btn"
                     >
-                      <CheckCircle2 size={16} /> Kiểm tra câu
+                      <CheckCircle2 size={15} /> Kiểm tra câu
                     </button>
                     <button
                       type="button"
@@ -882,7 +1030,7 @@ export function ReadingVocabGame({
                       disabled={placedTiles.length === 0}
                       onClick={handleUndoTile}
                     >
-                      <Undo2 size={15} /> Hoàn tác
+                      <Undo2 size={14} /> Hoàn tác
                     </button>
                     <button
                       type="button"
@@ -895,7 +1043,7 @@ export function ReadingVocabGame({
                     {builderStatus === "wrong" && (
                       <button
                         type="button"
-                        className="vf-g-btn vf-g-btn--amber vf-g-btn--sm"
+                        className="vf-g-btn vf-g-btn--warn vf-g-btn--sm"
                         onClick={handleRevealSentence}
                       >
                         Xem đáp án chuẩn
@@ -907,20 +1055,24 @@ export function ReadingVocabGame({
                     <button
                       type="button"
                       className="vf-g-btn"
-                      onClick={() => speak(currentBuilderItem.targetSentenceVi, { rate: 0.95 })}
+                      onClick={() =>
+                        speak(currentBuilderItem.targetSentenceVi, {
+                          rate: 0.95,
+                        })
+                      }
                     >
-                      <Volume2 size={16} /> Nghe lại câu chuẩn
+                      <Volume2 size={15} /> Nghe lại câu chuẩn
                     </button>
                     <button
                       type="button"
-                      className="vf-g-btn vf-g-btn--emerald"
+                      className="vf-g-btn vf-g-btn--primary"
                       onClick={handleNextBuilder}
                       data-testid="builder-next-btn"
                     >
                       {builderIndex + 1 >= sentenceRound.length
                         ? "Xem tổng kết"
                         : "Câu tiếp theo"}{" "}
-                      <ArrowRight size={16} />
+                      <ArrowRight size={15} />
                     </button>
                   </>
                 )}
@@ -929,28 +1081,50 @@ export function ReadingVocabGame({
               {/* Feedback & Grammar Note */}
               {builderStatus === "wrong" && (
                 <div className="vf-g-feedback-box vf-g-feedback-box--err">
-                  <strong style={{ color: "#fda4af", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    <XCircle size={17} /> Thứ tự chưa khớp lắm — bạn thử điều chỉnh lại vị trí các cụm từ nhé!
+                  <strong
+                    style={{
+                      color: "#eba0a0",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "7px",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <XCircle size={16} /> Trật tự chưa đúng — thử đổi lại vị trí các cụm từ nhé.
                   </strong>
                 </div>
               )}
 
-              {(builderStatus === "correct" || builderStatus === "revealed") && (
+              {(builderStatus === "correct" ||
+                builderStatus === "revealed") && (
                 <div
                   className={`vf-g-feedback-box ${
-                    builderStatus === "correct"
-                      ? "vf-g-feedback-box--ok"
-                      : ""
+                    builderStatus === "correct" ? "vf-g-feedback-box--ok" : ""
                   }`}
                   data-testid="builder-feedback"
                 >
-                  <div style={{ fontWeight: 700, color: builderStatus === "correct" ? "#6ee7b7" : "#fde68a", marginBottom: "6px" }}>
-                    {builderStatus === "correct" ? "Chính xác!" : "Câu chuẩn:"}{" "}
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color:
+                        builderStatus === "correct" ? "#8ad3b5" : "#e7c285",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    {builderStatus === "correct" ? "Chính xác: " : "Câu chuẩn: "}
                     “{currentBuilderItem.targetSentenceVi}”
                   </div>
                   {currentBuilderItem.grammarNoteVi && (
-                    <p style={{ margin: 0, fontSize: "0.88rem", color: "#cbd5e1" }}>
-                      <strong>Ghi chú ngữ pháp:</strong> {currentBuilderItem.grammarNoteVi}
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "0.88rem",
+                        color: "var(--g-text-secondary)",
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      <strong>Ghi chú ngữ pháp:</strong>{" "}
+                      {currentBuilderItem.grammarNoteVi}
                     </p>
                   )}
                 </div>

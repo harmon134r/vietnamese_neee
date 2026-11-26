@@ -33,9 +33,9 @@ export function FlashcardDeckManager({
 
   if (!deck) {
     return (
-      <div className="fc-empty-card">
+      <div className="fc-empty-card is-compact">
         <h3>Chưa chọn bộ thẻ nào</h3>
-        <p>Hãy chọn một bộ thẻ hoặc tạo bộ thẻ mới để quản lý danh sách từ vựng.</p>
+        <p>Chọn một bộ thẻ hoặc tạo bộ thẻ mới để quản lý danh sách từ vựng.</p>
       </div>
     );
   }
@@ -91,7 +91,6 @@ export function FlashcardDeckManager({
           <form className="fc-manager-deck-edit" onSubmit={handleSaveDeckMeta}>
             <input
               className="fc-input"
-              style={{ width: 230, padding: "7px 11px", fontSize: "0.86rem" }}
               value={deckTitle}
               onChange={(e) => setDeckTitle(e.target.value)}
               aria-label="Tên bộ thẻ"
@@ -99,7 +98,6 @@ export function FlashcardDeckManager({
             />
             <select
               className="fc-select"
-              style={{ width: 200, padding: "7px 10px", fontSize: "0.82rem" }}
               value={deckTopicId}
               onChange={(e) => setDeckTopicId(e.target.value)}
               aria-label="Chủ đề bộ thẻ"
@@ -112,7 +110,8 @@ export function FlashcardDeckManager({
               ))}
             </select>
             <button type="submit" className="fc-action-btn is-active">
-              <Check size={15} /> Lưu
+              <Check size={14} />
+              <span>Lưu</span>
             </button>
             <button
               type="button"
@@ -123,28 +122,24 @@ export function FlashcardDeckManager({
                 setIsRenamingDeck(false);
               }}
             >
-              <X size={15} /> Hủy
+              <X size={14} />
+              <span>Hủy</span>
             </button>
           </form>
         ) : (
-          <div>
-            <h3 style={{ margin: 0, fontSize: "1.08rem" }}>
-              {deck.title}{" "}
-              <span style={{ color: "#9aa5ba", fontSize: "0.84rem", fontWeight: 500 }}>
-                ({cards.length} thẻ hiển thị)
-              </span>
+          <div className="fc-manager-title-wrap">
+            <h3 className="fc-manager-title">
+              <span>{deck.title}</span>
+              <span className="fc-manager-count">{cards.length} thẻ</span>
             </h3>
-            {deck.description && (
-              <p style={{ margin: "3px 0 0", fontSize: "0.8rem", color: "#9aa5ba" }}>
-                {deck.description}
-              </p>
-            )}
+            {deck.description && <p className="fc-manager-desc">{deck.description}</p>}
           </div>
         )}
 
         <div className="fc-toolbar-actions">
           <button type="button" className="fc-action-btn" onClick={onOpenCreate}>
-            <Plus size={15} /> Thêm thẻ
+            <Plus size={14} />
+            <span>Thêm thẻ</span>
           </button>
           {!isRenamingDeck && (
             <button
@@ -152,11 +147,12 @@ export function FlashcardDeckManager({
               className="fc-action-btn"
               onClick={() => setIsRenamingDeck(true)}
             >
-              <Pencil size={14} /> Đổi tên bộ thẻ
+              <Pencil size={13} />
+              <span>Đổi tên</span>
             </button>
           )}
-          {onDeleteDeck && (
-            confirmDeleteDeck ? (
+          {onDeleteDeck &&
+            (confirmDeleteDeck ? (
               <>
                 <button
                   type="button"
@@ -166,7 +162,7 @@ export function FlashcardDeckManager({
                     setConfirmDeleteDeck(false);
                   }}
                 >
-                  Xác nhận xóa bộ thẻ
+                  Xác nhận xóa
                 </button>
                 <button
                   type="button"
@@ -183,164 +179,199 @@ export function FlashcardDeckManager({
                 onClick={() => setConfirmDeleteDeck(true)}
                 title="Xóa bộ thẻ này"
               >
-                <Trash2 size={14} /> Xóa bộ thẻ
+                <Trash2 size={13} />
+                <span>Xóa bộ thẻ</span>
               </button>
-            )
-          )}
+            ))}
         </div>
       </div>
 
       {cards.length === 0 ? (
-        <div className="fc-empty-card" style={{ minHeight: 220 }}>
+        <div className="fc-empty-card is-compact">
           <h3>Không có thẻ nào khớp bộ lọc</h3>
-          <p>Thêm thẻ từ vựng mới hoặc đặt lại bộ lọc để xem toàn bộ thẻ trong bộ.</p>
+          <p>Thêm thẻ từ vựng mới hoặc đặt lại bộ lọc để xem toàn bộ danh sách thẻ.</p>
         </div>
       ) : (
-        <div className="fc-card-list">
-          {cards.map((card) => {
-            const isEditing = editingCardId === card.id;
-            const isMastered = (card.masteryLevel || 0) >= MASTERY_LEVELS.STRONG;
-            const isReview = (card.masteryLevel || 0) >= MASTERY_LEVELS.REVIEW && !isMastered;
-            const ipaFormatted = formatIpaDisplay(card.ipa);
+        <div className="fc-table-shell">
+          <div className="fc-table-head" aria-hidden="true">
+            <span>Từ vựng</span>
+            <span>Định nghĩa &amp; ví dụ</span>
+            <span>Trạng thái</span>
+            <span className="fc-table-head-actions">Thao tác</span>
+          </div>
 
-            if (isEditing && editDraft) {
-              return (
-                <form
-                  key={card.id}
-                  className="fc-list-edit-form"
-                  onSubmit={(e) => handleSaveCardEdit(e, card.id)}
-                >
-                  <div className="fc-form-row">
-                    <input
-                      className="fc-input"
-                      value={editDraft.frontVi}
-                      onChange={(e) => setEditDraft((d) => ({ ...d, frontVi: e.target.value }))}
-                      placeholder="Từ vựng tiếng Việt *"
-                      aria-label="Sửa từ vựng tiếng Việt"
-                      required
-                    />
-                    <div className="fc-form-row" style={{ gap: 8 }}>
-                      <select
-                        className="fc-select"
-                        value={editDraft.pos}
-                        onChange={(e) => setEditDraft((d) => ({ ...d, pos: e.target.value }))}
-                        aria-label="Sửa loại từ"
-                      >
-                        <option value="">Loại từ</option>
-                        {VIETNAMESE_POS_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
+          <div className="fc-card-list">
+            {cards.map((card) => {
+              const isEditing = editingCardId === card.id;
+              const isMastered = (card.masteryLevel || 0) >= MASTERY_LEVELS.STRONG;
+              const isReview =
+                (card.masteryLevel || 0) >= MASTERY_LEVELS.REVIEW && !isMastered;
+              const ipaFormatted = formatIpaDisplay(card.ipa);
+
+              if (isEditing && editDraft) {
+                return (
+                  <form
+                    key={card.id}
+                    className="fc-list-edit-form"
+                    onSubmit={(e) => handleSaveCardEdit(e, card.id)}
+                  >
+                    <div className="fc-form-row">
                       <input
                         className="fc-input"
-                        value={editDraft.ipa}
-                        onChange={(e) => setEditDraft((d) => ({ ...d, ipa: e.target.value }))}
-                        placeholder="Phiên âm"
-                        aria-label="Sửa phiên âm"
+                        value={editDraft.frontVi}
+                        onChange={(e) =>
+                          setEditDraft((d) => ({ ...d, frontVi: e.target.value }))
+                        }
+                        placeholder="Từ vựng tiếng Việt *"
+                        aria-label="Sửa từ vựng tiếng Việt"
+                        required
+                      />
+                      <div className="fc-form-row fc-inline-subrow">
+                        <select
+                          className="fc-select"
+                          value={editDraft.pos}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({ ...d, pos: e.target.value }))
+                          }
+                          aria-label="Sửa loại từ"
+                        >
+                          <option value="">Loại từ</option>
+                          {VIETNAMESE_POS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          className="fc-input"
+                          value={editDraft.ipa}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({ ...d, ipa: e.target.value }))
+                          }
+                          placeholder="Phiên âm"
+                          aria-label="Sửa phiên âm"
+                        />
+                      </div>
+                    </div>
+                    <input
+                      className="fc-input"
+                      value={editDraft.definition}
+                      onChange={(e) =>
+                        setEditDraft((d) => ({ ...d, definition: e.target.value }))
+                      }
+                      placeholder="Định nghĩa *"
+                      aria-label="Sửa định nghĩa"
+                      required
+                    />
+                    <div className="fc-form-row">
+                      <input
+                        className="fc-input"
+                        value={editDraft.exampleVi}
+                        onChange={(e) =>
+                          setEditDraft((d) => ({ ...d, exampleVi: e.target.value }))
+                        }
+                        placeholder="Câu ví dụ tiếng Việt"
+                        aria-label="Sửa câu ví dụ"
+                      />
+                      <input
+                        className="fc-input"
+                        value={editDraft.exampleEn}
+                        onChange={(e) =>
+                          setEditDraft((d) => ({ ...d, exampleEn: e.target.value }))
+                        }
+                        placeholder="Dịch ví dụ (tuỳ chọn)"
+                        aria-label="Sửa dịch ví dụ"
                       />
                     </div>
-                  </div>
-                  <input
-                    className="fc-input"
-                    value={editDraft.definition}
-                    onChange={(e) => setEditDraft((d) => ({ ...d, definition: e.target.value }))}
-                    placeholder="Định nghĩa *"
-                    aria-label="Sửa định nghĩa"
-                    required
-                  />
-                  <div className="fc-form-row">
-                    <input
-                      className="fc-input"
-                      value={editDraft.exampleVi}
-                      onChange={(e) => setEditDraft((d) => ({ ...d, exampleVi: e.target.value }))}
-                      placeholder="Câu ví dụ tiếng Việt"
-                      aria-label="Sửa câu ví dụ"
-                    />
-                    <input
-                      className="fc-input"
-                      value={editDraft.exampleEn}
-                      onChange={(e) => setEditDraft((d) => ({ ...d, exampleEn: e.target.value }))}
-                      placeholder="Dịch ví dụ (tuỳ chọn)"
-                      aria-label="Sửa dịch ví dụ"
-                    />
-                  </div>
-                  <div className="fc-btn-row">
-                    <button
-                      type="submit"
-                      className="fc-action-btn is-active"
-                      disabled={savingId === card.id}
-                    >
-                      <Check size={15} /> {savingId === card.id ? "Đang lưu..." : "Lưu thẻ"}
-                    </button>
-                    <button
-                      type="button"
-                      className="fc-action-btn"
-                      onClick={() => {
-                        setEditingCardId(null);
-                        setEditDraft(null);
-                      }}
-                    >
-                      <X size={15} /> Hủy
-                    </button>
-                  </div>
-                </form>
-              );
-            }
+                    <div className="fc-btn-row">
+                      <button
+                        type="submit"
+                        className="fc-action-btn is-active"
+                        disabled={savingId === card.id}
+                      >
+                        <Check size={14} />
+                        <span>{savingId === card.id ? "Đang lưu..." : "Lưu thẻ"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="fc-action-btn"
+                        onClick={() => {
+                          setEditingCardId(null);
+                          setEditDraft(null);
+                        }}
+                      >
+                        <X size={14} />
+                        <span>Hủy</span>
+                      </button>
+                    </div>
+                  </form>
+                );
+              }
 
-            return (
-              <div key={card.id} className="fc-card-list-item">
-                <div className="fc-list-item-main">
-                  <div className="fc-list-item-top">
+              return (
+                <div key={card.id} className="fc-card-list-item">
+                  <div className="fc-table-term">
                     <strong>{card.frontVi}</strong>
-                    {card.pos && <span className="fc-list-pos">{card.pos}</span>}
-                    {ipaFormatted && <span className="fc-list-ipa">{ipaFormatted}</span>}
-                    {isMastered && (
-                      <span className="fc-status-dot-badge mastered">Đã thuộc</span>
+                    {(card.pos || ipaFormatted) && (
+                      <div className="fc-table-meta">
+                        {card.pos && <span className="fc-list-pos">{card.pos}</span>}
+                        {ipaFormatted && <span className="fc-list-ipa">{ipaFormatted}</span>}
+                      </div>
                     )}
-                    {isReview && <span className="fc-status-dot-badge review">Cần ôn</span>}
                   </div>
-                  <div className="fc-list-def">{card.definition}</div>
-                  {card.exampleVi && <div className="fc-list-ex">VD: {card.exampleVi}</div>}
-                </div>
 
-                <div className="fc-list-actions">
-                  <button
-                    type="button"
-                    className="fc-icon-ghost"
-                    onClick={() => speakVietnamese(card.frontVi)}
-                    aria-label={`Nghe phát âm ${card.frontVi}`}
-                    title="Nghe phát âm"
-                  >
-                    <Volume2 size={17} />
-                  </button>
-                  {onUpdateCard && (
+                  <div className="fc-table-meaning">
+                    <div className="fc-list-def">{card.definition}</div>
+                    {card.exampleVi && <div className="fc-list-ex">VD: {card.exampleVi}</div>}
+                  </div>
+
+                  <div className="fc-table-status">
+                    {isMastered ? (
+                      <span className="fc-status-dot-badge mastered">Đã thuộc</span>
+                    ) : isReview ? (
+                      <span className="fc-status-dot-badge review">Cần ôn</span>
+                    ) : (
+                      <span className="fc-status-dot-badge fresh">Chưa học</span>
+                    )}
+                  </div>
+
+                  <div className="fc-list-actions">
                     <button
                       type="button"
                       className="fc-icon-ghost"
-                      onClick={() => handleStartEditCard(card)}
-                      aria-label={`Chỉnh sửa thẻ ${card.frontVi}`}
-                      title="Chỉnh sửa thẻ"
+                      onClick={() => speakVietnamese(card.frontVi)}
+                      aria-label={`Nghe phát âm ${card.frontVi}`}
+                      title="Nghe phát âm"
                     >
-                      <Pencil size={16} />
+                      <Volume2 size={16} />
                     </button>
-                  )}
-                  {onDeleteCard && (
-                    <button
-                      type="button"
-                      className="fc-icon-ghost"
-                      onClick={() => onDeleteCard(card.id)}
-                      aria-label={`Xóa thẻ ${card.frontVi}`}
-                      title="Xóa thẻ"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                    {onUpdateCard && (
+                      <button
+                        type="button"
+                        className="fc-icon-ghost"
+                        onClick={() => handleStartEditCard(card)}
+                        aria-label={`Chỉnh sửa thẻ ${card.frontVi}`}
+                        title="Chỉnh sửa thẻ"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                    )}
+                    {onDeleteCard && (
+                      <button
+                        type="button"
+                        className="fc-icon-ghost is-danger"
+                        onClick={() => onDeleteCard(card.id)}
+                        aria-label={`Xóa thẻ ${card.frontVi}`}
+                        title="Xóa thẻ"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

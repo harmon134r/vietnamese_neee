@@ -2,17 +2,12 @@ import React, { useEffect, useState } from "react";
 import {
   AlertCircle,
   Check,
-  Cloud,
   Copy,
-  Database,
   Eye,
   EyeOff,
   HardDrive,
-  LogIn,
   LogOut,
   RefreshCw,
-  ShieldCheck,
-  UserPlus,
   X,
 } from "lucide-react";
 import { isSupabaseConfigured, signIn, signOut, signUp } from "../../lib/supabase";
@@ -61,7 +56,7 @@ export function AuthModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      onNotify?.("Không thể sao chép tự động, vui lòng bôi đen đoạn mã.", "error");
+      onNotify?.("Không thể sao chép tự động, bạn hãy bôi đen đoạn mã nhé.", "error");
     }
   };
 
@@ -85,7 +80,7 @@ export function AuthModal({
       if (mode === "signin") {
         const result = await signIn({ email: cleanEmail, password });
         onAuthSuccess?.(result.user, result.profile);
-        onNotify?.("Đăng nhập thành công! Dữ liệu đang đồng bộ với Supabase.", "success");
+        onNotify?.("Đã đăng nhập và bắt đầu đồng bộ dữ liệu.", "success");
         setPassword("");
         onClose();
       } else {
@@ -96,12 +91,12 @@ export function AuthModal({
         });
         if (result.needsEmailConfirmation) {
           setInfoMsg(
-            "Tài khoản đã được tạo! Vui lòng kiểm tra hộp thư email để xác nhận trước khi đăng nhập."
+            "Đã tạo tài khoản. Vui lòng kiểm tra hộp thư email để xác nhận trước khi đăng nhập."
           );
           setMode("signin");
         } else {
           onAuthSuccess?.(result.user, result.profile);
-          onNotify?.("Tạo tài khoản và đăng nhập thành công!", "success");
+          onNotify?.("Đã tạo tài khoản và đăng nhập.", "success");
           onClose();
         }
         setPassword("");
@@ -118,17 +113,18 @@ export function AuthModal({
     setErrorMsg("");
     setInfoMsg("");
     try {
-      const { syncedDecks = 0, syncedCards = 0, syncedSessions = 0 } = await syncLocalToCloud();
+      const { syncedDecks = 0, syncedCards = 0, syncedSessions = 0 } =
+        await syncLocalToCloud();
       const parts = [];
       if (syncedDecks > 0) parts.push(`${syncedDecks} bộ thẻ`);
       if (syncedCards > 0) parts.push(`${syncedCards} flashcard`);
-      if (syncedSessions > 0) parts.push(`${syncedSessions} phiên luyện tập`);
+      if (syncedSessions > 0) parts.push(`${syncedSessions} bài luyện`);
       if (parts.length > 0) {
-        const msg = `Đã đồng bộ ${parts.join(", ")} từ máy lên Supabase.`;
+        const msg = `Đã đồng bộ ${parts.join(", ")} từ máy lên tài khoản.`;
         setInfoMsg(msg);
         onNotify?.(msg, "success");
       } else {
-        setInfoMsg("Dữ liệu trên trình duyệt đã đồng bộ đầy đủ với tài khoản Supabase.");
+        setInfoMsg("Dữ liệu trên trình duyệt đã khớp hoàn toàn với tài khoản.");
       }
       await onSynced?.();
     } catch (err) {
@@ -144,7 +140,7 @@ export function AuthModal({
     try {
       await signOut();
       onAuthSuccess?.(null, null);
-      onNotify?.("Đã đăng xuất. Ứng dụng chuyển về chế độ lưu cục bộ.", "info");
+      onNotify?.("Đã đăng xuất. Ứng dụng chuyển về lưu trên trình duyệt.", "info");
       onClose();
     } catch (err) {
       setErrorMsg(err?.message || "Không thể đăng xuất lúc này.");
@@ -156,7 +152,7 @@ export function AuthModal({
   const resolvedName =
     userProfile?.displayName ||
     user?.user_metadata?.display_name ||
-    (user?.email ? user.email.split("@")[0] : "Học viên ViệtFlow");
+    (user?.email ? user.email.split("@")[0] : "Học viên");
   const initials = resolvedName.trim().slice(0, 2).toUpperCase() || "VF";
 
   return (
@@ -177,17 +173,17 @@ export function AuthModal({
           <div>
             <h2 id="vf-auth-modal-title" className="vf-modal-title">
               {!isSupabaseConfigured
-                ? "Chế độ Lưu Cục Bộ (Local)"
+                ? "Lưu dữ liệu cục bộ"
                 : user
-                  ? "Tài khoản & Đồng bộ Supabase"
-                  : "Đăng nhập Đồng bộ Supabase"}
+                  ? "Tài khoản & đồng bộ"
+                  : "Đăng nhập"}
             </h2>
             <p className="vf-modal-subtitle">
               {!isSupabaseConfigured
-                ? "Tự động lưu bộ thẻ và tiến độ ngay trên trình duyệt"
+                ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
                 : user
-                  ? "Flashcard và tiến độ 4 kỹ năng đang được đồng bộ đám mây"
-                  : "Lưu bộ thẻ tùy chỉnh và lịch sử học trên mọi thiết bị"}
+                  ? "Thẻ từ và lịch sử luyện tập đang đồng bộ qua Supabase."
+                  : "Giữ bộ flashcard và tiến độ học đồng nhất trên mọi thiết bị."}
             </p>
           </div>
 
@@ -197,30 +193,28 @@ export function AuthModal({
             onClick={onClose}
             aria-label="Đóng hộp thoại"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
         <div className="vf-modal-body">
-          {/* Case 1: Supabase is NOT configured yet */}
+          {/* Case 1: Supabase not configured */}
           {!isSupabaseConfigured && (
             <>
               <div className="vf-alert vf-alert--info">
-                <HardDrive size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+                <HardDrive size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                 <div>
-                  <strong>Ứng dụng đang hoạt động hoàn chỉnh ở chế độ Local.</strong> Mọi flashcard bạn tạo,
-                  điểm 4 kỹ năng, XP và chuỗi ngày học đều được tự động lưu trong <code>localStorage</code>{" "}
-                  của trình duyệt mà không cần đăng nhập.
+                  Bạn có thể học đầy đủ mà không cần tài khoản. Mọi thẻ tự tạo và điểm 4 kỹ năng đều
+                  được lưu tự động trong <code>localStorage</code> của trình duyệt.
                 </div>
               </div>
 
               <div>
-                <p style={{ margin: "0 0 8px", fontSize: "0.86rem", fontWeight: 600 }}>
-                  Muốn bật đồng bộ tài khoản khi deploy lên Vercel + Supabase?
+                <p style={{ margin: "0 0 6px", fontSize: "0.84rem", fontWeight: 600 }}>
+                  Bật đồng bộ tài khoản với Supabase
                 </p>
-                <p style={{ margin: "0 0 10px", fontSize: "0.84rem", color: "var(--text-muted)" }}>
-                  Thêm chính xác 2 biến môi trường sau vào <code>.env.local</code> hoặc Vercel Environment
-                  Variables:
+                <p style={{ margin: "0 0 10px", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                  Thêm 2 biến môi trường sau vào <code>.env.local</code> hoặc cấu hình deploy:
                 </p>
 
                 <div className="vf-code-box">
@@ -229,7 +223,7 @@ export function AuthModal({
                     className="vf-copy-btn"
                     onClick={handleCopyEnv}
                   >
-                    {copied ? <Check size={13} /> : <Copy size={13} />}
+                    {copied ? <Check size={12} /> : <Copy size={12} />}
                     <span>{copied ? "Đã chép" : "Sao chép"}</span>
                   </button>
                   <pre>{ENV_SNIPPET}</pre>
@@ -238,7 +232,7 @@ export function AuthModal({
 
               <ol className="vf-steps-list">
                 <li>
-                  Tạo project mới trên Supabase và chạy file migration{" "}
+                  Tạo project trên Supabase và chạy file{" "}
                   <code>supabase/migrations/001_initial_schema.sql</code> trong SQL Editor.
                 </li>
                 <li>
@@ -246,19 +240,17 @@ export function AuthModal({
                   <code>anon public</code> key.
                 </li>
                 <li>
-                  Dán 2 biến trên vào Vercel và Redeploy — nút này sẽ tự động mở giao diện Đăng nhập /
-                  Đăng ký và đồng bộ dữ liệu local lên đám mây.
+                  Cập nhật 2 biến trên và deploy lại để bật mục đăng nhập và đồng bộ đám mây.
                 </li>
               </ol>
 
               <button type="button" className="vf-btn vf-btn--primary" onClick={onClose}>
-                <ShieldCheck size={16} />
-                <span>Tiếp tục học ở chế độ Local</span>
+                Tiếp tục học cục bộ
               </button>
             </>
           )}
 
-          {/* Case 2: Supabase configured & User is Signed In */}
+          {/* Case 2: Signed In */}
           {isSupabaseConfigured && user && (
             <>
               <div className="vf-profile-card">
@@ -269,58 +261,41 @@ export function AuthModal({
                   <p className="vf-profile-name">{resolvedName}</p>
                   <p className="vf-profile-email">{user.email}</p>
                   <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                    <span className="vf-pill vf-pill--emerald">
-                      <Cloud size={12} />
-                      Đang đồng bộ Supabase
-                    </span>
-                    <span className="vf-pill vf-pill--indigo">
-                      {userProfile?.cefrLevel || "A2–B1"}
-                    </span>
+                    <span className="vf-tag vf-tag--good">Đang đồng bộ</span>
+                    <span className="vf-tag">{userProfile?.cefrLevel || "A2–B1"}</span>
                   </div>
                 </div>
               </div>
 
               {errorMsg && (
                 <div className="vf-alert vf-alert--error" role="alert">
-                  <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {infoMsg && (
                 <div className="vf-alert vf-alert--success">
-                  <Check size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <Check size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                   <span>{infoMsg}</span>
                 </div>
               )}
 
-              <div
-                style={{
-                  padding: "14px 16px",
-                  borderRadius: 14,
-                  background: "rgba(15, 23, 42, 0.55)",
-                  border: "1px solid var(--border-subtle)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.86rem", fontWeight: 600 }}>
-                  <Database size={16} color="var(--accent-sky)" />
-                  <span>Đồng bộ dữ liệu từ trình duyệt</span>
-                </div>
-                <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                  Nếu bạn đã tạo flashcard hoặc luyện tập trước khi đăng nhập, hãy nhấn nút dưới đây để
-                  tải toàn bộ dữ liệu local lên tài khoản Supabase của bạn.
+              <div className="vf-sync-panel">
+                <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                  Gộp dữ liệu từ trình duyệt
+                </span>
+                <p style={{ margin: 0, fontSize: "0.81rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  Nếu bạn từng tạo thẻ hoặc làm bài trước khi đăng nhập, nhấn nút dưới để đẩy toàn bộ dữ liệu trên máy lên tài khoản.
                 </p>
                 <button
                   type="button"
-                  className="vf-btn vf-btn--emerald"
+                  className="vf-btn vf-btn--good"
                   onClick={handleSyncLocal}
                   disabled={syncing || busy}
                 >
-                  <RefreshCw size={15} className={syncing ? "vf-spin" : ""} />
-                  <span>{syncing ? "Đang đồng bộ..." : "Đồng bộ dữ liệu local lên Supabase"}</span>
+                  <RefreshCw size={14} className={syncing ? "vf-spin" : ""} />
+                  <span>{syncing ? "Đang đồng bộ..." : "Đồng bộ dữ liệu từ máy"}</span>
                 </button>
               </div>
 
@@ -330,13 +305,13 @@ export function AuthModal({
                 onClick={handleSignOut}
                 disabled={busy || syncing}
               >
-                <LogOut size={16} />
+                <LogOut size={15} />
                 <span>{busy ? "Đang đăng xuất..." : "Đăng xuất"}</span>
               </button>
             </>
           )}
 
-          {/* Case 3: Supabase configured & Guest user (Sign In / Sign Up) */}
+          {/* Case 3: Guest Sign In / Sign Up */}
           {isSupabaseConfigured && !user && (
             <>
               <div className="vf-auth-tabs" role="tablist">
@@ -368,14 +343,14 @@ export function AuthModal({
 
               {errorMsg && (
                 <div className="vf-alert vf-alert--error" role="alert">
-                  <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {infoMsg && (
                 <div className="vf-alert vf-alert--success">
-                  <Check size={17} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <Check size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                   <span>{infoMsg}</span>
                 </div>
               )}
@@ -429,7 +404,7 @@ export function AuthModal({
                       onClick={() => setShowPassword((prev) => !prev)}
                       aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                     >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                   </div>
                 </div>
@@ -439,20 +414,25 @@ export function AuthModal({
                   className="vf-btn vf-btn--primary vf-btn--lg"
                   disabled={busy}
                 >
-                  {mode === "signin" ? <LogIn size={17} /> : <UserPlus size={17} />}
-                  <span>
-                    {busy
-                      ? "Đang xử lý..."
-                      : mode === "signin"
-                        ? "Đăng nhập & Đồng bộ"
-                        : "Đăng ký tài khoản"}
-                  </span>
+                  {busy
+                    ? "Đang xử lý..."
+                    : mode === "signin"
+                      ? "Đăng nhập"
+                      : "Tạo tài khoản"}
                 </button>
               </form>
 
-              <p style={{ margin: 0, fontSize: "0.79rem", color: "var(--text-muted)", textAlign: "center" }}>
-                Bạn vẫn có thể học không cần tài khoản — dữ liệu hiện tại được giữ an toàn trong trình
-                duyệt và có thể đẩy lên Supabase bất cứ lúc nào sau khi đăng nhập.
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.78rem",
+                  color: "var(--text-muted)",
+                  textAlign: "center",
+                  lineHeight: 1.5,
+                }}
+              >
+                Bạn vẫn có thể học không cần đăng nhập — dữ liệu hiện tại được giữ trên trình duyệt
+                và có thể đồng bộ bất cứ lúc nào.
               </p>
             </>
           )}

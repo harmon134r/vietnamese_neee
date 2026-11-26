@@ -1,31 +1,22 @@
 import React, { useEffect, useState } from "react";
 import {
   BookOpen,
-  CalendarClock,
-  CloudSun,
-  Compass,
   Headphones,
-  Heart,
   Layers,
   MessageCircle,
-  MessageSquare,
   Mic,
-  Sparkles,
   Square,
-  User,
-  Utensils,
   Volume2,
 } from "lucide-react";
-import { TOPIC_META } from "../../lib/contracts";
 import { speakVietnamese, stopSpeaking } from "../../lib/speech";
 
-const TOPIC_ICONS = {
-  self: User,
-  food: Utensils,
-  routine: CalendarClock,
-  weather: CloudSun,
-  emotions: Heart,
-  opinions: MessageSquare,
+const TOPIC_SHORT_LABELS = {
+  self: "Bản thân",
+  food: "Ẩm thực",
+  routine: "Sinh hoạt",
+  weather: "Thời tiết",
+  emotions: "Cảm xúc",
+  opinions: "Quan điểm",
 };
 
 const PLAYBACK_RATES = [
@@ -45,8 +36,11 @@ export function TopicOverview({
   const [speechRate, setSpeechRate] = useState(1);
   const [playingKey, setPlayingKey] = useState(null);
 
-  const activeTopic =
-    topics.find((t) => t.id === selectedTopicId) || topics[0] || null;
+  const activeIndex = Math.max(
+    0,
+    topics.findIndex((t) => t.id === selectedTopicId)
+  );
+  const activeTopic = topics[activeIndex] || topics[0] || null;
 
   useEffect(() => {
     return () => {
@@ -82,7 +76,7 @@ export function TopicOverview({
 
   if (!activeTopic) {
     return (
-      <div className="vf-activity-panel vf-view-enter">
+      <div className="vf-chapter-page vf-view-enter">
         <p style={{ margin: 0, color: "var(--text-muted)" }}>
           Đang tải danh sách chủ đề...
         </p>
@@ -90,12 +84,7 @@ export function TopicOverview({
     );
   }
 
-  const TopicIcon = TOPIC_ICONS[activeTopic.id] || Compass;
-  const accent =
-    activeTopic.accentColor ||
-    activeTopic.accent ||
-    TOPIC_META[activeTopic.id]?.accent ||
-    "#38bdf8";
+  const chapterCode = String(activeIndex + 1).padStart(2, "0");
   const mastery = Math.round(
     Number(skillProgress?.topicMastery?.[activeTopic.id] || 0)
   );
@@ -111,129 +100,101 @@ export function TopicOverview({
     return sum + matches;
   }, 0);
 
-  const launchItems = [
+  const practiceLinks = [
     {
       id: "listening",
       title: "Nghe hiểu",
-      sub: "Hội thoại & câu hỏi thực tế",
+      sub: "Hội thoại & câu hỏi theo ngữ cảnh",
       icon: Headphones,
-      color: "#38bdf8",
       onClick: () => onLaunchGame("listening", activeTopic.id),
     },
     {
       id: "pronunciation",
-      title: "Phát âm & Thanh điệu",
-      sub: "Cặp từ tối thiểu & đọc câu",
+      title: "Phát âm & thanh điệu",
+      sub: "Cặp từ dễ nhầm & đọc câu mẫu",
       icon: Mic,
-      color: "#fb7185",
       onClick: () => onLaunchGame("pronunciation", activeTopic.id),
     },
     {
       id: "dialogue",
       title: "Đối thoại nhập vai",
-      sub: "Thực hành nói 4 lượt tương tác",
+      sub: "Thực hành 4 lượt hỏi đáp",
       icon: MessageCircle,
-      color: "#34d399",
       onClick: () => onLaunchGame("dialogue", activeTopic.id),
     },
     {
       id: "reading",
-      title: "Đọc hiểu & Ghép câu",
-      sub: "Đoạn văn có từ điển chạm",
+      title: "Đọc hiểu & ghép câu",
+      sub: "Đoạn văn ngắn kèm giải nghĩa",
       icon: BookOpen,
-      color: "#fbbf24",
       onClick: () => onLaunchGame("reading", activeTopic.id),
     },
     {
       id: "flashcards",
-      title: "Flashcard chủ đề",
-      sub: `${topicCardCount} thẻ từ vựng A2–B1`,
+      title: "Thẻ từ vựng",
+      sub: `${topicCardCount} thẻ thuộc chủ đề này`,
       icon: Layers,
-      color: "#a78bfa",
       onClick: () => onOpenFlashcards(activeTopic.id),
     },
   ];
 
   return (
-    <div className="vf-topics-page vf-view-enter">
-      {/* Topic Selector Tabs */}
-      <div className="vf-section-head" style={{ marginBottom: 0 }}>
-        <div>
-          <h1 className="vf-section-title" style={{ fontSize: "1.55rem" }}>
-            6 Chủ Đề Tiếng Việt Pre-Intermediate (A2–B1)
-          </h1>
-          <p className="vf-section-subtitle">
-            Chọn chủ đề để nghe mẫu câu giao tiếp chuẩn, nắm điểm ngữ pháp và mở ngay bài luyện tập tương ứng.
-          </p>
+    <div className="vf-chapter-page vf-view-enter">
+      {/* Horizontal Plain-Text Chapter Tabs */}
+      <div className="vf-chapter-tabs-wrap">
+        <div className="vf-chapter-tabs" role="tablist" aria-label="Chọn chủ đề">
+          {topics.map((topic, index) => {
+            const isActive = topic.id === activeTopic.id;
+            const num = String(index + 1).padStart(2, "0");
+            const shortTitle = TOPIC_SHORT_LABELS[topic.id] || topic.titleVi;
+            return (
+              <button
+                key={topic.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`vf-chapter-tab ${isActive ? "is-active" : ""}`}
+                onClick={() => onSelectTopic(topic.id)}
+              >
+                <span className="vf-chapter-tab-idx">{num}</span>
+                <span>{shortTitle}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="vf-topic-selector" role="tablist" aria-label="Chọn chủ đề">
-        {topics.map((topic) => {
-          const Icon = TOPIC_ICONS[topic.id] || Compass;
-          const tAccent =
-            topic.accentColor || topic.accent || TOPIC_META[topic.id]?.accent || "#38bdf8";
-          const isActive = topic.id === activeTopic.id;
-
-          return (
-            <button
-              key={topic.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              className={`vf-topic-pill-btn ${isActive ? "is-active" : ""}`}
-              style={{ "--topic-accent": tAccent }}
-              onClick={() => onSelectTopic(topic.id)}
-            >
-              <Icon size={15} aria-hidden="true" />
-              <span>{topic.titleVi}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Selected Topic Hero Banner */}
+      {/* Chapter Header */}
       <section
-        className="vf-topic-banner"
-        style={{ "--topic-accent": accent }}
+        className="vf-chapter-hero"
         aria-label={`Chi tiết chủ đề ${activeTopic.titleVi}`}
       >
         <div>
-          <div className="vf-topic-banner-head">
-            <div className="vf-topic-icon" style={{ "--topic-accent": accent }}>
-              <TopicIcon size={22} aria-hidden="true" />
-            </div>
-            <div>
-              <span className="vf-pill vf-pill--indigo" style={{ marginBottom: 6 }}>
-                {activeTopic.cefrFocus || activeTopic.cefrLevel || "CEFR A2–B1"}
-              </span>
-              <h2 className="vf-topic-banner-title">{activeTopic.titleVi}</h2>
-              <span className="vf-topic-en">{activeTopic.titleEn}</span>
-            </div>
+          <div className="vf-chapter-kicker">
+            Chương {chapterCode} · {activeTopic.cefrFocus || activeTopic.cefrLevel || "A2–B1"}
           </div>
-
-          <p className="vf-topic-banner-desc">
+          <h1 className="vf-chapter-heading">{activeTopic.titleVi}</h1>
+          {activeTopic.titleEn && (
+            <p className="vf-chapter-en">{activeTopic.titleEn}</p>
+          )}
+          <p className="vf-chapter-summary">
             {activeTopic.descriptionVi || activeTopic.summary || activeTopic.subtitleVi}
           </p>
         </div>
 
-        <div className="vf-topic-banner-stats">
+        <div className="vf-chapter-side">
           <div>
-            <div className="vf-topic-progress-row">
+            <div className="vf-chapter-progress-head">
               <span>Tiến độ chủ đề</span>
-              <strong style={{ color: "#ffffff" }}>{mastery}%</strong>
+              <strong>{mastery}%</strong>
             </div>
-            <div className="vf-progress-track">
-              <div
-                className="vf-progress-fill"
-                style={{ width: `${mastery}%`, "--fill-color": accent }}
-              />
+            <div className="vf-track">
+              <div className="vf-track-fill" style={{ width: `${mastery}%` }} />
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span className="vf-pill">{keyPhrases.length} mẫu câu nghe nhanh</span>
-            <span className="vf-pill">{topicCardCount} thẻ flashcard</span>
+          <div className="vf-chapter-counts">
+            {keyPhrases.length} mẫu câu giao tiếp · {topicCardCount} thẻ flashcard
           </div>
 
           <button
@@ -241,30 +202,29 @@ export function TopicOverview({
             className="vf-btn vf-btn--primary vf-btn--sm"
             onClick={() => onLaunchGame("listening", activeTopic.id)}
           >
-            <Headphones size={15} aria-hidden="true" />
-            <span>Bắt đầu luyện chủ đề này</span>
+            Luyện nghe chủ đề này
           </button>
         </div>
       </section>
 
-      {/* Interactive Key Phrases */}
+      {/* 2-Column Key Phrases Table */}
       <section aria-labelledby="vf-phrases-heading">
-        <div className="vf-section-head">
+        <div className="vf-section-bar">
           <div>
-            <h3 id="vf-phrases-heading" className="vf-section-title">
-              Mẫu Câu Giao Tiếp Trọng Tâm
-            </h3>
-            <p className="vf-section-subtitle">
-              Nhấn biểu tượng loa trên từng thẻ để nghe phát âm tiếng Việt tự nhiên ngay lập tức.
+            <h2 id="vf-phrases-heading" className="vf-section-h2">
+              Mẫu câu giao tiếp
+            </h2>
+            <p className="vf-section-sub">
+              Nhấn biểu tượng loa để nghe cách đọc tự nhiên và đối chiếu ghi chú cách dùng.
             </p>
           </div>
 
-          <div className="vf-speed-group" role="group" aria-label="Tốc độ phát âm">
+          <div className="vf-rate-toggle" role="group" aria-label="Tốc độ đọc">
             {PLAYBACK_RATES.map((option) => (
               <button
                 key={option.value}
                 type="button"
-                className={`vf-speed-btn ${speechRate === option.value ? "is-active" : ""}`}
+                className={`vf-rate-btn ${speechRate === option.value ? "is-active" : ""}`}
                 onClick={() => setSpeechRate(option.value)}
               >
                 {option.label}
@@ -273,16 +233,16 @@ export function TopicOverview({
           </div>
         </div>
 
-        <div className="vf-phrases-grid">
+        <div className="vf-phrases-table">
           {keyPhrases.map((phrase, idx) => {
             const phraseKey = `${activeTopic.id}-phrase-${idx}`;
             const isPlaying = playingKey === phraseKey;
             return (
               <article
                 key={phraseKey}
-                className={`vf-phrase-card ${isPlaying ? "is-playing" : ""}`}
+                className={`vf-phrase-cell ${isPlaying ? "is-playing" : ""}`}
               >
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <p className="vf-phrase-vi">{phrase.vi}</p>
                   {phrase.ipa && <p className="vf-phrase-ipa">{phrase.ipa}</p>}
                   {phrase.en && <p className="vf-phrase-en">{phrase.en}</p>}
@@ -293,10 +253,10 @@ export function TopicOverview({
                   type="button"
                   className={`vf-audio-btn ${isPlaying ? "is-playing" : ""}`}
                   onClick={() => handlePlayPhrase(phraseKey, phrase.vi)}
-                  aria-label={isPlaying ? `Dừng đọc "${phrase.vi}"` : `Nghe phát âm "${phrase.vi}"`}
-                  title={isPlaying ? "Dừng phát âm" : "Nghe phát âm tiếng Việt"}
+                  aria-label={isPlaying ? `Dừng đọc "${phrase.vi}"` : `Nghe "${phrase.vi}"`}
+                  title={isPlaying ? "Dừng phát âm" : "Nghe câu mẫu"}
                 >
-                  {isPlaying ? <Square size={15} /> : <Volume2 size={18} />}
+                  {isPlaying ? <Square size={14} /> : <Volume2 size={16} />}
                 </button>
               </article>
             );
@@ -304,28 +264,14 @@ export function TopicOverview({
         </div>
       </section>
 
-      {/* Grammar Spotlight */}
+      {/* Textbook-Style Grammar Note */}
       {grammar && (
         <section aria-labelledby="vf-grammar-heading">
-          <div className="vf-section-head">
-            <div>
-              <h3 id="vf-grammar-heading" className="vf-section-title">
-                Điểm Ngữ Pháp Nổi Bật
-              </h3>
-              <p className="vf-section-subtitle">
-                Cấu trúc quan trọng giúp diễn đạt tự nhiên và mạch lạc hơn ở mức A2–B1.
-              </p>
-            </div>
-          </div>
-
-          <div className="vf-grammar-card">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span className="vf-pill vf-pill--indigo">
-                <Sparkles size={13} aria-hidden="true" />
-                Grammar Spotlight
-              </span>
-              <span className="vf-grammar-pattern">{grammar.pattern}</span>
-            </div>
+          <div className="vf-grammar-box">
+            <span id="vf-grammar-heading" className="vf-grammar-kicker">
+              Ghi chú ngữ pháp
+            </span>
+            <span className="vf-grammar-pattern">{grammar.pattern}</span>
 
             {grammar.explanationVi && (
               <p className="vf-grammar-explanation">{grammar.explanationVi}</p>
@@ -347,7 +293,11 @@ export function TopicOverview({
                   aria-label="Nghe câu ví dụ ngữ pháp"
                   title="Nghe câu ví dụ"
                 >
-                  {playingKey === "grammar-example" ? <Square size={15} /> : <Volume2 size={18} />}
+                  {playingKey === "grammar-example" ? (
+                    <Square size={14} />
+                  ) : (
+                    <Volume2 size={16} />
+                  )}
                 </button>
               </div>
             )}
@@ -355,35 +305,32 @@ export function TopicOverview({
         </section>
       )}
 
-      {/* Quick Launch Arena */}
+      {/* Flat Practice Links */}
       <section aria-labelledby="vf-topic-launch-heading">
-        <div className="vf-section-head">
+        <div className="vf-section-bar">
           <div>
-            <h3 id="vf-topic-launch-heading" className="vf-section-title">
-              Thực Hành Ngay Với Chủ Đề “{activeTopic.titleVi}”
-            </h3>
-            <p className="vf-section-subtitle">
-              Chuyển thẳng vào chế độ luyện tập đã lọc sẵn theo chủ đề này.
+            <h2 id="vf-topic-launch-heading" className="vf-section-h2">
+              Thực hành chủ đề này
+            </h2>
+            <p className="vf-section-sub">
+              Mở thẳng bài tập đã lọc sẵn cho “{activeTopic.titleVi}”.
             </p>
           </div>
         </div>
 
-        <div className="vf-launch-grid">
-          {launchItems.map((item) => {
+        <div className="vf-practice-strip">
+          {practiceLinks.map((item) => {
             const Icon = item.icon;
             return (
               <button
                 key={item.id}
                 type="button"
-                className="vf-launch-card"
-                style={{ "--launch-color": item.color }}
+                className="vf-practice-link"
                 onClick={item.onClick}
               >
-                <span className="vf-launch-icon">
-                  <Icon size={19} aria-hidden="true" />
-                </span>
-                <span className="vf-launch-title">{item.title}</span>
-                <span className="vf-launch-sub">{item.sub}</span>
+                <Icon size={16} className="vf-practice-link-icon" aria-hidden="true" />
+                <span className="vf-practice-link-title">{item.title}</span>
+                <span className="vf-practice-link-sub">{item.sub}</span>
               </button>
             );
           })}

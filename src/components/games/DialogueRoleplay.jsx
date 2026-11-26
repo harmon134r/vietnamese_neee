@@ -6,13 +6,12 @@ import {
   Eye,
   EyeOff,
   Lightbulb,
+  List,
   MessageSquare,
   Mic,
   MicOff,
   RotateCcw,
   Send,
-  Sparkles,
-  Trophy,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -24,33 +23,6 @@ import {
 } from "../../lib/pronunciation";
 import { stopSpeaking } from "../../lib/speech";
 import { useVietnameseSpeech } from "../../hooks/useVietnameseSpeech";
-
-const MOOD_LABELS = {
-  analytical: "Phân tích",
-  anxious: "Hơi lo lắng",
-  attentive: "Lắng nghe",
-  chatty: "Cởi mở",
-  cheerful: "Vui vẻ",
-  concerned: "Quan tâm",
-  curious: "Tò mò",
-  down: "Hơi chùng xuống",
-  engaged: "Hào hứng",
-  enthusiastic: "Nhiệt tình",
-  friendly: "Thân thiện",
-  playful: "Hóm hỉnh",
-  practical: "Thực tế",
-  relieved: "Nhẹ nhõm",
-  thoughtful: "Sâu sắc",
-  tired: "Hơi mệt",
-  upbeat: "Tích cực",
-  warm: "Ấm áp",
-  welcoming: "Niềm nở",
-};
-
-function formatMood(mood) {
-  if (!mood) return "";
-  return MOOD_LABELS[String(mood).toLowerCase()] || mood;
-}
 
 function getInitials(name = "") {
   const parts = String(name).trim().split(/\s+/).filter(Boolean);
@@ -95,10 +67,10 @@ export function DialogueRoleplay({
   const [activeScenario, setActiveScenario] = useState(null);
   const [currentTurnId, setCurrentTurnId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [composerMode, setComposerMode] = useState("speak"); // 'speak' | 'guided'
+  const [composerMode, setComposerMode] = useState("speak");
   const [autoSpeakNpc, setAutoSpeakNpc] = useState(true);
   const [showEnglish, setShowEnglish] = useState(false);
-  const [showHints, setShowHints] = useState(true);
+  const [showHints, setShowHints] = useState(false);
   const [typedReply, setTypedReply] = useState("");
   const [turnRecords, setTurnRecords] = useState([]);
   const [completed, setCompleted] = useState(false);
@@ -107,17 +79,21 @@ export function DialogueRoleplay({
   const startTimeRef = useRef(Date.now());
   const reportedRef = useRef(false);
   const chatEndRef = useRef(null);
-  const voicePendingRef = useRef(null); // { mode: 'free' | 'option', option?: object }
+  const voicePendingRef = useRef(null);
   const chainTimerRef = useRef(null);
 
   const currentTurn = useMemo(() => {
     if (!activeScenario || !currentTurnId) return null;
-    return (activeScenario.turns || []).find((t) => t.id === currentTurnId) || null;
+    return (
+      (activeScenario.turns || []).find((t) => t.id === currentTurnId) || null
+    );
   }, [activeScenario, currentTurnId]);
 
   const currentTurnNumber = useMemo(() => {
     if (!activeScenario || !currentTurnId) return 0;
-    const idx = (activeScenario.turns || []).findIndex((t) => t.id === currentTurnId);
+    const idx = (activeScenario.turns || []).findIndex(
+      (t) => t.id === currentTurnId
+    );
     return idx >= 0 ? idx + 1 : 0;
   }, [activeScenario, currentTurnId]);
 
@@ -126,7 +102,10 @@ export function DialogueRoleplay({
   }, [activeTopicId]);
 
   useEffect(() => {
-    if (chatEndRef.current && typeof chatEndRef.current.scrollIntoView === "function") {
+    if (
+      chatEndRef.current &&
+      typeof chatEndRef.current.scrollIntoView === "function"
+    ) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [messages.length]);
@@ -177,7 +156,6 @@ export function DialogueRoleplay({
         sender: "npc",
         textVi: scenario.openingLineVi,
         textEn: "",
-        mood: "Mở đầu",
       });
     }
 
@@ -187,7 +165,6 @@ export function DialogueRoleplay({
         sender: "npc",
         textVi: firstTurn.npcTextVi,
         textEn: firstTurn.npcEn || "",
-        mood: firstTurn.mood || "",
       });
     }
 
@@ -224,7 +201,10 @@ export function DialogueRoleplay({
         1,
         Math.round((Date.now() - startTimeRef.current) / 1000)
       );
-      const xpEarned = Math.max(25, Math.round(finalRecords.length * 14 + avgScore * 0.35));
+      const xpEarned = Math.max(
+        25,
+        Math.round(finalRecords.length * 14 + avgScore * 0.35)
+      );
 
       onCompleteSession({
         gameType: GAME_TYPES.DIALOGUE_BUILDER,
@@ -295,7 +275,9 @@ export function DialogueRoleplay({
     }
 
     const nextTurn = matchedOption.nextTurnId
-      ? (activeScenario.turns || []).find((t) => t.id === matchedOption.nextTurnId) || null
+      ? (activeScenario.turns || []).find(
+          (t) => t.id === matchedOption.nextTurnId
+        ) || null
       : null;
 
     if (nextTurn) {
@@ -304,7 +286,6 @@ export function DialogueRoleplay({
         sender: "npc",
         textVi: nextTurn.npcTextVi,
         textEn: nextTurn.npcEn || "",
-        mood: nextTurn.mood || "",
       });
       audioQueue.push(nextTurn.npcTextVi);
       setMessages((prev) => [...prev, ...nextMessages]);
@@ -321,7 +302,11 @@ export function DialogueRoleplay({
     }
   };
 
-  const processSpokenTranscript = (transcript, forcedOption = null, via = "voice") => {
+  const processSpokenTranscript = (
+    transcript,
+    forcedOption = null,
+    via = "voice"
+  ) => {
     if (!currentTurn || !transcript?.trim()) return;
     const options = currentTurn.expectedResponses || [];
     if (options.length === 0) return;
@@ -330,7 +315,10 @@ export function DialogueRoleplay({
     let evaluation = null;
 
     if (matchedOption) {
-      evaluation = scoreVietnamesePronunciation(matchedOption.textVi, transcript);
+      evaluation = scoreVietnamesePronunciation(
+        matchedOption.textVi,
+        transcript
+      );
     } else {
       const intentResult = matchDialogueIntent(transcript, options);
       matchedOption =
@@ -348,7 +336,6 @@ export function DialogueRoleplay({
     });
   };
 
-  // Fallback listener if hook exposes transcript via finalTranscript state
   useEffect(() => {
     if (!finalTranscript || !voicePendingRef.current) return;
     const pending = voicePendingRef.current;
@@ -407,7 +394,7 @@ export function DialogueRoleplay({
       evaluation: {
         ...evaluation,
         score: Math.min(evaluation?.score ?? 90, 92),
-        feedbackVi: "Đã gửi phản hồi tự nhiên (chế độ không micro).",
+        feedbackVi: "Đã gửi câu mẫu.",
       },
       via: "guided",
     });
@@ -427,18 +414,27 @@ export function DialogueRoleplay({
           style={{
             display: "flex",
             flexWrap: "wrap",
-            alignItems: "center",
+            alignItems: "flex-end",
             justifyContent: "space-between",
             gap: "12px",
-            marginBottom: "18px",
+            marginBottom: "20px",
           }}
         >
           <div>
-            <h3 style={{ margin: "0 0 4px", fontSize: "1.18rem" }}>
-              Chọn Tình Huống Nhập Vai Thực Tế
+            <h3
+              className="vf-g-serif"
+              style={{ margin: "0 0 4px", fontSize: "1.22rem", fontWeight: 600 }}
+            >
+              Chọn tình huống hội thoại
             </h3>
-            <p style={{ margin: 0, fontSize: "0.88rem", color: "var(--g-text-muted)" }}>
-              Đối thoại 4 lượt với người bản xứ — trả lời trực tiếp bằng micro hoặc chọn mẫu luyện đọc.
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.88rem",
+                color: "var(--g-text-secondary)",
+              }}
+            >
+              Đối thoại 4 lượt theo ngữ cảnh đời sống — trả lời qua micro, gõ câu hoặc chọn câu gợi ý.
             </p>
           </div>
           {activeTopicId !== "all" && (
@@ -447,7 +443,9 @@ export function DialogueRoleplay({
               className="vf-g-btn vf-g-btn--sm"
               onClick={() => setShowAllTopics((prev) => !prev)}
             >
-              {showAllTopics ? "Chỉ xem chủ đề đang chọn" : "Xem tất cả 6 tình huống"}
+              {showAllTopics
+                ? "Chỉ xem chủ đề đang chọn"
+                : "Xem cả 6 tình huống"}
             </button>
           )}
         </div>
@@ -471,20 +469,34 @@ export function DialogueRoleplay({
                       justifyContent: "space-between",
                       gap: "8px",
                       marginBottom: "10px",
-                      flexWrap: "wrap",
+                      fontSize: "0.77rem",
+                      color: "var(--g-text-muted)",
                     }}
                   >
-                    <span className="vf-g-badge vf-g-badge--emerald">
-                      {tMeta?.titleVi || sc.topicId}
-                    </span>
-                    <span className="vf-g-badge vf-g-mono">
+                    <span>{tMeta?.titleVi || sc.topicId}</span>
+                    <span className="vf-g-mono">
                       {sc.turns?.length || 4} lượt
                     </span>
                   </div>
-                  <h4 style={{ margin: "0 0 6px", fontSize: "1.05rem" }}>
+                  <h4
+                    className="vf-g-serif"
+                    style={{
+                      margin: "0 0 6px",
+                      fontSize: "1.08rem",
+                      fontWeight: 600,
+                      color: "var(--g-text)",
+                    }}
+                  >
                     {sc.titleVi}
                   </h4>
-                  <p style={{ margin: "0 0 10px", fontSize: "0.86rem", color: "var(--g-text-muted)", lineHeight: 1.5 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "0.86rem",
+                      color: "var(--g-text-secondary)",
+                      lineHeight: 1.55,
+                    }}
+                  >
                     {sc.settingVi}
                   </p>
                 </div>
@@ -495,15 +507,29 @@ export function DialogueRoleplay({
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: "10px",
-                    paddingTop: "10px",
+                    paddingTop: "12px",
                     borderTop: "1px solid var(--g-border)",
                     width: "100%",
                   }}
                 >
-                  <div style={{ fontSize: "0.82rem", color: "#cbd5e1" }}>
-                    <strong>{sc.partnerName}</strong> · {sc.partnerRole}
+                  <div
+                    style={{
+                      fontSize: "0.81rem",
+                      color: "var(--g-text-muted)",
+                    }}
+                  >
+                    <strong style={{ color: "var(--g-text-secondary)", fontWeight: 500 }}>
+                      {sc.partnerName}
+                    </strong>{" "}
+                    · {sc.partnerRole}
                   </div>
-                  <span style={{ color: "#34d399", fontWeight: 700, fontSize: "0.84rem" }}>
+                  <span
+                    style={{
+                      color: "var(--g-accent)",
+                      fontWeight: 600,
+                      fontSize: "0.83rem",
+                    }}
+                  >
                     Vào vai →
                   </span>
                 </div>
@@ -515,7 +541,7 @@ export function DialogueRoleplay({
     );
   }
 
-  // 2. Active Roleplay Arena
+  // 2. Active Messenger Arena
   const totalTurns = activeScenario.turns?.length || 4;
   const avgScore =
     turnRecords.length > 0
@@ -526,37 +552,68 @@ export function DialogueRoleplay({
   const avgTone =
     turnRecords.length > 0
       ? Math.round(
-          turnRecords.reduce((s, r) => s + r.toneAccuracy, 0) / turnRecords.length
+          turnRecords.reduce((s, r) => s + r.toneAccuracy, 0) /
+            turnRecords.length
         )
       : 0;
-  const xpEarned = Math.max(25, Math.round(turnRecords.length * 14 + avgScore * 0.35));
+  const xpEarned = Math.max(
+    25,
+    Math.round(turnRecords.length * 14 + avgScore * 0.35)
+  );
 
   return (
     <div className="vf-g-chat-shell" data-testid="dialogue-arena">
-      {/* Partner & Controls Header */}
+      {/* Messenger Top Bar */}
       <div className="vf-g-chat-header">
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div className="vf-g-avatar">{getInitials(activeScenario.partnerName)}</div>
+          <div className="vf-g-avatar">
+            {getInitials(activeScenario.partnerName)}
+          </div>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <strong style={{ fontSize: "1.02rem" }}>{activeScenario.partnerName}</strong>
-              <span className="vf-g-badge">{activeScenario.partnerRole}</span>
-              <span className="vf-g-badge vf-g-badge--emerald vf-g-mono">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <strong style={{ fontSize: "0.96rem", fontWeight: 600 }}>
+                {activeScenario.partnerName}
+              </strong>
+              <span
+                style={{ fontSize: "0.8rem", color: "var(--g-text-muted)" }}
+              >
+                {activeScenario.partnerRole}
+              </span>
+              <span className="vf-g-dot-sep">·</span>
+              <span
+                className="vf-g-mono"
+                style={{ fontSize: "0.78rem", color: "var(--g-text-secondary)" }}
+              >
                 {completed
                   ? `Hoàn thành ${totalTurns}/${totalTurns}`
-                  : `Lượt ${currentTurnNumber} / ${totalTurns}`}
+                  : `Lượt ${currentTurnNumber}/${totalTurns}`}
               </span>
             </div>
-            <div style={{ fontSize: "0.83rem", color: "var(--g-text-muted)", marginTop: "3px" }}>
+            <div
+              style={{
+                fontSize: "0.81rem",
+                color: "var(--g-text-muted)",
+                marginTop: "2px",
+              }}
+            >
               Mục tiêu: {activeScenario.goalVi}
             </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           <button
             type="button"
-            className={`vf-g-btn vf-g-btn--sm ${autoSpeakNpc ? "vf-g-btn--emerald" : ""}`}
+            className={`vf-g-btn vf-g-btn--sm ${
+              autoSpeakNpc ? "" : "vf-g-btn--ghost"
+            }`}
             onClick={() => setAutoSpeakNpc((prev) => !prev)}
             title="Tự động phát giọng đối tác"
           >
@@ -565,15 +622,15 @@ export function DialogueRoleplay({
           </button>
           <button
             type="button"
-            className="vf-g-btn vf-g-btn--sm"
+            className="vf-g-btn vf-g-btn--ghost vf-g-btn--sm"
             onClick={() => setShowEnglish((prev) => !prev)}
           >
             {showEnglish ? <EyeOff size={14} /> : <Eye size={14} />}
-            {showEnglish ? "Ẩn dịch EN" : "Hiện dịch EN"}
+            {showEnglish ? "Ẩn dịch" : "Dịch EN"}
           </button>
           <button
             type="button"
-            className="vf-g-btn vf-g-btn--sm"
+            className="vf-g-btn vf-g-btn--ghost vf-g-btn--sm"
             onClick={() => {
               stopSpeak();
               stopListening();
@@ -585,7 +642,7 @@ export function DialogueRoleplay({
         </div>
       </div>
 
-      {/* Chat Message Feed */}
+      {/* Chat Message Feed (clean dark-mode messenger, zero mood pills) */}
       <div className="vf-g-chat-feed" data-testid="dialogue-messages">
         {messages.map((msg) => {
           const isUser = msg.sender === "user";
@@ -596,20 +653,14 @@ export function DialogueRoleplay({
                 isUser ? "vf-g-bubble-row--user" : "vf-g-bubble-row--npc"
               }`}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  fontSize: "0.75rem",
-                  color: "var(--g-text-muted)",
-                }}
-              >
+              <div className="vf-g-bubble-meta">
                 <span>{isUser ? "Bạn" : activeScenario.partnerName}</span>
-                {msg.mood && <span className="vf-g-badge">{formatMood(msg.mood)}</span>}
                 {isUser && msg.score !== undefined && (
-                  <span className="vf-g-badge vf-g-badge--emerald vf-g-mono">
-                    Phát âm {msg.score}% · Thanh điệu {msg.toneAccuracy}%
+                  <span
+                    className="vf-g-mono"
+                    style={{ color: "var(--g-good)", fontSize: "0.73rem" }}
+                  >
+                    {msg.score}% · thanh điệu {msg.toneAccuracy}%
                   </span>
                 )}
               </div>
@@ -636,11 +687,11 @@ export function DialogueRoleplay({
                     <button
                       type="button"
                       className="vf-g-btn vf-g-btn--ghost vf-g-btn--sm"
-                      style={{ padding: "4px 6px", flexShrink: 0 }}
+                      style={{ padding: "3px 5px", flexShrink: 0 }}
                       onClick={() => speak(msg.textVi, { rate: 0.95 })}
                       aria-label="Nghe lại câu này"
                     >
-                      <Volume2 size={15} color="#38bdf8" />
+                      <Volume2 size={14} />
                     </button>
                   )}
                 </div>
@@ -664,7 +715,7 @@ export function DialogueRoleplay({
                     style={{
                       marginTop: "6px",
                       fontSize: "0.78rem",
-                      color: "#a7f3d0",
+                      color: "var(--g-text-secondary)",
                     }}
                   >
                     {msg.feedbackVi}
@@ -677,59 +728,71 @@ export function DialogueRoleplay({
         <div ref={chatEndRef} />
       </div>
 
-      {/* End-of-Dialogue Report OR Dual Response Composer */}
+      {/* End-of-Dialogue Report OR Bottom Composer */}
       {completed ? (
-        <div className="vf-g-summary" data-testid="dialogue-report">
-          <div className="vf-g-summary-icon">
-            <Trophy size={30} />
-          </div>
-          <h3 style={{ margin: "0 0 6px", fontSize: "1.35rem" }}>
-            Hoàn thành đối thoại: {activeScenario.titleVi}
+        <div
+          style={{
+            padding: "28px 24px",
+            borderTop: "1px solid var(--g-border)",
+            background: "var(--g-surface)",
+            textAlign: "center",
+          }}
+          data-testid="dialogue-report"
+        >
+          <div className="vf-g-summary-kicker">Hoàn thành hội thoại</div>
+          <h3 className="vf-g-summary-title" style={{ fontSize: "1.35rem" }}>
+            {activeScenario.titleVi}
           </h3>
-          <p style={{ margin: 0, color: "var(--g-text-muted)", fontSize: "0.92rem" }}>
-            Bạn đã duy trì cuộc hội thoại tự nhiên cùng {activeScenario.partnerName} qua{" "}
-            {turnRecords.length} lượt trao đổi.
+          <p className="vf-g-summary-sub">
+            Bạn đã hoàn tất {turnRecords.length} lượt trao đổi cùng{" "}
+            {activeScenario.partnerName}.
           </p>
 
-          <div className="vf-g-summary-grid">
+          <div
+            className="vf-g-summary-grid"
+            style={{ maxWidth: "560px", margin: "20px auto" }}
+          >
             <div className="vf-g-metric-box">
-              <div className="vf-g-metric-value vf-g-mono" style={{ color: "#34d399" }}>
+              <div
+                className="vf-g-metric-value vf-g-mono"
+                style={{ color: "var(--g-good)" }}
+              >
                 {avgScore}%
               </div>
-              <div className="vf-g-metric-label">Điểm giao tiếp & phát âm</div>
+              <div className="vf-g-metric-label">Điểm phát âm</div>
             </div>
             <div className="vf-g-metric-box">
-              <div className="vf-g-metric-value vf-g-mono" style={{ color: "#38bdf8" }}>
-                {avgTone}%
-              </div>
-              <div className="vf-g-metric-label">Chuẩn thanh điệu TB</div>
+              <div className="vf-g-metric-value vf-g-mono">{avgTone}%</div>
+              <div className="vf-g-metric-label">Chuẩn thanh điệu</div>
             </div>
             <div className="vf-g-metric-box">
-              <div className="vf-g-metric-value vf-g-mono" style={{ color: "#fbbf24" }}>
-                +{xpEarned} XP
-              </div>
-              <div className="vf-g-metric-label">Điểm thưởng hoàn thành</div>
+              <div className="vf-g-metric-value vf-g-mono">+{xpEarned} XP</div>
+              <div className="vf-g-metric-label">Điểm luyện tập</div>
             </div>
           </div>
 
           <div className="vf-g-summary-actions">
             <button
               type="button"
-              className="vf-g-btn vf-g-btn--emerald"
+              className="vf-g-btn vf-g-btn--primary"
               onClick={() => startScenario(activeScenario)}
             >
-              <RotateCcw size={16} /> Luyện lại tình huống này
+              <RotateCcw size={15} /> Luyện lại tình huống này
             </button>
             <button
               type="button"
-              className="vf-g-btn vf-g-btn--primary"
+              className="vf-g-btn"
               onClick={() => setActiveScenario(null)}
             >
-              <MessageSquare size={16} /> Đổi tình huống khác
+              <MessageSquare size={15} /> Tình huống khác
             </button>
             {onBack && (
-              <button type="button" className="vf-g-btn" onClick={onBack}>
-                <ArrowLeft size={16} /> Về Trung tâm
+              <button
+                type="button"
+                className="vf-g-btn vf-g-btn--ghost"
+                onClick={onBack}
+              >
+                <ArrowLeft size={15} /> Quay lại
               </button>
             )}
           </div>
@@ -744,186 +807,252 @@ export function DialogueRoleplay({
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: "10px",
-                marginBottom: "14px",
+                marginBottom: "12px",
               }}
             >
-              <div className="vf-g-tabs" style={{ marginBottom: 0 }}>
+              <div className="vf-g-subtabs">
                 <button
                   type="button"
-                  className={`vf-g-tab ${composerMode === "speak" ? "vf-g-tab--active" : ""}`}
+                  className={`vf-g-subtab ${
+                    composerMode === "speak" ? "vf-g-subtab--active" : ""
+                  }`}
+                  style={{ padding: "6px 10px 8px" }}
                   onClick={() => setComposerMode("speak")}
                   data-testid="dialogue-mode-speak"
                 >
-                  <Mic size={15} /> Nói trực tiếp
+                  <Mic size={14} /> Nói & nhập
                 </button>
                 <button
                   type="button"
-                  className={`vf-g-tab ${composerMode === "guided" ? "vf-g-tab--active" : ""}`}
+                  className={`vf-g-subtab ${
+                    composerMode === "guided" ? "vf-g-subtab--active" : ""
+                  }`}
+                  style={{ padding: "6px 10px 8px" }}
                   onClick={() => setComposerMode("guided")}
                   data-testid="dialogue-mode-guided"
                 >
-                  <Sparkles size={15} /> Chọn & Luyện Đọc
+                  <List size={14} /> Chọn câu mẫu
                 </button>
               </div>
 
-              {Array.isArray(currentTurn.hintsVi) && currentTurn.hintsVi.length > 0 && (
-                <button
-                  type="button"
-                  className={`vf-g-btn vf-g-btn--sm ${showHints ? "vf-g-btn--amber" : ""}`}
-                  onClick={() => setShowHints((prev) => !prev)}
-                >
-                  <Lightbulb size={14} /> {showHints ? "Ẩn gợi ý nói" : "Gợi ý nói"}
-                </button>
-              )}
+              {Array.isArray(currentTurn.hintsVi) &&
+                currentTurn.hintsVi.length > 0 && (
+                  <button
+                    type="button"
+                    className={`vf-g-btn vf-g-btn--sm ${
+                      showHints ? "vf-g-btn--warn" : "vf-g-btn--ghost"
+                    }`}
+                    onClick={() => setShowHints((prev) => !prev)}
+                  >
+                    <Lightbulb size={14} />{" "}
+                    {showHints ? "Ẩn gợi ý" : "Gợi ý diễn đạt"}
+                  </button>
+                )}
             </div>
 
-            {showHints && Array.isArray(currentTurn.hintsVi) && currentTurn.hintsVi.length > 0 && (
-              <div className="vf-g-drawer vf-g-drawer--hint" style={{ marginTop: 0, marginBottom: "14px" }}>
-                <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: "6px" }}>
-                  Gợi ý cách diễn đạt tự nhiên cho lượt này:
+            {showHints &&
+              Array.isArray(currentTurn.hintsVi) &&
+              currentTurn.hintsVi.length > 0 && (
+                <div
+                  className="vf-g-drawer vf-g-drawer--hint"
+                  style={{ marginTop: 0, marginBottom: "12px" }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.77rem",
+                      fontWeight: 600,
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Gợi ý cho lượt này
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {currentTurn.hintsVi.map((hint, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          fontSize: "0.84rem",
+                          padding: "3px 9px",
+                          borderRadius: "6px",
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid var(--g-border)",
+                        }}
+                      >
+                        {hint}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {currentTurn.hintsVi.map((hint, idx) => (
-                    <span
-                      key={idx}
-                      className="vf-g-badge vf-g-badge--amber"
-                      style={{ whiteSpace: "normal", textAlign: "left" }}
-                    >
-                      {hint}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
 
             {composerMode === "speak" ? (
-              <div style={{ display: "grid", gap: "14px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    gap: "14px",
-                  }}
+              <div>
+                {/* Messenger Bottom Input Bar with Prominent Mic Toggle */}
+                <form
+                  onSubmit={handleSubmitTypedReply}
+                  className="vf-g-composer-bar"
                 >
                   <button
                     type="button"
-                    className={`vf-g-mic-btn ${
-                      isListening && !targetedOption ? "vf-g-mic-btn--listening" : ""
+                    className={`vf-g-mic-btn vf-g-mic-btn--square ${
+                      isListening && !targetedOption
+                        ? "vf-g-mic-btn--listening"
+                        : ""
                     }`}
                     disabled={!sttSupported}
                     onClick={handleStartFreeSpeak}
+                    aria-label={
+                      isListening && !targetedOption
+                        ? "Dừng ghi âm"
+                        : "Nhấn để nói phản hồi"
+                    }
+                    title={
+                      isListening && !targetedOption
+                        ? "Dừng ghi âm"
+                        : "Nhấn để nói bằng tiếng Việt"
+                    }
                     data-testid="dialogue-speak-mic-btn"
                   >
                     {isListening && !targetedOption ? (
-                      <>
-                        <MicOff size={19} /> Dừng ghi âm
-                      </>
+                      <MicOff size={18} />
                     ) : (
-                      <>
-                        <Mic size={19} /> Nhấn để nói phản hồi
-                      </>
+                      <Mic size={18} />
                     )}
                   </button>
 
-                  {isListening && !targetedOption && (
-                    <div style={{ flex: 1, minWidth: "180px" }}>
-                      <div className="vf-g-level-meter" style={{ marginBottom: "6px" }}>
-                        <div
-                          className="vf-g-level-fill"
-                          style={{
-                            width: `${Math.max(10, Math.round((micLevel || 0) * 100))}%`,
-                          }}
-                        />
-                      </div>
-                      <div style={{ fontSize: "0.85rem", color: "#e2e8f0" }}>
-                        {interimTranscript || "Đang nghe tiếng Việt của bạn..."}
-                      </div>
-                    </div>
-                  )}
+                  <input
+                    type="text"
+                    className="vf-g-input"
+                    style={{ flex: 1, minWidth: "160px", height: "42px" }}
+                    value={typedReply}
+                    onChange={(e) => setTypedReply(e.target.value)}
+                    placeholder="Nhấn micro để nói, hoặc gõ câu trả lời tiếng Việt..."
+                    data-testid="dialogue-typed-input"
+                  />
 
-                  {!sttSupported && (
-                    <span style={{ fontSize: "0.84rem", color: "#fde68a" }}>
-                      Trình duyệt không hỗ trợ nhận diện giọng nói — hãy dùng khung nhập bên dưới hoặc tab “Chọn & Luyện Đọc”.
+                  <button
+                    type="submit"
+                    className="vf-g-btn vf-g-btn--primary"
+                    style={{ height: "42px" }}
+                    disabled={!typedReply.trim()}
+                    data-testid="dialogue-typed-submit"
+                  >
+                    <Send size={15} /> Gửi
+                  </button>
+                </form>
+
+                {isListening && !targetedOption && (
+                  <div
+                    style={{
+                      marginTop: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div className="vf-g-level-meter">
+                      <div
+                        className="vf-g-level-fill"
+                        style={{
+                          width: `${Math.max(
+                            10,
+                            Math.round((micLevel || 0) * 100)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.84rem",
+                        color: "var(--g-text-secondary)",
+                      }}
+                    >
+                      {interimTranscript || "Đang nghe tiếng Việt của bạn..."}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {!sttSupported && (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      fontSize: "0.8rem",
+                      color: "var(--g-text-muted)",
+                    }}
+                  >
+                    Trình duyệt hiện chưa hỗ trợ micro — bạn có thể gõ trực tiếp hoặc mở tab “Chọn câu mẫu”.
+                  </div>
+                )}
 
                 {speechError && (
                   <div
                     style={{
+                      marginTop: "8px",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      fontSize: "0.84rem",
-                      color: "#fda4af",
+                      gap: "7px",
+                      fontSize: "0.82rem",
+                      color: "#eba0a0",
                     }}
                   >
-                    <AlertCircle size={15} /> {speechError}
+                    <AlertCircle size={14} /> {speechError}
                   </div>
                 )}
 
-                {/* Natural response directions preview */}
-                <div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--g-text-muted)", marginBottom: "6px" }}>
-                    Các hướng phản hồi tự nhiên (nói theo ý bạn hoặc nhấn nghe mẫu):
+                {/* Natural Suggested Replies (click to listen) */}
+                {(currentTurn.expectedResponses || []).length > 0 && (
+                  <div style={{ marginTop: "14px" }}>
+                    <div
+                      className="vf-g-section-kicker"
+                      style={{ marginBottom: "6px" }}
+                    >
+                      Gợi ý cách đáp tự nhiên (nhấn để nghe mẫu)
+                    </div>
+                    <div
+                      className="vf-g-suggestion-list"
+                      style={{ marginTop: 0 }}
+                    >
+                      {(currentTurn.expectedResponses || []).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className="vf-g-suggestion-chip"
+                          onClick={() => speak(opt.textVi, { rate: 0.95 })}
+                        >
+                          <Volume2 size={13} />
+                          <span>{opt.textVi}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                    {(currentTurn.expectedResponses || []).map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className="vf-g-phrase-chip"
-                        onClick={() => speak(opt.textVi, { rate: 0.95 })}
-                      >
-                        <Volume2 size={13} color="#38bdf8" />
-                        <span>
-                          <strong>{opt.labelVi}:</strong> {opt.textVi}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Text fallback for quiet mode / deterministic testing */}
-                <form
-                  onSubmit={handleSubmitTypedReply}
-                  style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
-                >
-                  <input
-                    type="text"
-                    className="vf-g-input"
-                    style={{ flex: 1, minWidth: "220px" }}
-                    value={typedReply}
-                    onChange={(e) => setTypedReply(e.target.value)}
-                    placeholder="Hoặc gõ câu trả lời tiếng Việt của bạn để hệ thống ghép nhánh & chấm điểm..."
-                    data-testid="dialogue-typed-input"
-                  />
-                  <button
-                    type="submit"
-                    className="vf-g-btn vf-g-btn--emerald"
-                    disabled={!typedReply.trim()}
-                    data-testid="dialogue-typed-submit"
-                  >
-                    <Send size={15} /> Gửi phản hồi
-                  </button>
-                </form>
+                )}
               </div>
             ) : (
               /* Guided Choice + Speak / Send Mode */
               <div style={{ display: "grid", gap: "10px" }}>
                 {(currentTurn.expectedResponses || []).map((opt) => {
-                  const isListeningThis = isListening && targetedOption === opt.id;
+                  const isListeningThis =
+                    isListening && targetedOption === opt.id;
                   return (
                     <div key={opt.id} className="vf-g-response-card">
                       <div>
-                        <span
-                          className="vf-g-badge vf-g-badge--sky"
-                          style={{ marginBottom: "6px" }}
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--g-text-muted)",
+                            marginBottom: "4px",
+                          }}
                         >
                           {opt.labelVi}
-                        </span>
-                        <div style={{ fontSize: "0.96rem", fontWeight: 600, color: "#f8fafc" }}>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.95rem",
+                            fontWeight: 500,
+                            color: "var(--g-text)",
+                          }}
+                        >
                           {opt.textVi}
                         </div>
                         {showEnglish && opt.textEn && (
@@ -939,7 +1068,14 @@ export function DialogueRoleplay({
                         )}
                       </div>
 
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                        }}
+                      >
                         <button
                           type="button"
                           className="vf-g-btn vf-g-btn--sm"
@@ -949,18 +1085,22 @@ export function DialogueRoleplay({
                         </button>
                         <button
                           type="button"
-                          className={`vf-g-btn vf-g-btn--sm ${
-                            isListeningThis ? "vf-g-btn--coral" : "vf-g-btn--primary"
+                          className={`vf-g-mic-btn vf-g-mic-btn--sm ${
+                            isListeningThis ? "vf-g-mic-btn--listening" : ""
                           }`}
                           disabled={!sttSupported}
                           onClick={() => handleSpeakSpecificOption(opt)}
                         >
-                          {isListeningThis ? <MicOff size={14} /> : <Mic size={14} />}
-                          {isListeningThis ? "Dừng" : "Đọc theo câu này"}
+                          {isListeningThis ? (
+                            <MicOff size={14} />
+                          ) : (
+                            <Mic size={14} />
+                          )}
+                          {isListeningThis ? "Dừng" : "Đọc theo"}
                         </button>
                         <button
                           type="button"
-                          className="vf-g-btn vf-g-btn--emerald vf-g-btn--sm"
+                          className="vf-g-btn vf-g-btn--primary vf-g-btn--sm"
                           onClick={() => handleSendGuidedOption(opt)}
                           data-testid={`dialogue-send-option-${opt.id}`}
                         >

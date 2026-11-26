@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   Check,
+  ClipboardList,
   FileText,
   Layers,
   Plus,
-  Sparkles,
   Trash2,
   Volume2,
 } from "lucide-react";
@@ -41,7 +42,9 @@ export function FlashcardCreator({
 }) {
   const [subTab, setSubTab] = useState("single"); // "single" | "bulk"
   const [targetDeckId, setTargetDeckId] = useState(() =>
-    defaultNewDeck || decks.length === 0 ? NEW_DECK_VALUE : activeDeckId || decks[0]?.id || NEW_DECK_VALUE
+    defaultNewDeck || decks.length === 0
+      ? NEW_DECK_VALUE
+      : activeDeckId || decks[0]?.id || NEW_DECK_VALUE
   );
   const [newDeckTitle, setNewDeckTitle] = useState("");
   const [newDeckTopicId, setNewDeckTopicId] = useState("");
@@ -68,7 +71,6 @@ export function FlashcardCreator({
     }
   }, [defaultNewDeck, activeDeckId, decks, targetDeckId]);
 
-  // Parse bulk text whenever user types/pastes
   const parsedBulk = useMemo(() => {
     if (!bulkText.trim()) return { cards: [], warnings: [] };
     const selectedDeck = decks.find((d) => d.id === targetDeckId);
@@ -96,7 +98,7 @@ export function FlashcardCreator({
         throw new Error("Vui lòng nhập tên bộ thẻ mới.");
       }
       const topicId = newDeckTopicId || null;
-      const color = topicId && TOPIC_META[topicId] ? TOPIC_META[topicId].accent : "#38bdf8";
+      const color = topicId && TOPIC_META[topicId] ? TOPIC_META[topicId].accent : "#e06d4f";
       const createdDeck = await onCreateDeck?.({
         title: cleanTitle,
         description: `Bộ thẻ tự tạo (${cardsToSave.length} thẻ)`,
@@ -172,10 +174,10 @@ export function FlashcardCreator({
       await resolveDeckAndSaveCards([cardPayload], { openStudyAfter });
       setForm(EMPTY_SINGLE_FORM);
       if (!openStudyAfter) {
-        setFormSuccess(`Đã tạo flashcard "${frontVi}" thành công! Bạn có thể nhập tiếp từ mới.`);
+        setFormSuccess(`Đã lưu thẻ "${frontVi}". Bạn có thể nhập tiếp từ mới.`);
       }
     } catch (err) {
-      setFormError(err?.message || "Không thể lưu flashcard. Vui lòng thử lại.");
+      setFormError(err?.message || "Không thể lưu thẻ. Vui lòng thử lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -208,7 +210,7 @@ export function FlashcardCreator({
       .filter((c) => c.frontVi && c.definition);
 
     if (validCards.length === 0) {
-      setBulkError("Chưa có flashcard hợp lệ nào. Hãy dán danh sách từ vựng kèm định nghĩa vào ô trên.");
+      setBulkError("Chưa có thẻ hợp lệ. Hãy dán danh sách từ vựng kèm định nghĩa vào ô phía trên.");
       return;
     }
 
@@ -219,10 +221,10 @@ export function FlashcardCreator({
       setEditableBulkCards([]);
       setBulkWarnings([]);
       if (!openStudyAfter) {
-        setBulkSuccess(`Đã tạo thành công ${res.count} flashcard!`);
+        setBulkSuccess(`Đã lưu ${res.count} thẻ vào bộ thẻ.`);
       }
     } catch (err) {
-      setBulkError(err?.message || "Không thể tạo hàng loạt flashcard.");
+      setBulkError(err?.message || "Không thể tạo hàng loạt thẻ.");
     } finally {
       setIsSubmitting(false);
     }
@@ -232,7 +234,7 @@ export function FlashcardCreator({
 
   return (
     <div className="fc-creator-panel" data-testid="fc-creator-panel">
-      <div className="fc-creator-tabs">
+      <div className="fc-creator-topbar">
         <div className="fc-subtabs" role="tablist" aria-label="Chế độ tạo flashcard">
           <button
             type="button"
@@ -241,7 +243,7 @@ export function FlashcardCreator({
             className={`fc-subtab-btn ${subTab === "single" ? "is-active" : ""}`}
             onClick={() => setSubTab("single")}
           >
-            <Plus size={16} />
+            <Plus size={15} />
             <span>Tạo từng thẻ</span>
           </button>
           <button
@@ -251,19 +253,16 @@ export function FlashcardCreator({
             className={`fc-subtab-btn ${subTab === "bulk" ? "is-active" : ""}`}
             onClick={() => setSubTab("bulk")}
           >
-            <FileText size={16} />
+            <FileText size={15} />
             <span>Nhập nhanh hàng loạt</span>
           </button>
         </div>
 
-        <div className="fc-toolbar-actions">
-          <label htmlFor="fc-target-deck" style={{ fontSize: "0.78rem", color: "#9aa5ba" }}>
-            Lưu vào bộ thẻ:
-          </label>
+        <div className="fc-deck-picker">
+          <label htmlFor="fc-target-deck">Lưu vào bộ thẻ:</label>
           <select
             id="fc-target-deck"
             className="fc-select"
-            style={{ width: "auto", minWidth: 210, padding: "7px 11px", fontSize: "0.82rem" }}
             value={isCreatingNewDeck ? NEW_DECK_VALUE : targetDeckId}
             onChange={(e) => setTargetDeckId(e.target.value)}
           >
@@ -278,28 +277,30 @@ export function FlashcardCreator({
       </div>
 
       {isCreatingNewDeck && (
-        <div className="fc-form-row" style={{ padding: "12px 14px", borderRadius: 14, background: "#0f1523", border: "1px solid rgba(129, 140, 248, 0.25)" }}>
+        <div className="fc-form-row fc-new-deck-fields">
           <div className="fc-field">
             <label htmlFor="fc-new-deck-title">
-              <span>Tên bộ thẻ mới <span className="fc-req">*</span></span>
+              <span>
+                Tên bộ thẻ mới <span className="fc-req">*</span>
+              </span>
             </label>
             <input
               id="fc-new-deck-title"
               className="fc-input"
               value={newDeckTitle}
               onChange={(e) => setNewDeckTitle(e.target.value)}
-              placeholder="VD: Từ vựng Ẩm thực tuần 1"
+              placeholder="VD: Từ vựng ẩm thực tuần 1"
             />
           </div>
           <div className="fc-field">
-            <label htmlFor="fc-new-deck-topic">Chủ đề liên quan (tuỳ chọn)</label>
+            <label htmlFor="fc-new-deck-topic">Chủ đề (tuỳ chọn)</label>
             <select
               id="fc-new-deck-topic"
               className="fc-select"
               value={newDeckTopicId}
               onChange={(e) => setNewDeckTopicId(e.target.value)}
             >
-              <option value="">Tự do / Không gắn chủ đề</option>
+              <option value="">Không gắn chủ đề</option>
               {TOPIC_IDS.map((tid) => (
                 <option key={tid} value={tid}>
                   {TOPIC_META[tid].titleVi}
@@ -310,7 +311,7 @@ export function FlashcardCreator({
         </div>
       )}
 
-      {/* TAB 1: SINGLE CARD QUICK FORM */}
+      {/* Single Card Form */}
       {subTab === "single" && (
         <div className="fc-creator-grid">
           <form className="fc-form" onSubmit={(e) => handleSingleSubmit(e, true)}>
@@ -325,7 +326,8 @@ export function FlashcardCreator({
                   disabled={!form.frontVi.trim()}
                   onClick={() => speakVietnamese(form.frontVi.trim())}
                 >
-                  <Volume2 size={13} /> Nghe thử
+                  <Volume2 size={13} />
+                  <span>Nghe thử</span>
                 </button>
               </div>
               <input
@@ -377,7 +379,7 @@ export function FlashcardCreator({
                 rows={2}
                 value={form.definition}
                 onChange={(e) => setForm((f) => ({ ...f, definition: e.target.value }))}
-                placeholder="Giải thích ngắn gọn nghĩa của từ (tiếng Việt hoặc song ngữ)..."
+                placeholder="Giải thích ngắn gọn nghĩa của từ..."
               />
             </div>
 
@@ -390,7 +392,8 @@ export function FlashcardCreator({
                   disabled={!form.exampleVi.trim()}
                   onClick={() => speakVietnamese(form.exampleVi.trim())}
                 >
-                  <Volume2 size={13} /> Nghe ví dụ
+                  <Volume2 size={13} />
+                  <span>Nghe ví dụ</span>
                 </button>
               </div>
               <textarea
@@ -415,7 +418,7 @@ export function FlashcardCreator({
                 />
               </div>
               <div className="fc-field">
-                <label htmlFor="fc-notes">Ghi chú ngữ pháp / sắc thái (tuỳ chọn)</label>
+                <label htmlFor="fc-notes">Ghi chú cách dùng (tuỳ chọn)</label>
                 <input
                   id="fc-notes"
                   className="fc-input"
@@ -428,21 +431,21 @@ export function FlashcardCreator({
 
             {formError && (
               <div className="fc-alert error" role="alert">
-                <AlertTriangle size={16} />
+                <AlertTriangle size={15} />
                 <span>{formError}</span>
               </div>
             )}
             {formSuccess && (
               <div className="fc-alert success" role="status">
-                <Check size={16} />
+                <Check size={15} />
                 <span>{formSuccess}</span>
               </div>
             )}
 
             <div className="fc-btn-row">
               <button type="submit" className="fc-btn-primary" disabled={isSubmitting}>
-                <Sparkles size={16} />
                 <span>{isSubmitting ? "Đang lưu..." : "Tạo flashcard & học ngay"}</span>
+                <ArrowRight size={15} />
               </button>
               <button
                 type="button"
@@ -450,7 +453,7 @@ export function FlashcardCreator({
                 disabled={isSubmitting}
                 onClick={(e) => handleSingleSubmit(e, false)}
               >
-                <Plus size={16} />
+                <Plus size={15} />
                 <span>Lưu &amp; tạo thẻ tiếp</span>
               </button>
             </div>
@@ -459,7 +462,7 @@ export function FlashcardCreator({
           {/* Live Dark Card Preview */}
           <div className="fc-live-preview" aria-label="Xem trước flashcard">
             <div className="fc-preview-card">
-              <span className="fc-preview-tag">Xem trước · Mặt trước</span>
+              <span className="fc-preview-tag">Mặt trước</span>
               <div className="fc-preview-word">
                 {form.frontVi.trim() || "từ vựng tiếng Việt"}
               </div>
@@ -473,34 +476,32 @@ export function FlashcardCreator({
             </div>
 
             <div className="fc-preview-card back">
-              <span className="fc-preview-tag">Xem trước · Mặt sau</span>
+              <span className="fc-preview-tag">Mặt sau</span>
               <div className="fc-preview-def">
                 {form.definition.trim() || "Định nghĩa sẽ hiển thị tại đây"}
               </div>
               {form.exampleVi.trim() && (
-                <div className="fc-preview-ex">
-                  “{form.exampleVi.trim()}”
-                </div>
+                <div className="fc-preview-ex">“{form.exampleVi.trim()}”</div>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: SMART BULK IMPORT */}
+      {/* Bulk Paste Form */}
       {subTab === "bulk" && (
         <div className="fc-form">
           <div className="fc-format-hints">
             <div className="fc-format-card">
-              <strong>Cách 1 · Dấu gạch đứng (|)</strong>
+              <strong>Dấu gạch đứng (|)</strong>
               <code>{"từ | định nghĩa | ví dụ\ntừ | loại từ | định nghĩa | ví dụ"}</code>
             </div>
             <div className="fc-format-card">
-              <strong>Cách 2 · Nhãn từng dòng</strong>
+              <strong>Nhãn từng dòng</strong>
               <code>{"Từ: ấm áp\nĐịnh nghĩa: không lạnh, dễ chịu\nVí dụ: Hôm nay trời ấm áp."}</code>
             </div>
             <div className="fc-format-card">
-              <strong>Cách 3 · Dấu hai chấm / Excel</strong>
+              <strong>Dấu hai chấm / Excel</strong>
               <code>{"hào hứng (tính từ): rất vui - VD: Tôi rất hào hứng."}</code>
             </div>
           </div>
@@ -515,7 +516,8 @@ export function FlashcardCreator({
                 className="fc-field-inline-action"
                 onClick={() => setBulkText(SAMPLE_BULK_TEMPLATE)}
               >
-                <Sparkles size={13} /> Chèn dữ liệu mẫu
+                <ClipboardList size={13} />
+                <span>Chèn ví dụ mẫu</span>
               </button>
             </div>
             <textarea
@@ -523,15 +525,18 @@ export function FlashcardCreator({
               className="fc-textarea fc-bulk-textarea"
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder={"VD:\nhài lòng | tính từ | cảm thấy vừa ý | Tôi rất hài lòng với món ăn này.\n\nHoặc:\nTừ: thư giãn\nĐịnh nghĩa: nghỉ ngơi cho thoải mái tinh thần\nVí dụ: Cuối tuần tôi thích nghe nhạc để thư giãn."}
+              placeholder={
+                "VD:\nhài lòng | tính từ | cảm thấy vừa ý | Tôi rất hài lòng với món ăn này.\n\nHoặc:\nTừ: thư giãn\nĐịnh nghĩa: nghỉ ngơi cho thoải mái tinh thần\nVí dụ: Cuối tuần tôi thích nghe nhạc để thư giãn."
+              }
             />
           </div>
 
           {bulkWarnings.length > 0 && (
             <div className="fc-alert warn" role="status">
-              <AlertTriangle size={16} />
+              <AlertTriangle size={15} />
               <div>
-                <strong>Lưu ý ({bulkWarnings.length}):</strong> {bulkWarnings.slice(0, 3).join(" · ")}
+                <strong>Lưu ý ({bulkWarnings.length}):</strong>{" "}
+                {bulkWarnings.slice(0, 3).join(" · ")}
                 {bulkWarnings.length > 3 ? ` (+${bulkWarnings.length - 3} mục khác)` : ""}
               </div>
             </div>
@@ -541,7 +546,7 @@ export function FlashcardCreator({
             <div className="fc-field">
               <label>
                 <span>
-                  Xem trước &amp; chỉnh nhanh ({editableBulkCards.length} flashcard sẵn sàng)
+                  Xem trước &amp; chỉnh nhanh ({editableBulkCards.length} thẻ sẵn sàng)
                 </span>
               </label>
               <div className="fc-bulk-preview-list" data-testid="fc-bulk-preview-list">
@@ -578,7 +583,7 @@ export function FlashcardCreator({
                       aria-label={`Bỏ thẻ ${card.frontVi || index + 1}`}
                       title="Xóa dòng này"
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 ))}
@@ -588,13 +593,13 @@ export function FlashcardCreator({
 
           {bulkError && (
             <div className="fc-alert error" role="alert">
-              <AlertTriangle size={16} />
+              <AlertTriangle size={15} />
               <span>{bulkError}</span>
             </div>
           )}
           {bulkSuccess && (
             <div className="fc-alert success" role="status">
-              <Check size={16} />
+              <Check size={15} />
               <span>{bulkSuccess}</span>
             </div>
           )}
@@ -606,7 +611,7 @@ export function FlashcardCreator({
               disabled={isSubmitting || editableBulkCards.length === 0}
               onClick={() => handleBulkSubmit(true)}
             >
-              <Layers size={16} />
+              <Layers size={15} />
               <span>
                 {isSubmitting
                   ? "Đang tạo..."
@@ -619,7 +624,7 @@ export function FlashcardCreator({
               disabled={isSubmitting || editableBulkCards.length === 0}
               onClick={() => handleBulkSubmit(false)}
             >
-              <Check size={16} />
+              <Check size={15} />
               <span>Chỉ lưu vào bộ thẻ</span>
             </button>
           </div>
