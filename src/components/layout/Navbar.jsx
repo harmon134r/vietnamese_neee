@@ -57,6 +57,7 @@ export function Navbar({
                     type="button"
                     className={`vf-nav-link ${isActive ? "is-active" : ""}`}
                     aria-current={isActive ? "page" : undefined}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => onNavigate(item.id)}
                   >
                     {item.label}

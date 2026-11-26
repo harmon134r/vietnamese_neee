@@ -119,6 +119,10 @@ a:hover {
   text-decoration: underline;
 }
 
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
@@ -394,6 +398,16 @@ a:hover {
 
 .vf-nav-link:hover {
   color: var(--text-primary);
+}
+
+.vf-nav-link:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.vf-nav-link:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -4px;
+  border-radius: var(--radius-xs);
 }
 
 .vf-nav-link.is-active {
