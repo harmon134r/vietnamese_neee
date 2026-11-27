@@ -581,9 +581,10 @@ describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
 describe("SynonymAntonymChase", () => {
   afterEach(() => {
     vi.useRealTimers();
+    window.localStorage?.clear?.();
   });
 
-  it("renders Chơi/BXH tabs, pre-game mode selector, all 4 scenes, and BXH empty state", async () => {
+  it("renders Chơi/BXH tabs, pre-game mode selector, all 4 scenes, all 3 chill tracks, and BXH empty state", async () => {
     window.localStorage?.clear?.();
     render(<SynonymAntonymChase activeTopicId="all" />);
 
@@ -599,18 +600,41 @@ describe("SynonymAntonymChase", () => {
     expect(within(setup).getByText("Bãi biển hoàng hôn")).toBeInTheDocument();
     expect(within(setup).getByText("Phố cổ chiều thu")).toBeInTheDocument();
 
+    // All 3 chilling background tracks render in Pre-Game Setup and persist selection
+    const trackPicker = within(setup).getByTestId("chase-track-picker");
+    expect(within(trackPicker).getByText("Chiều Thu Lo-Fi")).toBeInTheDocument();
+    expect(within(trackPicker).getByText("Gió Biển Hoàng Hôn")).toBeInTheDocument();
+    expect(within(trackPicker).getByText("Trà Đêm Phố Cổ")).toBeInTheDocument();
+
+    expect(screen.getByTestId("chase-track-lofi-garden")).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByTestId("chase-track-ocean-breeze"));
+    expect(screen.getByTestId("chase-track-ocean-breeze")).toHaveAttribute("aria-checked", "true");
+    expect(window.localStorage.getItem("vietflow_chase_track")).toBe("ocean-breeze");
+
     fireEvent.click(screen.getByTestId("chase-tab-leaderboard"));
     expect(await screen.findByTestId("chase-leaderboard")).toBeInTheDocument();
     expect(await screen.findByTestId("chase-bxh-empty")).toBeInTheDocument();
   });
 
-  it("enters 2-lane live stage on Trái nghĩa, updates score on click, and supports ArrowUp/ArrowDown keyboard input", () => {
+  it("keeps hurdle parked during question, plays vault-clear & shatter-crash action sequences before next question, and switches tracks live in HUD", () => {
     vi.useFakeTimers();
+    window.localStorage?.clear?.();
     render(<SynonymAntonymChase activeTopicId="all" />);
 
-    // Select Trái nghĩa and start the chase
+    // Pick Trà Đêm Phố Cổ in setup, select Trái nghĩa, and start
+    fireEvent.click(screen.getByTestId("chase-track-night-tea"));
     fireEvent.click(screen.getByTestId("chase-mode-antonym"));
     fireEvent.click(screen.getByTestId("chase-start-btn"));
+
+    // Live HUD displays the chosen track and cycles cleanly through all 3 tracks
+    const hudTrackBtn = screen.getByTestId("chase-hud-track");
+    expect(hudTrackBtn).toHaveTextContent("Trà Đêm Phố Cổ");
+    fireEvent.click(hudTrackBtn);
+    expect(hudTrackBtn).toHaveTextContent("Chiều Thu Lo-Fi");
+    expect(screen.getByTestId("chase-track-toast")).toHaveTextContent("Chiều Thu Lo-Fi");
+    fireEvent.click(hudTrackBtn);
+    expect(hudTrackBtn).toHaveTextContent("Gió Biển Hoàng Hôn");
+    expect(window.localStorage.getItem("vietflow_chase_track")).toBe("ocean-breeze");
 
     expect(screen.getByTestId("chase-lanes")).toBeInTheDocument();
     expect(screen.getByTestId("chase-lane-top")).toHaveTextContent("NHẢY");
@@ -620,7 +644,13 @@ describe("SynonymAntonymChase", () => {
     );
     expect(screen.getByTestId("chase-score-pill")).toHaveTextContent("Điểm: 0");
 
-    // Look up the exact correct answer for Question 1 and click its lane
+    // During active question phase, hurdle stays stationary/parked out of Dog & Cat's frame
+    expect(screen.getByTestId("chase-hurdle")).toHaveAttribute(
+      "data-hurdle-state",
+      "parked"
+    );
+
+    // Question 1: choose the CORRECT answer -> enters clearing (vault over hurdle) action sequence
     const q1Prompt = screen.getByTestId("chase-prompt-word").textContent;
     const q1Item = SYNONYM_ANTONYM_ITEMS.find(
       (item) => item.mode === "antonym" && item.promptWord === q1Prompt
@@ -636,14 +666,34 @@ describe("SynonymAntonymChase", () => {
     fireEvent.click(q1CorrectLane === "top" ? topBtn : bottomBtn);
     expect(screen.getByTestId("chase-score-pill")).toHaveTextContent("Điểm: 10");
     expect(screen.getByTestId("chase-feedback")).toBeInTheDocument();
+    expect(screen.getByTestId("chase-hurdle")).toHaveAttribute(
+      "data-hurdle-state",
+      "clearing"
+    );
+    expect(screen.getByTestId("chase-lanes")).toHaveClass("vf-chase-lanes--hidden");
 
-    // Advance past feedback timer to Question 2
+    // Mid-sequence (700ms < 1350ms): still watching the jump action, NOT yet advanced to Question 2
     act(() => {
-      vi.advanceTimersByTime(1300);
+      vi.advanceTimersByTime(700);
+    });
+    expect(screen.getByTestId("chase-feedback")).toBeInTheDocument();
+    expect(screen.getByTestId("chase-hurdle")).toHaveAttribute(
+      "data-hurdle-state",
+      "clearing"
+    );
+    expect(screen.getByTestId("chase-prompt-word")).toHaveTextContent(q1Prompt);
+
+    // After the 1350ms jump action finishes -> advances cleanly to Question 2 with parked hurdle
+    act(() => {
+      vi.advanceTimersByTime(700);
     });
     expect(screen.queryByTestId("chase-feedback")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chase-hurdle")).toHaveAttribute(
+      "data-hurdle-state",
+      "parked"
+    );
 
-    // Answer Question 2 using keyboard ArrowUp / ArrowDown
+    // Question 2: choose the WRONG answer -> enters broken (hurdle shatter!) action sequence
     const q2Prompt = screen.getByTestId("chase-prompt-word").textContent;
     const q2Item = SYNONYM_ANTONYM_ITEMS.find(
       (item) => item.mode === "antonym" && item.promptWord === q2Prompt
@@ -651,12 +701,62 @@ describe("SynonymAntonymChase", () => {
     expect(q2Item).toBeDefined();
 
     const q2TopBtn = screen.getByTestId("chase-lane-top");
-    const q2Key = q2TopBtn.textContent.includes(q2Item.correctAnswer)
+    const q2WrongKey = q2TopBtn.textContent.includes(q2Item.correctAnswer)
+      ? "ArrowDown"
+      : "ArrowUp";
+
+    fireEvent.keyDown(window, { key: q2WrongKey, code: q2WrongKey });
+    expect(screen.getByTestId("chase-feedback")).toBeInTheDocument();
+    expect(screen.getByTestId("chase-hearts-pill")).toHaveAttribute(
+      "aria-label",
+      "Còn 2 trên 3 tim"
+    );
+    const brokenHurdle = screen.getByTestId("chase-hurdle");
+    expect(brokenHurdle).toHaveAttribute("data-hurdle-state", "broken");
+    expect(brokenHurdle.querySelector(".vf-hurdle-plank-top")).toBeInTheDocument();
+    expect(brokenHurdle.querySelector(".vf-hurdle-plank-mid")).toBeInTheDocument();
+    expect(brokenHurdle.querySelector(".vf-hurdle-post-left")).toBeInTheDocument();
+    expect(brokenHurdle.querySelector(".vf-hurdle-post-right")).toBeInTheDocument();
+    expect(brokenHurdle.querySelectorAll(".vf-hurdle-splinter").length).toBe(3);
+
+    // Mid-shatter (1000ms < 2050ms): still showing shatter & explanation, NOT yet advanced
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByTestId("chase-feedback")).toBeInTheDocument();
+    expect(screen.getByTestId("chase-hurdle")).toHaveAttribute(
+      "data-hurdle-state",
+      "broken"
+    );
+    expect(screen.getByTestId("chase-prompt-word")).toHaveTextContent(q2Prompt);
+
+    // After the 2050ms shatter sequence finishes -> advances cleanly to Question 3
+    act(() => {
+      vi.advanceTimersByTime(1100);
+    });
+    expect(screen.queryByTestId("chase-feedback")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chase-hurdle")).toHaveAttribute(
+      "data-hurdle-state",
+      "parked"
+    );
+
+    // Question 3: verify keyboard ArrowUp / ArrowDown also scores correctly
+    const q3Prompt = screen.getByTestId("chase-prompt-word").textContent;
+    const q3Item = SYNONYM_ANTONYM_ITEMS.find(
+      (item) => item.mode === "antonym" && item.promptWord === q3Prompt
+    );
+    expect(q3Item).toBeDefined();
+
+    const q3TopBtn = screen.getByTestId("chase-lane-top");
+    const q3CorrectKey = q3TopBtn.textContent.includes(q3Item.correctAnswer)
       ? "ArrowUp"
       : "ArrowDown";
 
-    fireEvent.keyDown(window, { key: q2Key, code: q2Key });
+    fireEvent.keyDown(window, { key: q3CorrectKey, code: q3CorrectKey });
     expect(screen.getByTestId("chase-score-pill")).toHaveTextContent("Điểm: 20");
-    expect(screen.getByTestId("chase-feedback")).toBeInTheDocument();
+    expect(screen.getByTestId("chase-hurdle")).toHaveAttribute(
+      "data-hurdle-state",
+      "clearing"
+    );
   });
 });

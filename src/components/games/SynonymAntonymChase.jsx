@@ -27,16 +27,76 @@ import {
 } from "../../data";
 import { APP_ART } from "../../data/illustrations";
 import { GAME_TYPES, TOPIC_META } from "../../lib/contracts";
-import { createChillAudioEngine } from "../../lib/chillMusic";
+import {
+  CHILL_TRACKS,
+  DEFAULT_TRACK_ID,
+  createChillAudioEngine,
+} from "../../lib/chillMusic";
 import * as speechApi from "../../lib/speech";
 import { loadGameHistory } from "../../lib/storage";
 
 const ROUND_LENGTH = 12;
 const MAX_HEARTS = 3;
 const QUESTION_TIME_MS = 14000;
+const TIME_CRITICAL_MS = 2500;
 const SCENE_ROTATE_INTERVAL = 3;
-const CORRECT_FEEDBACK_MS = 1150;
-const WRONG_FEEDBACK_MS = 2200;
+const ACTION_CLEAR_MS = 1350;
+const ACTION_CRASH_MS = 2050;
+const CRASH_IMPACT_MS = 310;
+const CHASE_TRACK_STORAGE_KEY = "vietflow_chase_track";
+
+const FALLBACK_CHILL_TRACKS = [
+  {
+    id: "lofi-garden",
+    labelVi: "Chiều Thu Lo-Fi",
+    subtitleVi: "Rhodes & Kalimba · 74 BPM",
+    bpm: 74,
+  },
+  {
+    id: "ocean-breeze",
+    labelVi: "Gió Biển Hoàng Hôn",
+    subtitleVi: "Guitar mộc & Sóng dịu · 68 BPM",
+    bpm: 68,
+  },
+  {
+    id: "night-tea",
+    labelVi: "Trà Đêm Phố Cổ",
+    subtitleVi: "Ngũ cung & Sáo êm · 64 BPM",
+    bpm: 64,
+  },
+];
+
+function resolveChillTracks() {
+  return Array.isArray(CHILL_TRACKS) && CHILL_TRACKS.length > 0
+    ? CHILL_TRACKS
+    : FALLBACK_CHILL_TRACKS;
+}
+
+function getValidTrackId(candidate, tracks) {
+  const fallbackId = DEFAULT_TRACK_ID || tracks[0]?.id || "lofi-garden";
+  if (!candidate) return fallbackId;
+  return tracks.some((t) => t.id === candidate) ? candidate : fallbackId;
+}
+
+function loadSavedTrackId(tracks) {
+  const fallbackId = getValidTrackId(DEFAULT_TRACK_ID, tracks);
+  if (typeof window === "undefined") return fallbackId;
+  try {
+    const stored = window.localStorage?.getItem(CHASE_TRACK_STORAGE_KEY);
+    return getValidTrackId(stored, tracks);
+  } catch {
+    return fallbackId;
+  }
+}
+
+function saveTrackId(trackId) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage?.setItem(CHASE_TRACK_STORAGE_KEY, trackId);
+  } catch {
+    // Ignore storage quota / privacy mode errors
+  }
+}
 
 const MODE_LABELS = {
   synonym: "Đồng nghĩa",
@@ -204,66 +264,178 @@ function formatLeaderboardDate(isoString) {
   });
 }
 
-function HurdleBarrier({ state }) {
+function HurdleBarrier({ state, isWarning = false }) {
   return (
     <div
-      className={`vf-chase-hurdle vf-chase-hurdle--${state}`}
+      className={`vf-chase-hurdle-rail vf-chase-hurdle-rail--${state} ${
+        isWarning ? "vf-hurdle--warning" : ""
+      }`}
+      data-testid="chase-hurdle"
+      data-hurdle-state={state}
       aria-hidden="true"
     >
-      <svg
-        viewBox="0 0 116 96"
-        className="vf-chase-hurdle-svg"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Ground shadow */}
-        <ellipse cx="58" cy="89" rx="44" ry="6" fill="rgba(18, 13, 9, 0.34)" />
-        {/* Wooden base skids */}
-        <path
-          d="M18 85 L44 74 L44 79 L18 90 Z"
-          fill="#8c6239"
-          stroke="#4d321b"
-          strokeWidth="1.6"
-        />
-        <path
-          d="M72 85 L98 74 L98 79 L72 90 Z"
-          fill="#8c6239"
-          stroke="#4d321b"
-          strokeWidth="1.6"
-        />
-        {/* Back crossbar X */}
-        <line x1="30" y1="36" x2="86" y2="76" stroke="#75502d" strokeWidth="5" strokeLinecap="round" />
-        <line x1="86" y1="36" x2="30" y2="76" stroke="#966a3d" strokeWidth="5" strokeLinecap="round" />
-        {/* Vertical legs */}
-        <rect x="26" y="29" width="7" height="53" rx="2" fill="#a87948" stroke="#4d321b" strokeWidth="1.6" />
-        <rect x="83" y="21" width="7" height="58" rx="2" fill="#a87948" stroke="#4d321b" strokeWidth="1.6" />
-        {/* Angled striped top plank (matching reference hurdle) */}
-        <g transform="skewY(-9)">
-          <rect
-            x="16"
-            y="24"
-            width="84"
-            height="17"
-            rx="3.5"
-            fill="#faf3e3"
-            stroke="#5a381d"
-            strokeWidth="2"
+      <div className="vf-chase-hurdle">
+        <svg
+          viewBox="0 0 116 96"
+          className="vf-chase-hurdle-svg"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {/* Ground shadow */}
+          <ellipse
+            className="vf-hurdle-shadow"
+            cx="58"
+            cy="89"
+            rx="44"
+            ry="6"
+            fill="rgba(18, 13, 9, 0.34)"
           />
-          <rect x="19" y="25" width="14" height="15" fill="#d97736" />
-          <rect x="47" y="25" width="14" height="15" fill="#d97736" />
-          <rect x="75" y="25" width="14" height="15" fill="#d97736" />
-          <rect
-            x="16"
-            y="24"
-            width="84"
-            height="17"
-            rx="3.5"
-            fill="none"
-            stroke="#5a381d"
-            strokeWidth="2"
-          />
-        </g>
-      </svg>
+
+          {/* Left vertical post & skid */}
+          <g className="vf-hurdle-post-left">
+            <path
+              d="M18 85 L44 74 L44 79 L18 90 Z"
+              fill="#8c6239"
+              stroke="#4d321b"
+              strokeWidth="1.6"
+            />
+            <rect
+              x="26"
+              y="29"
+              width="7.5"
+              height="53"
+              rx="2"
+              fill="#a87948"
+              stroke="#4d321b"
+              strokeWidth="1.6"
+            />
+          </g>
+
+          {/* Right vertical post & skid */}
+          <g className="vf-hurdle-post-right">
+            <path
+              d="M72 85 L98 74 L98 79 L72 90 Z"
+              fill="#8c6239"
+              stroke="#4d321b"
+              strokeWidth="1.6"
+            />
+            <rect
+              x="82.5"
+              y="21"
+              width="7.5"
+              height="58"
+              rx="2"
+              fill="#a87948"
+              stroke="#4d321b"
+              strokeWidth="1.6"
+            />
+          </g>
+
+          {/* Mid crossbar & lower wooden plank */}
+          <g className="vf-hurdle-plank-mid">
+            <line
+              x1="31"
+              y1="40"
+              x2="85"
+              y2="75"
+              stroke="#75502d"
+              strokeWidth="5"
+              strokeLinecap="round"
+            />
+            <line
+              x1="85"
+              y1="38"
+              x2="31"
+              y2="73"
+              stroke="#966a3d"
+              strokeWidth="5"
+              strokeLinecap="round"
+            />
+            <g transform="skewY(-5)">
+              <rect
+                x="23"
+                y="50"
+                width="70"
+                height="9.5"
+                rx="2.5"
+                fill="#c89258"
+                stroke="#5a381d"
+                strokeWidth="1.6"
+              />
+            </g>
+          </g>
+
+          {/* Angled striped top plank */}
+          <g className="vf-hurdle-plank-top">
+            <g transform="skewY(-9)">
+              <rect
+                x="16"
+                y="24"
+                width="84"
+                height="17"
+                rx="3.5"
+                fill="#faf3e3"
+                stroke="#5a381d"
+                strokeWidth="2"
+              />
+              <rect x="19" y="25" width="14" height="15" fill="#d97736" />
+              <rect x="47" y="25" width="14" height="15" fill="#d97736" />
+              <rect x="75" y="25" width="14" height="15" fill="#d97736" />
+              <rect
+                x="16"
+                y="24"
+                width="84"
+                height="17"
+                rx="3.5"
+                fill="none"
+                stroke="#5a381d"
+                strokeWidth="2"
+              />
+            </g>
+          </g>
+
+          {/* Wood splinter chips flying outward on crash impact */}
+          <g className="vf-hurdle-splinter vf-hurdle-splinter--1">
+            <polygon
+              points="40,35 56,30 53,40 39,42"
+              fill="#d97736"
+              stroke="#4d321b"
+              strokeWidth="1.4"
+            />
+          </g>
+          <g className="vf-hurdle-splinter vf-hurdle-splinter--2">
+            <polygon
+              points="57,46 74,42 69,52 54,51"
+              fill="#faf3e3"
+              stroke="#4d321b"
+              strokeWidth="1.4"
+            />
+          </g>
+          <g className="vf-hurdle-splinter vf-hurdle-splinter--3">
+            <polygon
+              points="46,58 61,54 63,63 45,64"
+              fill="#a87948"
+              stroke="#4d321b"
+              strokeWidth="1.4"
+            />
+          </g>
+
+          {/* Impact starburst at collision moment */}
+          <g className="vf-hurdle-impact-burst">
+            <polygon
+              points="53,16 60,33 77,27 67,43 84,53 65,56 69,73 54,61 39,72 43,55 25,49 41,40 33,24 49,32"
+              fill="#ffd166"
+              stroke="#e85d04"
+              strokeWidth="2.3"
+              strokeLinejoin="round"
+            />
+            <polygon
+              points="53,28 57,39 67,36 61,45 70,51 59,53 61,62 53,55 45,61 47,52 37,48 46,43 42,34 51,38"
+              fill="#fff8e1"
+            />
+          </g>
+        </svg>
+      </div>
     </div>
   );
 }
@@ -281,6 +453,7 @@ export function SynonymAntonymChase({
     () => (Array.isArray(CHASE_MODES) && CHASE_MODES.length > 0 ? CHASE_MODES : []),
     []
   );
+  const chillTracks = useMemo(() => resolveChillTracks(), []);
 
   // Top segmented tab ("play" | "leaderboard")
   const [activeTab, setActiveTab] = useState("play");
@@ -290,9 +463,13 @@ export function SynonymAntonymChase({
   const [startSceneId, setStartSceneId] = useState(scenes[0]?.id || "garden");
   const [autoRotateScene, setAutoRotateScene] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [selectedTrackId, setSelectedTrackId] = useState(() =>
+    loadSavedTrackId(resolveChillTracks())
+  );
 
   // Live run state ("setup" | "playing" | "summary")
   const [phase, setPhase] = useState("setup");
+  const [roundPhase, setRoundPhase] = useState("question"); // "question" | "action-clear" | "action-crash"
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -303,12 +480,12 @@ export function SynonymAntonymChase({
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [visitedSceneIds, setVisitedSceneIds] = useState([]);
   const [sceneToast, setSceneToast] = useState(null);
+  const [trackToast, setTrackToast] = useState(null);
 
   // Per-question feedback & character animation
   const [feedback, setFeedback] = useState(null);
-  const [catAnim, setCatAnim] = useState("run"); // "run" | "jump" | "dash" | "stumble"
-  const [dogAnim, setDogAnim] = useState("run"); // "run" | "lunge"
-  const [hurdleState, setHurdleState] = useState("glide"); // "glide" | "cleared-jump" | "cleared-dash" | "hit"
+  const [catAnim, setCatAnim] = useState("run"); // "run" | "vault" | "crash"
+  const [dogAnim, setDogAnim] = useState("run"); // "run" | "hop" | "lunge"
   const [scorePop, setScorePop] = useState(null);
   const [historyLog, setHistoryLog] = useState([]);
 
@@ -324,37 +501,55 @@ export function SynonymAntonymChase({
   const audioEngineRef = useRef(null);
   const stageRef = useRef(null);
   const advanceTimerRef = useRef(null);
-  const animTimerRef = useRef(null);
+  const sfxTimerRef = useRef(null);
   const toastTimerRef = useRef(null);
+  const trackToastTimerRef = useRef(null);
   const startTimeRef = useRef(Date.now());
   const reportedRef = useRef(false);
   const feedbackRef = useRef(null);
   const phaseRef = useRef("setup");
+  const roundPhaseRef = useRef("question");
   const activeTabRef = useRef("play");
 
   feedbackRef.current = feedback;
   phaseRef.current = phase;
+  roundPhaseRef.current = roundPhase;
   activeTabRef.current = activeTab;
 
-  const getAudioEngine = useCallback(() => {
-    if (!audioEngineRef.current) {
-      audioEngineRef.current = createChillAudioEngine();
-    }
-    return audioEngineRef.current;
-  }, []);
+  const currentTrack = useMemo(
+    () =>
+      chillTracks.find((t) => t.id === selectedTrackId) ||
+      chillTracks[0] ||
+      FALLBACK_CHILL_TRACKS[0],
+    [chillTracks, selectedTrackId]
+  );
+
+  const getAudioEngine = useCallback(
+    (trackId = selectedTrackId) => {
+      if (!audioEngineRef.current) {
+        audioEngineRef.current = createChillAudioEngine(trackId);
+      }
+      return audioEngineRef.current;
+    },
+    [selectedTrackId]
+  );
 
   const clearRunTimers = useCallback(() => {
     if (advanceTimerRef.current) {
       clearTimeout(advanceTimerRef.current);
       advanceTimerRef.current = null;
     }
-    if (animTimerRef.current) {
-      clearTimeout(animTimerRef.current);
-      animTimerRef.current = null;
+    if (sfxTimerRef.current) {
+      clearTimeout(sfxTimerRef.current);
+      sfxTimerRef.current = null;
     }
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
+    }
+    if (trackToastTimerRef.current) {
+      clearTimeout(trackToastTimerRef.current);
+      trackToastTimerRef.current = null;
     }
   }, []);
 
@@ -522,12 +717,51 @@ export function SynonymAntonymChase({
     [activeTopicId, clearRunTimers, onCompleteSession, selectedMode]
   );
 
+  const handleSelectTrack = useCallback(
+    (trackId, { showToast = false } = {}) => {
+      const validId = getValidTrackId(trackId, chillTracks);
+      setSelectedTrackId(validId);
+      saveTrackId(validId);
+      audioEngineRef.current?.setTrack?.(validId);
+
+      if (showToast) {
+        const nextTrack =
+          chillTracks.find((t) => t.id === validId) || chillTracks[0];
+        if (nextTrack) {
+          if (trackToastTimerRef.current) {
+            clearTimeout(trackToastTimerRef.current);
+          }
+          setTrackToast(nextTrack);
+          trackToastTimerRef.current = setTimeout(() => {
+            setTrackToast(null);
+            trackToastTimerRef.current = null;
+          }, 1900);
+        }
+      }
+    },
+    [chillTracks]
+  );
+
+  const handleCycleTrack = useCallback(
+    (event) => {
+      event?.currentTarget?.blur?.();
+      const idx = chillTracks.findIndex((t) => t.id === selectedTrackId);
+      const nextTrack = chillTracks[(idx + 1) % chillTracks.length] || chillTracks[0];
+      if (!nextTrack) return;
+      const engine = getAudioEngine(nextTrack.id);
+      engine.setTrack?.(nextTrack.id);
+      handleSelectTrack(nextTrack.id, { showToast: true });
+    },
+    [chillTracks, getAudioEngine, handleSelectTrack, selectedTrackId]
+  );
+
   // Start a new run directly inside click handler so Web Audio starts cleanly
   const handleStartRun = useCallback(() => {
     clearRunTimers();
     speechApi.stopSpeaking?.();
 
-    const engine = getAudioEngine();
+    const engine = getAudioEngine(selectedTrackId);
+    engine.setTrack?.(selectedTrackId);
     if (musicEnabled) {
       engine.setMuted?.(false);
       setIsMuted(false);
@@ -555,40 +789,60 @@ export function SynonymAntonymChase({
     setActiveSceneIndex(startIdx);
     setVisitedSceneIds([initialSceneId]);
     setSceneToast(null);
+    setTrackToast(null);
     setFeedback(null);
+    setRoundPhase("question");
     setCatAnim("run");
     setDogAnim("run");
-    setHurdleState("glide");
     setScorePop(null);
     setHistoryLog([]);
     startTimeRef.current = Date.now();
     reportedRef.current = false;
     setActiveTab("play");
     setPhase("playing");
-  }, [activeTopicId, clearRunTimers, getAudioEngine, musicEnabled, scenes, selectedMode, startSceneId]);
+  }, [
+    activeTopicId,
+    clearRunTimers,
+    getAudioEngine,
+    musicEnabled,
+    scenes,
+    selectedMode,
+    selectedTrackId,
+    startSceneId,
+  ]);
 
   const handleReturnToSetup = useCallback(() => {
     clearRunTimers();
     speechApi.stopSpeaking?.();
     audioEngineRef.current?.stopMusic?.();
     setFeedback(null);
+    setRoundPhase("question");
+    setCatAnim("run");
+    setDogAnim("run");
     setScorePop(null);
     setSceneToast(null);
+    setTrackToast(null);
     setPhase("setup");
   }, [clearRunTimers]);
 
-  const handleToggleMute = useCallback(() => {
-    const engine = getAudioEngine();
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    setMusicEnabled(!nextMuted);
-    engine.setMuted?.(nextMuted);
-    if (!nextMuted && phaseRef.current === "playing") {
-      engine.startMusic?.();
-    }
-  }, [getAudioEngine, isMuted]);
+  const handleToggleMute = useCallback(
+    (event) => {
+      event?.currentTarget?.blur?.();
+      const engine = getAudioEngine(selectedTrackId);
+      const nextMuted = !isMuted;
+      setIsMuted(nextMuted);
+      setMusicEnabled(!nextMuted);
+      engine.setMuted?.(nextMuted);
+      if (!nextMuted && phaseRef.current === "playing") {
+        engine.setTrack?.(selectedTrackId);
+        engine.startMusic?.();
+      }
+    },
+    [getAudioEngine, isMuted, selectedTrackId]
+  );
 
-  const handleToggleFullscreen = useCallback(() => {
+  const handleToggleFullscreen = useCallback((event) => {
+    event?.currentTarget?.blur?.();
     if (typeof document === "undefined") return;
     try {
       if (document.fullscreenElement) {
@@ -606,7 +860,13 @@ export function SynonymAntonymChase({
   // Core answer submission handler ("top" | "bottom" | null for timeout)
   const handleSelectLane = useCallback(
     (lane) => {
-      if (phaseRef.current !== "playing" || feedbackRef.current !== null) return;
+      if (
+        phaseRef.current !== "playing" ||
+        roundPhaseRef.current !== "question" ||
+        feedbackRef.current !== null
+      ) {
+        return;
+      }
       const q = questions[currentIndex];
       if (!q) return;
 
@@ -622,30 +882,44 @@ export function SynonymAntonymChase({
       const nextScore = score + pointsGained;
       const nextHearts = isCorrect ? hearts : Math.max(0, hearts - 1);
 
-      if (lane === "top") {
-        engine?.playJumpSfx?.();
+      if (sfxTimerRef.current) {
+        clearTimeout(sfxTimerRef.current);
+        sfxTimerRef.current = null;
       }
+
       if (isCorrect) {
+        setRoundPhase("action-clear");
+        setCatAnim("vault");
+        setDogAnim("hop");
+        if (typeof engine?.playVaultSfx === "function") {
+          engine.playVaultSfx();
+        } else {
+          engine?.playJumpSfx?.();
+        }
         engine?.playCorrectSfx?.(nextStreak);
-        setCatAnim(lane === "top" ? "jump" : "dash");
-        setDogAnim("run");
-        setHurdleState(lane === "top" ? "cleared-jump" : "cleared-dash");
         setScorePop({
           id: `${q.id}-${currentIndex}`,
           text: `+${pointsGained}`,
           tone: "good",
-          lane,
         });
       } else {
-        engine?.playWrongSfx?.();
-        setCatAnim("stumble");
+        setRoundPhase("action-crash");
+        setCatAnim("crash");
         setDogAnim("lunge");
-        setHurdleState("hit");
+        // Trigger wooden hurdle shatter SFX right at collision impact (~310ms)
+        sfxTimerRef.current = setTimeout(() => {
+          sfxTimerRef.current = null;
+          const activeEngine = audioEngineRef.current;
+          if (typeof activeEngine?.playCrashSfx === "function") {
+            activeEngine.playCrashSfx();
+          } else {
+            activeEngine?.playWrongSfx?.();
+          }
+        }, CRASH_IMPACT_MS);
         setScorePop({
           id: `${q.id}-${currentIndex}`,
           text: isTimeout ? "Hết giờ · -1 ❤️" : "-1 ❤️",
           tone: "bad",
-          lane: lane || "bottom",
         });
       }
 
@@ -680,7 +954,7 @@ export function SynonymAntonymChase({
         pointsGained,
       });
 
-      const delayMs = isCorrect ? CORRECT_FEEDBACK_MS : WRONG_FEEDBACK_MS;
+      const delayMs = isCorrect ? ACTION_CLEAR_MS : ACTION_CRASH_MS;
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
 
       advanceTimerRef.current = setTimeout(() => {
@@ -719,10 +993,10 @@ export function SynonymAntonymChase({
 
         setCurrentIndex(nextIdx);
         setTimeLeftMs(QUESTION_TIME_MS);
+        setRoundPhase("question");
         setFeedback(null);
         setCatAnim("run");
         setDogAnim("run");
-        setHurdleState("glide");
         setScorePop(null);
       }, delayMs);
     },
@@ -743,34 +1017,40 @@ export function SynonymAntonymChase({
     ]
   );
 
-  // Calm 14s per-question countdown (pauses cleanly while showing feedback or viewing BXH)
+  // Calm 14s per-question countdown (pauses cleanly while showing action sequence or viewing BXH)
   useEffect(() => {
-    if (phase !== "playing" || activeTab !== "play" || feedback !== null) {
+    if (
+      phase !== "playing" ||
+      activeTab !== "play" ||
+      roundPhase !== "question" ||
+      feedback !== null
+    ) {
       return undefined;
     }
     const interval = setInterval(() => {
       setTimeLeftMs((prev) => Math.max(0, prev - 100));
     }, 100);
     return () => clearInterval(interval);
-  }, [phase, activeTab, feedback, currentIndex]);
+  }, [phase, activeTab, roundPhase, feedback, currentIndex]);
 
   useEffect(() => {
     if (
       phase === "playing" &&
       activeTab === "play" &&
+      roundPhase === "question" &&
       feedback === null &&
       timeLeftMs === 0
     ) {
       handleSelectLane(null);
     }
-  }, [phase, activeTab, feedback, timeLeftMs, handleSelectLane]);
+  }, [phase, activeTab, roundPhase, feedback, timeLeftMs, handleSelectLane]);
 
   // Keyboard controls: ArrowUp / KeyW / Space => NHẢY (top); ArrowDown / KeyS / ArrowRight => CHẠY THẲNG (bottom)
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const handleKeyDown = (e) => {
       if (phaseRef.current !== "playing" || activeTabRef.current !== "play") return;
-      if (feedbackRef.current !== null) return;
+      if (roundPhaseRef.current !== "question" || feedbackRef.current !== null) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       const tag = e.target?.tagName?.toLowerCase?.();
@@ -816,6 +1096,20 @@ export function SynonymAntonymChase({
   }, [hearts, streak]);
 
   const isScrolling = phase === "playing" && activeTab === "play";
+  const isActionSequence =
+    roundPhase === "action-clear" || roundPhase === "action-crash";
+  const hurdleState =
+    roundPhase === "action-clear"
+      ? "clearing"
+      : roundPhase === "action-crash"
+        ? "broken"
+        : "parked";
+  const isTimeCritical =
+    phase === "playing" &&
+    activeTab === "play" &&
+    roundPhase === "question" &&
+    timeLeftMs > 0 &&
+    timeLeftMs <= TIME_CRITICAL_MS;
   const timerPct = Math.max(0, Math.min(100, (timeLeftMs / QUESTION_TIME_MS) * 100));
   const promptIsSynonym = currentQuestion?.mode === "synonym";
   const catSheet = APP_ART.chaseCatSheet || {
@@ -1233,20 +1527,54 @@ export function SynonymAntonymChase({
                   </div>
                 </div>
 
-                {/* 3. Chill Music Toggle & Start CTA */}
+                {/* 3. Chill Music Toggle, 3-Song Track Picker & Start CTA */}
                 <div className="vf-chase-setup-footer">
-                  <label className="vf-chase-toggle">
-                    <input
-                      type="checkbox"
-                      checked={musicEnabled}
-                      onChange={(e) => setMusicEnabled(e.target.checked)}
-                      data-testid="chase-music-toggle"
-                    />
-                    <span className="vf-chase-toggle-track" aria-hidden="true" />
-                    <span className="vf-chase-toggle-text">
-                      <Music size={14} /> Nhạc nền Chilling Lo-Fi
-                    </span>
-                  </label>
+                  <div className="vf-chase-music-picker">
+                    <label className="vf-chase-toggle">
+                      <input
+                        type="checkbox"
+                        checked={musicEnabled}
+                        onChange={(e) => setMusicEnabled(e.target.checked)}
+                        data-testid="chase-music-toggle"
+                      />
+                      <span className="vf-chase-toggle-track" aria-hidden="true" />
+                      <span className="vf-chase-toggle-text">
+                        <Music size={14} /> Nhạc nền Chilling
+                      </span>
+                    </label>
+
+                    <div
+                      className={`vf-chase-track-pills ${
+                        musicEnabled ? "" : "vf-chase-track-pills--muted"
+                      }`}
+                      role="radiogroup"
+                      aria-label="Chọn bài nhạc nền"
+                      data-testid="chase-track-picker"
+                    >
+                      {chillTracks.map((track) => {
+                        const active = selectedTrackId === track.id;
+                        return (
+                          <button
+                            key={track.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            className={`vf-chase-track-pill ${
+                              active ? "vf-chase-track-pill--active" : ""
+                            }`}
+                            onClick={() => handleSelectTrack(track.id)}
+                            title={track.subtitleVi}
+                            data-testid={`chase-track-${track.id}`}
+                          >
+                            <span className="vf-chase-track-note" aria-hidden="true">
+                              ♪
+                            </span>
+                            <span>{track.labelVi}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <div className="vf-chase-setup-actions">
                     {onBack && (
@@ -1333,6 +1661,24 @@ export function SynonymAntonymChase({
               <div className="vf-chase-hud-right">
                 <button
                   type="button"
+                  className={`vf-chase-hud-track ${
+                    isMuted ? "vf-chase-hud-track--muted" : ""
+                  }`}
+                  onClick={handleCycleTrack}
+                  aria-label={`Đổi nhạc nền (${currentTrack.labelVi})`}
+                  title={`Đổi bài nhạc (${currentTrack.subtitleVi})`}
+                  data-testid="chase-hud-track"
+                >
+                  <span className="vf-chase-track-note" aria-hidden="true">
+                    ♪
+                  </span>
+                  <span className="vf-chase-hud-track-label">
+                    {currentTrack.labelVi}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
                   className="vf-chase-hud-circle"
                   onClick={handleToggleMute}
                   aria-label={isMuted ? "Bật nhạc nền" : "Tắt nhạc nền"}
@@ -1345,7 +1691,10 @@ export function SynonymAntonymChase({
                 <button
                   type="button"
                   className="vf-chase-hud-circle"
-                  onClick={() => handleSpeakWord(currentQuestion?.promptWord)}
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    handleSpeakWord(currentQuestion?.promptWord);
+                  }}
                   aria-label="Nghe từ gợi ý tiếng Việt"
                   title="Nghe phát âm từ gợi ý"
                   data-testid="chase-hud-speak"
@@ -1365,6 +1714,21 @@ export function SynonymAntonymChase({
                 </button>
               </div>
 
+              {/* TRACK SWITCH FEEDBACK TOOLTIP */}
+              {trackToast && (
+                <div
+                  className="vf-chase-track-toast"
+                  role="status"
+                  aria-live="polite"
+                  data-testid="chase-track-toast"
+                >
+                  <span aria-hidden="true">♪</span>
+                  <strong>{trackToast.labelVi}</strong>
+                  <span className="vf-chase-pill-sep">·</span>
+                  <span>{trackToast.subtitleVi}</span>
+                </div>
+              )}
+
               {/* SCENE CHANGE FLOATING BADGE */}
               {sceneToast && (
                 <div
@@ -1377,14 +1741,18 @@ export function SynonymAntonymChase({
                 </div>
               )}
 
-              {/* LEFT HALF: ANIMATED DOG CHASING CAT + STRIPED WOODEN HURDLE */}
+              {/* ACTORS LAYER: DOG CHASING CAT + STATIONARY/ACTION WOODEN HURDLE */}
               <div className="vf-chase-actors-layer" aria-hidden="true">
                 {/* Golden Dog chasing behind */}
                 <div
                   className={`vf-chase-actor vf-chase-dog vf-chase-dog--${dogAnim}`}
                   style={{ left: `${dogLeftPct}%` }}
                 >
-                  <span className="vf-chase-shadow vf-chase-shadow--dog" />
+                  <span
+                    className={`vf-chase-shadow vf-chase-shadow--dog ${
+                      dogAnim === "hop" ? "vf-chase-shadow--airborne-dog" : ""
+                    }`}
+                  />
                   <span className="vf-chase-dust vf-chase-dust--1" />
                   <span className="vf-chase-dust vf-chase-dust--2" />
                   <div className="vf-chase-sprite-viewport vf-chase-sprite-viewport--dog">
@@ -1402,16 +1770,21 @@ export function SynonymAntonymChase({
                   </div>
                 </div>
 
-                {/* Brown Tabby Cat running ahead & leaping/dashing */}
+                {/* Brown Tabby Cat running ahead, vaulting intact hurdle, or crashing into it */}
                 <div
                   className={`vf-chase-actor vf-chase-cat vf-chase-cat--${catAnim}`}
                 >
                   <span
                     className={`vf-chase-shadow vf-chase-shadow--cat ${
-                      catAnim === "jump" ? "vf-chase-shadow--airborne" : ""
+                      catAnim === "vault" ? "vf-chase-shadow--airborne" : ""
                     }`}
                   />
                   <span className="vf-chase-dust vf-chase-dust--1" />
+                  {catAnim === "crash" && (
+                    <span className="vf-chase-cat-impact" aria-hidden="true">
+                      💥
+                    </span>
+                  )}
                   <div className="vf-chase-sprite-viewport vf-chase-sprite-viewport--cat">
                     <img
                       src={catSheet.src}
@@ -1427,18 +1800,34 @@ export function SynonymAntonymChase({
                   </div>
                 </div>
 
-                {/* Striped Wooden Hurdle Barrier gliding on bottom path */}
+                {/* Floating +10/+15 or -1 ❤️ badge right above the action */}
+                {scorePop && (
+                  <span
+                    key={scorePop.id}
+                    className={`vf-chase-score-pop vf-chase-score-pop--${scorePop.tone}`}
+                  >
+                    {scorePop.text}
+                  </span>
+                )}
+
+                {/* Striped Wooden Hurdle: Parked stationary on right during question -> Clear/Shatter on resolve */}
                 {currentQuestion && (
                   <HurdleBarrier
                     key={`hurdle-${currentIndex}`}
                     state={hurdleState}
+                    isWarning={isTimeCritical}
                   />
                 )}
               </div>
 
-              {/* RIGHT HALF: EXACT IMAGE #2 TRANSLUCENT TWO-LANE DECISION SPLIT */}
+              {/* RIGHT HALF: TRANSLUCENT TWO-LANE DECISION SPLIT (fades out during action sequence!) */}
               {currentQuestion && (
-                <div className="vf-chase-lanes" data-testid="chase-lanes">
+                <div
+                  className={`vf-chase-lanes ${
+                    isActionSequence ? "vf-chase-lanes--hidden" : ""
+                  }`}
+                  data-testid="chase-lanes"
+                >
                   {/* Top Lane: NHẢY */}
                   <button
                     type="button"
@@ -1452,7 +1841,7 @@ export function SynonymAntonymChase({
                         : ""
                     }`}
                     onClick={() => handleSelectLane("top")}
-                    disabled={feedback !== null}
+                    disabled={roundPhase !== "question"}
                     data-testid="chase-lane-top"
                   >
                     <span className="vf-chase-lane-badge">
@@ -1462,14 +1851,6 @@ export function SynonymAntonymChase({
                     <span className="vf-chase-lane-word vf-g-serif">
                       {currentQuestion.topOption}
                     </span>
-                    {scorePop && scorePop.lane === "top" && (
-                      <span
-                        key={scorePop.id}
-                        className={`vf-chase-score-pop vf-chase-score-pop--${scorePop.tone}`}
-                      >
-                        {scorePop.text}
-                      </span>
-                    )}
                   </button>
 
                   {/* Bottom Lane: CHẠY THẲNG */}
@@ -1485,7 +1866,7 @@ export function SynonymAntonymChase({
                         : ""
                     }`}
                     onClick={() => handleSelectLane("bottom")}
-                    disabled={feedback !== null}
+                    disabled={roundPhase !== "question"}
                     data-testid="chase-lane-bottom"
                   >
                     <span className="vf-chase-lane-badge">
@@ -1495,19 +1876,11 @@ export function SynonymAntonymChase({
                     <span className="vf-chase-lane-word vf-g-serif">
                       {currentQuestion.bottomOption}
                     </span>
-                    {scorePop && scorePop.lane === "bottom" && (
-                      <span
-                        key={scorePop.id}
-                        className={`vf-chase-score-pop vf-chase-score-pop--${scorePop.tone}`}
-                      >
-                        {scorePop.text}
-                      </span>
-                    )}
                   </button>
                 </div>
               )}
 
-              {/* CONCISE EXPLANATION FEEDBACK BANNER */}
+              {/* CLEAN BOTTOM EXPLANATION BAR DURING JUMP / SHATTER ACTION SEQUENCE */}
               {feedback && (
                 <div
                   className={`vf-chase-feedback ${
@@ -1527,8 +1900,8 @@ export function SynonymAntonymChase({
                     ) : (
                       <>
                         <XCircle size={15} />{" "}
-                        {feedback.isTimeout ? "Hết giờ" : "Chưa chính xác"} · Đáp án:{" "}
-                        <strong>{feedback.correctAnswer}</strong>
+                        {feedback.isTimeout ? "Hết giờ!" : "Chưa đúng!"} Đáp án đúng là{" "}
+                        <strong>&ldquo;{feedback.correctAnswer}&rdquo;</strong>
                       </>
                     )}
                   </div>
@@ -1538,19 +1911,28 @@ export function SynonymAntonymChase({
                 </div>
               )}
 
-              {/* BOTTOM-CENTER PROMPT PILL (exact Image #2 placement!) */}
+              {/* BOTTOM-CENTER PROMPT PILL (yields bottom bar during action sequence so stage stays unobstructed) */}
               {currentQuestion && (
-                <div className="vf-chase-prompt-pill" data-testid="chase-prompt-pill">
+                <div
+                  className={`vf-chase-prompt-pill ${
+                    isTimeCritical ? "vf-chase-prompt-pill--warning" : ""
+                  } ${isActionSequence ? "vf-chase-prompt-pill--hidden" : ""}`}
+                  data-testid="chase-prompt-pill"
+                >
                   <div
                     className={`vf-chase-prompt-kicker ${
-                      promptIsSynonym
-                        ? "vf-chase-prompt-kicker--synonym"
-                        : "vf-chase-prompt-kicker--antonym"
+                      isTimeCritical
+                        ? "vf-chase-prompt-kicker--warning"
+                        : promptIsSynonym
+                          ? "vf-chase-prompt-kicker--synonym"
+                          : "vf-chase-prompt-kicker--antonym"
                     }`}
                   >
-                    {promptIsSynonym
-                      ? "CHỌN TỪ ĐỒNG NGHĨA VỚI:"
-                      : "CHỌN TỪ TRÁI NGHĨA VỚI:"}
+                    {isTimeCritical
+                      ? "SẮP ĐỤNG RÀO CHẮN! CHỌN NGAY:"
+                      : promptIsSynonym
+                        ? "CHỌN TỪ ĐỒNG NGHĨA VỚI:"
+                        : "CHỌN TỪ TRÁI NGHĨA VỚI:"}
                   </div>
 
                   <div className="vf-chase-prompt-main">
@@ -1568,7 +1950,10 @@ export function SynonymAntonymChase({
                     <button
                       type="button"
                       className="vf-chase-prompt-speak"
-                      onClick={() => handleSpeakWord(currentQuestion.promptWord)}
+                      onClick={(e) => {
+                        e.currentTarget.blur();
+                        handleSpeakWord(currentQuestion.promptWord);
+                      }}
                       aria-label={`Nghe từ ${currentQuestion.promptWord}`}
                       data-testid="chase-prompt-speak-btn"
                     >
@@ -1583,7 +1968,11 @@ export function SynonymAntonymChase({
                   >
                     <div
                       className={`vf-chase-timer-fill ${
-                        timerPct <= 25 ? "vf-chase-timer-fill--low" : ""
+                        isTimeCritical
+                          ? "vf-chase-timer-fill--critical"
+                          : timerPct <= 25
+                            ? "vf-chase-timer-fill--low"
+                            : ""
                       }`}
                       style={{ width: `${timerPct}%` }}
                     />

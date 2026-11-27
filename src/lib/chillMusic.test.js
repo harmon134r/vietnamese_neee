@@ -13,23 +13,32 @@ import {
   getChaseItems as indexGetChaseItems,
   getContentStats,
 } from "../data/index.js";
-import { createChillAudioEngine } from "./chillMusic.js";
+import { CHILL_TRACKS, DEFAULT_TRACK_ID, createChillAudioEngine } from "./chillMusic.js";
 
 function createMockAudioContext() {
   const ramps = [];
+  const freqEvents = [];
   const createdOscillators = [];
   const createdGains = [];
   const createdFilters = [];
+  const createdBufferSources = [];
+  const instances = [];
 
-  function makeParam(initial = 0) {
+  function makeParam(initial = 0, label = "param") {
     const param = {
       value: initial,
-      setValueAtTime: vi.fn((val) => {
+      setValueAtTime: vi.fn((val, time) => {
         param.value = val;
+        if (label === "frequency") {
+          freqEvents.push({ type: "set", param, val, time });
+        }
       }),
       linearRampToValueAtTime: vi.fn((val, endTime) => {
         ramps.push({ param, val, endTime });
         param.value = val;
+        if (label === "frequency") {
+          freqEvents.push({ type: "ramp", param, val, time: endTime });
+        }
       }),
       cancelScheduledValues: vi.fn(),
     };
@@ -50,11 +59,12 @@ function createMockAudioContext() {
         this.state = "closed";
         return Promise.resolve();
       });
+      instances.push(this);
     }
 
     createGain() {
       const node = {
-        gain: makeParam(1),
+        gain: makeParam(1, "gain"),
         connect: vi.fn(),
         disconnect: vi.fn(),
       };
@@ -65,8 +75,8 @@ function createMockAudioContext() {
     createBiquadFilter() {
       const node = {
         type: "lowpass",
-        frequency: makeParam(350),
-        Q: makeParam(1),
+        frequency: makeParam(350, "filterFreq"),
+        Q: makeParam(1, "Q"),
         connect: vi.fn(),
       };
       createdFilters.push(node);
@@ -76,8 +86,8 @@ function createMockAudioContext() {
     createOscillator() {
       const node = {
         type: "sine",
-        frequency: makeParam(440),
-        detune: makeParam(0),
+        frequency: makeParam(440, "frequency"),
+        detune: makeParam(0, "detune"),
         connect: vi.fn(),
         start: vi.fn(),
         stop: vi.fn(),
@@ -95,21 +105,26 @@ function createMockAudioContext() {
     }
 
     createBufferSource() {
-      return {
+      const node = {
         buffer: null,
         connect: vi.fn(),
         start: vi.fn(),
         stop: vi.fn(),
       };
+      createdBufferSources.push(node);
+      return node;
     }
   }
 
   return {
     MockAudioContext,
+    instances,
     ramps,
+    freqEvents,
     createdOscillators,
     createdGains,
     createdFilters,
+    createdBufferSources,
   };
 }
 
@@ -254,12 +269,22 @@ describe("createChillAudioEngine lifecycle", () => {
 
     const engine = createChillAudioEngine();
     expect(engine.isMuted()).toBe(false);
+    expect(engine.getTrack()).toBe(DEFAULT_TRACK_ID);
 
     expect(() => {
+      engine.setTrack("ocean-breeze");
+      expect(engine.getTrack()).toBe("ocean-breeze");
+      engine.setTrack("night-tea");
+      expect(engine.getTrack()).toBe("night-tea");
+      engine.setTrack("non-existent-track");
+      expect(engine.getTrack()).toBe(DEFAULT_TRACK_ID);
+
       engine.startMusic();
       engine.duck(true);
       engine.duck(false);
       engine.playJumpSfx();
+      engine.playVaultSfx();
+      engine.playCrashSfx();
       engine.playCorrectSfx(1);
       engine.playCorrectSfx(5);
       engine.playWrongSfx();
@@ -273,7 +298,10 @@ describe("createChillAudioEngine lifecycle", () => {
       engine.dispose();
       // Subsequent calls after dispose must remain safe no-ops
       engine.startMusic();
+      engine.setTrack("ocean-breeze");
       engine.playJumpSfx();
+      engine.playVaultSfx();
+      engine.playCrashSfx();
       engine.dispose();
     }).not.toThrow();
   });
@@ -302,6 +330,8 @@ describe("createChillAudioEngine lifecycle", () => {
 
     // Trigger all gameplay SFX
     engine.playJumpSfx();
+    engine.playVaultSfx();
+    engine.playCrashSfx();
     engine.playCorrectSfx(1);
     engine.playCorrectSfx(4);
     engine.playWrongSfx();
@@ -315,6 +345,8 @@ describe("createChillAudioEngine lifecycle", () => {
     expect(mock.ramps.some((r) => r.val === 0)).toBe(true);
     const countWhileMuted = mock.createdOscillators.length;
     engine.playJumpSfx();
+    engine.playVaultSfx();
+    engine.playCrashSfx();
     expect(mock.createdOscillators.length).toBe(countWhileMuted);
 
     engine.stopMusic();
@@ -324,5 +356,221 @@ describe("createChillAudioEngine lifecycle", () => {
     const countAfterDispose = mock.createdOscillators.length;
     vi.advanceTimersByTime(1000);
     expect(mock.createdOscillators.length).toBe(countAfterDispose);
+  });
+
+  it("exports CHILL_TRACKS (3 frozen tracks) and DEFAULT_TRACK_ID matching the exact contract", () => {
+    expect(DEFAULT_TRACK_ID).toBe("lofi-garden");
+    expect(Object.isFrozen(CHILL_TRACKS)).toBe(true);
+    expect(CHILL_TRACKS).toHaveLength(3);
+
+    expect(CHILL_TRACKS).toEqual([
+      {
+        id: "lofi-garden",
+        labelVi: "Chiều Thu Lo-Fi",
+        subtitleVi: "Rhodes & Kalimba · 74 BPM",
+        bpm: 74,
+      },
+      {
+        id: "ocean-breeze",
+        labelVi: "Gió Biển Hoàng Hôn",
+        subtitleVi: "Guitar mộc & Sóng dịu · 68 BPM",
+        bpm: 68,
+      },
+      {
+        id: "night-tea",
+        labelVi: "Trà Đêm Phố Cổ",
+        subtitleVi: "Ngũ cung & Sáo êm · 64 BPM",
+        bpm: 64,
+      },
+    ]);
+
+    for (const track of CHILL_TRACKS) {
+      expect(Object.isFrozen(track)).toBe(true);
+      expect(track.labelVi).toBe(track.labelVi.normalize("NFC"));
+      expect(track.subtitleVi).toBe(track.subtitleVi.normalize("NFC"));
+    }
+  });
+
+  it("supports initialTrackId, getTrack(), setTrack() validation and invalid fallback", () => {
+    vi.useFakeTimers();
+    const mock = createMockAudioContext();
+    globalThis.AudioContext = mock.MockAudioContext;
+
+    const defaultEngine = createChillAudioEngine();
+    expect(defaultEngine.getTrack()).toBe("lofi-garden");
+
+    const oceanEngine = createChillAudioEngine("ocean-breeze");
+    expect(oceanEngine.getTrack()).toBe("ocean-breeze");
+
+    const nightEngine = createChillAudioEngine("night-tea");
+    expect(nightEngine.getTrack()).toBe("night-tea");
+
+    const invalidInitEngine = createChillAudioEngine("not-a-valid-song");
+    expect(invalidInitEngine.getTrack()).toBe(DEFAULT_TRACK_ID);
+
+    const nullInitEngine = createChillAudioEngine(null);
+    expect(nullInitEngine.getTrack()).toBe(DEFAULT_TRACK_ID);
+
+    // Switching while stopped updates track without starting timers
+    expect(defaultEngine.setTrack("ocean-breeze")).toBe("ocean-breeze");
+    expect(defaultEngine.getTrack()).toBe("ocean-breeze");
+    expect(vi.getTimerCount()).toBe(0);
+
+    expect(defaultEngine.setTrack("night-tea")).toBe("night-tea");
+    expect(defaultEngine.getTrack()).toBe("night-tea");
+
+    // Invalid track id falls back safely to DEFAULT_TRACK_ID
+    expect(defaultEngine.setTrack("bad-id")).toBe(DEFAULT_TRACK_ID);
+    expect(defaultEngine.getTrack()).toBe(DEFAULT_TRACK_ID);
+    expect(defaultEngine.setTrack(undefined)).toBe(DEFAULT_TRACK_ID);
+    expect(defaultEngine.getTrack()).toBe(DEFAULT_TRACK_ID);
+
+    defaultEngine.dispose();
+    oceanEngine.dispose();
+    nightEngine.dispose();
+    invalidInitEngine.dispose();
+    nullInitEngine.dispose();
+  });
+
+  it("switches tracks live without overlapping timers, clicks, or stale BPM", () => {
+    vi.useFakeTimers();
+    const mock = createMockAudioContext();
+    globalThis.AudioContext = mock.MockAudioContext;
+
+    const engine = createChillAudioEngine("lofi-garden");
+    engine.startMusic();
+    expect(vi.getTimerCount()).toBe(1);
+    expect(mock.freqEvents.some((e) => Math.abs(e.val - 87.31) < 0.05)).toBe(true); // Fmaj7 bass
+
+    // Setting the same track is an idempotent no-op (does not churn filters or timers)
+    const filterCountBeforeNoop = mock.createdFilters.length;
+    engine.setTrack("lofi-garden");
+    expect(mock.createdFilters.length).toBe(filterCountBeforeNoop);
+    expect(vi.getTimerCount()).toBe(1);
+
+    // Live switch to ocean-breeze (68 BPM, Bbmaj7 bass 116.54 Hz, wave shimmer buffer)
+    const audioCtx = mock.instances[0];
+    audioCtx.currentTime = 2.0;
+    const rampsBeforeOcean = mock.ramps.length;
+    const bufSourcesBeforeOcean = mock.createdBufferSources.length;
+
+    engine.setTrack("ocean-breeze");
+    expect(engine.getTrack()).toBe("ocean-breeze");
+    // Still strictly 1 active scheduler timer (zero overlap!)
+    expect(vi.getTimerCount()).toBe(1);
+    // Smooth crossfade ramps old track bus down and new track bus up
+    const oceanSwitchRamps = mock.ramps.slice(rampsBeforeOcean);
+    expect(oceanSwitchRamps.some((r) => r.val === 0.0001)).toBe(true);
+    expect(oceanSwitchRamps.some((r) => r.val === 1)).toBe(true);
+    // Ocean-breeze warm filter + Bbmaj7 bass (116.54 Hz) + airy wave/wood-rim buffer sources
+    expect(mock.createdFilters.some((f) => f.type === "lowpass" && f.frequency.value === 1550)).toBe(true);
+    expect(mock.freqEvents.some((e) => Math.abs(e.val - 116.54) < 0.05)).toBe(true);
+    expect(mock.createdBufferSources.length).toBeGreaterThan(bufSourcesBeforeOcean);
+
+    // Verify 68 BPM step scheduling cadence (eighth note = 60 / 68 / 2 ≈ 0.4412s)
+    // Step 0 scheduled at 2.06s, Step 1 (rest) at 2.5012s, Step 2 (F4=349.23 Hz pluck) at 2.9424s
+    audioCtx.currentTime = 2.75;
+    const oscBeforeOceanTick = mock.createdOscillators.length;
+    const freqCountBeforeOceanTick = mock.freqEvents.length;
+    vi.advanceTimersByTime(150);
+    expect(mock.createdOscillators.length).toBeGreaterThan(oscBeforeOceanTick);
+    const oceanStep2Event = mock.freqEvents
+      .slice(freqCountBeforeOceanTick)
+      .find((e) => e.type === "set" && Math.abs(e.val - 349.23) < 0.05);
+    expect(oceanStep2Event).toBeDefined();
+    expect(oceanStep2Event.time).toBeCloseTo(2.06 + 2 * (60 / 68 / 2), 3);
+
+    // Live switch to night-tea (64 BPM, D Major Pentatonic Dmaj9 bass 73.42 Hz, F#5 flute 739.99 Hz)
+    audioCtx.currentTime = 4.0;
+    const rampsBeforeNight = mock.ramps.length;
+    engine.setTrack("night-tea");
+    expect(engine.getTrack()).toBe("night-tea");
+    expect(vi.getTimerCount()).toBe(1);
+
+    const nightSwitchRamps = mock.ramps.slice(rampsBeforeNight);
+    expect(nightSwitchRamps.some((r) => r.val === 0.0001)).toBe(true);
+    expect(nightSwitchRamps.some((r) => r.val === 1)).toBe(true);
+    // Night-tea warm filter + Dmaj9 bass (73.42 Hz) + D Major Pentatonic flute (739.99 Hz)
+    expect(mock.createdFilters.some((f) => f.type === "lowpass" && f.frequency.value === 1800)).toBe(true);
+    expect(mock.freqEvents.some((e) => Math.abs(e.val - 73.42) < 0.05)).toBe(true);
+    expect(mock.freqEvents.some((e) => Math.abs(e.val - 739.99) < 0.1)).toBe(true);
+
+    // Verify 64 BPM step scheduling cadence (eighth note = 60 / 64 / 2 = 0.46875s)
+    // Step 2 (D5 = 587.33 Hz guzheng melody) should schedule at 4.06 + 2 * 0.46875 = 4.9975s
+    const oscBeforeNightAdvance = mock.createdOscillators.length;
+    const freqCountBeforeNightAdvance = mock.freqEvents.length;
+    audioCtx.currentTime = 4.8;
+    vi.advanceTimersByTime(150);
+    expect(mock.createdOscillators.length).toBeGreaterThan(oscBeforeNightAdvance);
+    const nightStep2Event = mock.freqEvents
+      .slice(freqCountBeforeNightAdvance)
+      .find((e) => e.type === "ramp" && Math.abs(e.val - 587.33) < 0.05);
+    expect(nightStep2Event).toBeDefined();
+    expect(nightStep2Event.time).toBeCloseTo(4.06 + 2 * (60 / 64 / 2) + 0.032, 3);
+
+    engine.stopMusic();
+    expect(vi.getTimerCount()).toBe(0);
+    engine.dispose();
+  });
+
+  it("synthesizes joyful upward spring playVaultSfx() and respects mute/dispose", () => {
+    const mock = createMockAudioContext();
+    globalThis.AudioContext = mock.MockAudioContext;
+
+    const engine = createChillAudioEngine();
+    engine.playVaultSfx();
+
+    // Springy upward sweep oscillators + 2 apex sparkle notes (each kalimba note has 2 oscs) = 6 oscillators
+    expect(mock.createdOscillators.length).toBeGreaterThanOrEqual(4);
+    expect(mock.freqEvents.some((e) => e.type === "set" && e.val === 260)).toBe(true);
+    expect(mock.freqEvents.some((e) => e.type === "ramp" && e.val === 760)).toBe(true);
+    expect(mock.freqEvents.some((e) => e.type === "ramp" && Math.abs(e.val - 1174.66) < 0.1)).toBe(true);
+
+    // Muted engine suppresses playVaultSfx
+    engine.setMuted(true);
+    const oscCountMuted = mock.createdOscillators.length;
+    engine.playVaultSfx();
+    expect(mock.createdOscillators.length).toBe(oscCountMuted);
+
+    // Disposed engine suppresses playVaultSfx
+    engine.setMuted(false);
+    engine.dispose();
+    const oscCountDisposed = mock.createdOscillators.length;
+    engine.playVaultSfx();
+    expect(mock.createdOscillators.length).toBe(oscCountDisposed);
+  });
+
+  it("synthesizes crisp wooden shatter playCrashSfx() and respects mute/dispose", () => {
+    const mock = createMockAudioContext();
+    globalThis.AudioContext = mock.MockAudioContext;
+
+    const engine = createChillAudioEngine();
+    engine.playCrashSfx();
+
+    // Filtered noise crack buffer source
+    expect(mock.createdBufferSources.length).toBeGreaterThanOrEqual(1);
+    expect(mock.createdFilters.some((f) => f.type === "bandpass")).toBe(true);
+    // Warm lowpass filters for wood plank clatter & soft stumble thud (never harsh)
+    expect(mock.createdFilters.some((f) => f.type === "lowpass" && f.frequency.value === 1250)).toBe(true);
+    expect(mock.createdFilters.some((f) => f.type === "lowpass" && f.frequency.value === 360)).toBe(true);
+    // Descending wood plank frequencies (520 -> 335, 410 -> 255, 305 -> 190) + soft thud (155 -> 68)
+    expect(mock.freqEvents.some((e) => e.type === "set" && e.val === 520)).toBe(true);
+    expect(mock.freqEvents.some((e) => e.type === "ramp" && e.val === 190)).toBe(true);
+    expect(mock.freqEvents.some((e) => e.type === "ramp" && e.val === 68)).toBe(true);
+
+    // Muted engine suppresses playCrashSfx
+    engine.setMuted(true);
+    const oscCountMuted = mock.createdOscillators.length;
+    const bufCountMuted = mock.createdBufferSources.length;
+    engine.playCrashSfx();
+    expect(mock.createdOscillators.length).toBe(oscCountMuted);
+    expect(mock.createdBufferSources.length).toBe(bufCountMuted);
+
+    // Disposed engine suppresses playCrashSfx
+    engine.setMuted(false);
+    engine.dispose();
+    const oscCountDisposed = mock.createdOscillators.length;
+    engine.playCrashSfx();
+    expect(mock.createdOscillators.length).toBe(oscCountDisposed);
   });
 });
