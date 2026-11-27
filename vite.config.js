@@ -91,6 +91,9 @@ export default defineConfig({
             if (normalized.includes("/node_modules/lucide-react/")) {
               return "vendor-icons";
             }
+            if (normalized.includes("/node_modules/pdfjs-dist/")) {
+              return "vendor-pdf";
+            }
             return "vendor";
           }
           if (normalized.includes("/src/data/")) {

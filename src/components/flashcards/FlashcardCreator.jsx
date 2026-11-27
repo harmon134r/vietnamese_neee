@@ -1,21 +1,36 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
   Check,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
+  Copy,
+  Eye,
+  EyeOff,
   FileText,
+  FileUp,
   Layers,
+  Loader2,
   Plus,
+  Sparkles,
   Trash2,
   Volume2,
+  X,
 } from "lucide-react";
 import { TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
 import { speakVietnamese } from "../../lib/speech.js";
 import {
+  PDF_FORMAT_EXAMPLES,
   VIETNAMESE_POS_OPTIONS,
   parseBulkFlashcards,
 } from "../../lib/flashcardParser.js";
+import {
+  SCANNED_PDF_ERROR_VI,
+  extractTextFromStudyFile,
+  suggestDeckTitleFromFilename,
+} from "../../lib/pdfImport.js";
 
 const NEW_DECK_VALUE = "__new__";
 
@@ -36,6 +51,29 @@ const EMPTY_SINGLE_FORM = {
   notes: "",
 };
 
+async function copyTextToClipboard(text) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+  if (typeof document !== "undefined") {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    try {
+      document.execCommand("copy");
+      return true;
+    } finally {
+      document.body.removeChild(area);
+    }
+  }
+  return false;
+}
+
 export function FlashcardCreator({
   decks = [],
   activeDeckId = "",
@@ -45,7 +83,7 @@ export function FlashcardCreator({
   onAddCardsBulk,
   onCreatedAndStudy,
 }) {
-  const [subTab, setSubTab] = useState("single"); // "single" | "bulk"
+  const [subTab, setSubTab] = useState("single"); // "single" | "bulk" | "pdf"
   const [targetDeckId, setTargetDeckId] = useState(() =>
     defaultNewDeck || decks.length === 0
       ? NEW_DECK_VALUE
@@ -60,12 +98,38 @@ export function FlashcardCreator({
   const [formSuccess, setFormSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Bulk import state
+  // Bulk paste state
   const [bulkText, setBulkText] = useState("");
   const [editableBulkCards, setEditableBulkCards] = useState([]);
   const [bulkWarnings, setBulkWarnings] = useState([]);
   const [bulkError, setBulkError] = useState("");
   const [bulkSuccess, setBulkSuccess] = useState("");
+
+  // PDF upload state
+  const pdfInputRef = useRef(null);
+  const copyTimerRef = useRef(null);
+  const [isDraggingPdf, setIsDraggingPdf] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [pdfFileMeta, setPdfFileMeta] = useState(null); // { name, pageCount, fileType } | null
+  const [pdfRawText, setPdfRawText] = useState("");
+  const [showPdfRawText, setShowPdfRawText] = useState(false);
+  const [editablePdfCards, setEditablePdfCards] = useState([]);
+  const [pdfWarnings, setPdfWarnings] = useState([]);
+  const [pdfError, setPdfError] = useState("");
+  const [pdfSuccess, setPdfSuccess] = useState("");
+  const [pdfSuggestedDeckHint, setPdfSuggestedDeckHint] = useState(false);
+  const [activeGuideId, setActiveGuideId] = useState(PDF_FORMAT_EXAMPLES[0]?.id || "labeled");
+  const [showPdfGuide, setShowPdfGuide] = useState(true);
+  const [copiedGuideId, setCopiedGuideId] = useState("");
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (defaultNewDeck) {
@@ -76,25 +140,44 @@ export function FlashcardCreator({
     }
   }, [defaultNewDeck, activeDeckId, decks, targetDeckId]);
 
+  const resolvedTopicId = useMemo(() => {
+    const selectedDeck = decks.find((d) => d.id === targetDeckId);
+    return targetDeckId === NEW_DECK_VALUE
+      ? newDeckTopicId || null
+      : selectedDeck?.topicId || null;
+  }, [decks, targetDeckId, newDeckTopicId]);
+
   const parsedBulk = useMemo(() => {
     if (!bulkText.trim()) return { cards: [], warnings: [] };
-    const selectedDeck = decks.find((d) => d.id === targetDeckId);
-    const topicId =
-      targetDeckId === NEW_DECK_VALUE
-        ? newDeckTopicId || null
-        : selectedDeck?.topicId || null;
     return parseBulkFlashcards(bulkText, {
       deckId: targetDeckId === NEW_DECK_VALUE ? "" : targetDeckId,
-      topicId,
+      topicId: resolvedTopicId,
     });
-  }, [bulkText, decks, targetDeckId, newDeckTopicId]);
+  }, [bulkText, targetDeckId, resolvedTopicId]);
 
   useEffect(() => {
     setEditableBulkCards(parsedBulk.cards);
     setBulkWarnings(parsedBulk.warnings);
   }, [parsedBulk]);
 
+  const parsedPdf = useMemo(() => {
+    if (!pdfRawText.trim()) return { cards: [], warnings: [] };
+    return parseBulkFlashcards(pdfRawText, {
+      deckId: targetDeckId === NEW_DECK_VALUE ? "" : targetDeckId,
+      topicId: resolvedTopicId,
+    });
+  }, [pdfRawText, targetDeckId, resolvedTopicId]);
+
+  useEffect(() => {
+    setEditablePdfCards(parsedPdf.cards);
+    setPdfWarnings(parsedPdf.warnings);
+  }, [parsedPdf]);
+
   const isCreatingNewDeck = targetDeckId === NEW_DECK_VALUE || decks.length === 0;
+  const activeGuide = useMemo(
+    () => PDF_FORMAT_EXAMPLES.find((ex) => ex.id === activeGuideId) || PDF_FORMAT_EXAMPLES[0],
+    [activeGuideId]
+  );
 
   const resolveDeckAndSaveCards = async (cardsToSave, { openStudyAfter = false } = {}) => {
     if (isCreatingNewDeck) {
@@ -235,6 +318,186 @@ export function FlashcardCreator({
     }
   };
 
+  // --- PDF Upload Handlers ---
+  const handlePdfFile = async (file) => {
+    if (!file) return;
+    setPdfError("");
+    setPdfSuccess("");
+    setPdfLoading(true);
+    setPdfProgress(0);
+    setPdfSuggestedDeckHint(false);
+
+    try {
+      const result = await extractTextFromStudyFile(file, (pct) => setPdfProgress(pct));
+      setPdfFileMeta({
+        name: file.name,
+        pageCount: result.pageCount || 1,
+        fileType: result.fileType || "pdf",
+      });
+
+      if (result.isEmpty) {
+        setPdfRawText("");
+        setShowPdfRawText(false);
+        setPdfError(result.error || SCANNED_PDF_ERROR_VI);
+        return;
+      }
+
+      setPdfRawText(result.text);
+
+      // Suggest a clean new deck named after the uploaded file
+      const suggestedTitle = suggestDeckTitleFromFilename(file.name);
+      if (suggestedTitle) {
+        setTargetDeckId(NEW_DECK_VALUE);
+        setNewDeckTitle(suggestedTitle);
+        setPdfSuggestedDeckHint(true);
+      }
+
+      const immediateParsed = parseBulkFlashcards(result.text);
+      if (immediateParsed.cards.length === 0) {
+        setShowPdfRawText(true);
+        setPdfError(
+          "Đã đọc được chữ từ file nhưng chưa nhận diện được flashcard nào. Hãy kiểm tra phần 'Xem chữ đọc từ PDF' hoặc đối chiếu với mẫu cấu trúc bên dưới."
+        );
+      } else {
+        setShowPdfRawText(false);
+        setShowPdfGuide(false);
+      }
+    } catch (err) {
+      setPdfFileMeta(null);
+      setPdfRawText("");
+      setShowPdfRawText(false);
+      setPdfError(err?.message || "Không thể đọc file PDF. Vui lòng thử lại.");
+    } finally {
+      setPdfLoading(false);
+      if (pdfInputRef.current) {
+        pdfInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handlePdfInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handlePdfFile(file);
+    }
+  };
+
+  const handlePdfDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingPdf) setIsDraggingPdf(true);
+  };
+
+  const handlePdfDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPdf(false);
+  };
+
+  const handlePdfDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPdf(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      handlePdfFile(file);
+    }
+  };
+
+  const handleClearPdf = () => {
+    setPdfFileMeta(null);
+    setPdfRawText("");
+    setEditablePdfCards([]);
+    setPdfWarnings([]);
+    setPdfError("");
+    setPdfSuccess("");
+    setShowPdfRawText(false);
+    setPdfSuggestedDeckHint(false);
+    setShowPdfGuide(true);
+    if (pdfInputRef.current) {
+      pdfInputRef.current.value = "";
+    }
+  };
+
+  const handlePdfRowChange = (index, field, value) => {
+    setEditablePdfCards((prev) =>
+      prev.map((card, i) => (i === index ? { ...card, [field]: value } : card))
+    );
+  };
+
+  const handlePdfRowRemove = (index) => {
+    setEditablePdfCards((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCopyGuideTemplate = async (example) => {
+    if (!example?.template) return;
+    try {
+      await copyTextToClipboard(example.template);
+      setCopiedGuideId(example.id);
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopiedGuideId("");
+      }, 2200);
+    } catch {
+      // ignore clipboard errors gracefully
+    }
+  };
+
+  const handleTryGuideExample = (example) => {
+    if (!example?.template) return;
+    setPdfError("");
+    setPdfSuccess("");
+    setPdfFileMeta({
+      name: `Mau_${example.id}.pdf (mô phỏng)`,
+      pageCount: 1,
+      fileType: "pdf",
+    });
+    setPdfRawText(example.template);
+    setShowPdfRawText(true);
+    setPdfSuggestedDeckHint(false);
+  };
+
+  const handlePdfSubmit = async (openStudyAfter = true) => {
+    setPdfError("");
+    setPdfSuccess("");
+
+    const validCards = editablePdfCards
+      .map((c) => ({
+        frontVi: String(c.frontVi || "").trim(),
+        pos: String(c.pos || "").trim(),
+        ipa: "",
+        definition: String(c.definition || "").trim(),
+        exampleVi: String(c.exampleVi || "").trim(),
+        exampleEn: String(c.exampleEn || "").trim(),
+        notes: String(c.notes || "").trim(),
+      }))
+      .filter((c) => c.frontVi && c.definition);
+
+    if (validCards.length === 0) {
+      setPdfError("Chưa có flashcard hợp lệ để lưu. Vui lòng tải file PDF hoặc chỉnh lại nội dung.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await resolveDeckAndSaveCards(validCards, { openStudyAfter });
+      setPdfFileMeta(null);
+      setPdfRawText("");
+      setEditablePdfCards([]);
+      setPdfWarnings([]);
+      setShowPdfRawText(false);
+      setPdfSuggestedDeckHint(false);
+      setShowPdfGuide(true);
+      if (!openStudyAfter) {
+        setPdfSuccess(`Đã tạo và lưu ${res.count} flashcard từ file vào bộ thẻ.`);
+      }
+    } catch (err) {
+      setPdfError(err?.message || "Không thể lưu flashcard từ file PDF.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="fc-creator-panel" data-testid="fc-creator-panel">
       <div className="fc-creator-topbar">
@@ -257,7 +520,17 @@ export function FlashcardCreator({
             onClick={() => setSubTab("bulk")}
           >
             <FileText size={15} />
-            <span>Nhập nhanh hàng loạt</span>
+            <span>Dán danh sách</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={subTab === "pdf"}
+            className={`fc-subtab-btn ${subTab === "pdf" ? "is-active" : ""}`}
+            onClick={() => setSubTab("pdf")}
+          >
+            <FileUp size={15} />
+            <span>Tải file PDF</span>
           </button>
         </div>
 
@@ -267,7 +540,12 @@ export function FlashcardCreator({
             id="fc-target-deck"
             className="fc-select"
             value={isCreatingNewDeck ? NEW_DECK_VALUE : targetDeckId}
-            onChange={(e) => setTargetDeckId(e.target.value)}
+            onChange={(e) => {
+              setTargetDeckId(e.target.value);
+              if (e.target.value !== NEW_DECK_VALUE) {
+                setPdfSuggestedDeckHint(false);
+              }
+            }}
           >
             {decks.map((d) => (
               <option key={d.id} value={d.id}>
@@ -314,7 +592,7 @@ export function FlashcardCreator({
         </div>
       )}
 
-      {/* Single Card Form */}
+      {/* TAB 1: Single Card Form */}
       {subTab === "single" && (
         <div className="fc-creator-grid">
           <form className="fc-form" onSubmit={(e) => handleSingleSubmit(e, true)}>
@@ -473,7 +751,7 @@ export function FlashcardCreator({
         </div>
       )}
 
-      {/* Bulk Paste Form */}
+      {/* TAB 2: Bulk Paste Form */}
       {subTab === "bulk" && (
         <div className="fc-form">
           <div className="fc-format-hints">
@@ -612,6 +890,362 @@ export function FlashcardCreator({
               <Check size={15} />
               <span>Chỉ lưu vào bộ thẻ</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: PDF File Upload + Format Guide */}
+      {subTab === "pdf" && (
+        <div className="fc-pdf-section" data-testid="fc-pdf-panel">
+          <input
+            ref={pdfInputRef}
+            id="fc-pdf-file-input"
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            className="fc-sr-file-input"
+            aria-label="Chọn file PDF hoặc TXT để tạo flashcard"
+            onChange={handlePdfInputChange}
+          />
+
+          {/* Dropzone */}
+          <div
+            className={`fc-pdf-dropzone ${isDraggingPdf ? "is-dragging" : ""} ${
+              pdfFileMeta ? "has-file" : ""
+            }`}
+            onDragOver={handlePdfDragOver}
+            onDragLeave={handlePdfDragLeave}
+            onDrop={handlePdfDrop}
+            onClick={() => {
+              if (!pdfLoading && !pdfFileMeta) {
+                pdfInputRef.current?.click();
+              }
+            }}
+            role={!pdfFileMeta ? "button" : undefined}
+            tabIndex={!pdfFileMeta ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (!pdfFileMeta && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+                pdfInputRef.current?.click();
+              }
+            }}
+            aria-label="Vùng kéo thả hoặc chọn file PDF"
+          >
+            {pdfLoading ? (
+              <div className="fc-pdf-loading" role="status" aria-live="polite">
+                <Loader2 size={24} className="fc-spin" />
+                <div>
+                  <strong>Đang đọc nội dung file...</strong>
+                  <p>
+                    {pdfProgress > 0
+                      ? `Đã xử lý ${pdfProgress}% trang tài liệu`
+                      : "Đang tải bộ đọc PDF trên trình duyệt"}
+                  </p>
+                </div>
+              </div>
+            ) : pdfFileMeta ? (
+              <div className="fc-pdf-file-summary">
+                <div className="fc-pdf-file-info">
+                  <div className="fc-pdf-file-icon">
+                    <FileText size={20} />
+                  </div>
+                  <div className="fc-pdf-file-meta">
+                    <strong>{pdfFileMeta.name}</strong>
+                    <div className="fc-pdf-file-pills">
+                      <span className="fc-pdf-pill">
+                        {pdfFileMeta.pageCount} trang
+                      </span>
+                      <span
+                        className={`fc-pdf-pill ${
+                          editablePdfCards.length > 0 ? "is-good" : "is-warn"
+                        }`}
+                      >
+                        {editablePdfCards.length} flashcard nhận diện
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="fc-pdf-file-actions">
+                  <button
+                    type="button"
+                    className="fc-btn-secondary fc-btn-compact"
+                    onClick={() => pdfInputRef.current?.click()}
+                  >
+                    <FileUp size={14} />
+                    <span>Chọn file khác</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="fc-pron-dismiss"
+                    onClick={handleClearPdf}
+                    aria-label="Xóa file PDF đã tải"
+                    title="Xóa file"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="fc-pdf-empty-prompt">
+                <div className="fc-pdf-upload-icon">
+                  <FileUp size={24} strokeWidth={1.7} />
+                </div>
+                <div className="fc-pdf-prompt-copy">
+                  <strong>Kéo thả file PDF vào đây hoặc bấm để chọn file</strong>
+                  <p>
+                    Hỗ trợ <code>.pdf</code> có lớp chữ (xuất từ Word, Google Docs, Canva) hoặc{" "}
+                    <code>.txt</code> · Tối đa 20 MB · Xử lý trực tiếp trên trình duyệt
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="fc-btn-secondary fc-btn-compact"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    pdfInputRef.current?.click();
+                  }}
+                >
+                  <FileUp size={14} />
+                  <span>Chọn file PDF / TXT</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {pdfSuggestedDeckHint && isCreatingNewDeck && (
+            <div className="fc-pdf-deck-hint" role="status">
+              <Sparkles size={14} />
+              <span>
+                Đã tự động gợi ý tên bộ thẻ mới từ tên file phía trên — bạn có thể sửa tên hoặc đổi
+                sang bộ thẻ có sẵn ở mục <strong>Lưu vào bộ thẻ</strong>.
+              </span>
+            </div>
+          )}
+
+          {pdfError && (
+            <div className="fc-alert error" role="alert">
+              <AlertTriangle size={15} />
+              <span>{pdfError}</span>
+            </div>
+          )}
+
+          {pdfSuccess && (
+            <div className="fc-alert success" role="status">
+              <Check size={15} />
+              <span>{pdfSuccess}</span>
+            </div>
+          )}
+
+          {pdfWarnings.length > 0 && (
+            <div className="fc-alert warn" role="status">
+              <AlertTriangle size={15} />
+              <div>
+                <strong>Lưu ý ({pdfWarnings.length}):</strong>{" "}
+                {pdfWarnings.slice(0, 3).join(" · ")}
+                {pdfWarnings.length > 3 ? ` (+${pdfWarnings.length - 3} mục khác)` : ""}
+              </div>
+            </div>
+          )}
+
+          {/* Toggleable Raw Text Editor extracted from PDF */}
+          {pdfRawText && (
+            <div className="fc-pdf-raw-box">
+              <div className="fc-label-row">
+                <button
+                  type="button"
+                  className="fc-pdf-raw-toggle"
+                  onClick={() => setShowPdfRawText((prev) => !prev)}
+                  aria-expanded={showPdfRawText}
+                >
+                  {showPdfRawText ? <EyeOff size={14} /> : <Eye size={14} />}
+                  <span>{showPdfRawText ? "Ẩn chữ đọc từ PDF" : "Xem chữ đọc từ PDF"}</span>
+                </button>
+                <span className="fc-pdf-raw-caption">
+                  {pdfRawText.split("\n").length} dòng · Chỉnh sửa trực tiếp nếu PDF bị ngắt dòng
+                </span>
+              </div>
+
+              {showPdfRawText && (
+                <textarea
+                  id="fc-pdf-raw-text"
+                  aria-label="Nội dung chữ đọc từ PDF"
+                  className="fc-textarea fc-bulk-textarea"
+                  value={pdfRawText}
+                  onChange={(e) => setPdfRawText(e.target.value)}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Editable Parsed Flashcards Preview */}
+          {editablePdfCards.length > 0 && (
+            <div className="fc-field">
+              <label>
+                <span>
+                  Xem trước &amp; chỉnh nhanh ({editablePdfCards.length} flashcard sẵn sàng)
+                </span>
+              </label>
+              <div className="fc-bulk-cols-head" aria-hidden="true">
+                <span>Mặt trước · Từ vựng</span>
+                <span>Loại từ</span>
+                <span>Mặt sau · Định nghĩa</span>
+                <span>Mặt sau · Câu ví dụ</span>
+                <span />
+              </div>
+              <div className="fc-bulk-preview-list" data-testid="fc-pdf-preview-list">
+                {editablePdfCards.map((card, index) => (
+                  <div key={card.id || index} className="fc-bulk-row">
+                    <input
+                      aria-label={`Từ vựng PDF dòng ${index + 1}`}
+                      value={card.frontVi}
+                      onChange={(e) => handlePdfRowChange(index, "frontVi", e.target.value)}
+                      placeholder="Từ vựng *"
+                    />
+                    <input
+                      aria-label={`Loại từ PDF dòng ${index + 1}`}
+                      value={card.pos}
+                      onChange={(e) => handlePdfRowChange(index, "pos", e.target.value)}
+                      placeholder="Loại từ"
+                    />
+                    <input
+                      aria-label={`Định nghĩa PDF dòng ${index + 1}`}
+                      value={card.definition}
+                      onChange={(e) => handlePdfRowChange(index, "definition", e.target.value)}
+                      placeholder="Định nghĩa *"
+                    />
+                    <input
+                      aria-label={`Ví dụ PDF dòng ${index + 1}`}
+                      value={card.exampleVi}
+                      onChange={(e) => handlePdfRowChange(index, "exampleVi", e.target.value)}
+                      placeholder="Câu ví dụ"
+                    />
+                    <button
+                      type="button"
+                      className="fc-pron-dismiss"
+                      onClick={() => handlePdfRowRemove(index)}
+                      aria-label={`Bỏ thẻ PDF ${card.frontVi || index + 1}`}
+                      title="Xóa dòng này"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="fc-btn-row">
+                <button
+                  type="button"
+                  className="fc-btn-primary"
+                  disabled={isSubmitting || editablePdfCards.length === 0}
+                  onClick={() => handlePdfSubmit(true)}
+                >
+                  <Layers size={15} />
+                  <span>
+                    {isSubmitting
+                      ? "Đang tạo..."
+                      : `Tạo ${editablePdfCards.length} flashcard & học ngay`}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="fc-btn-secondary"
+                  disabled={isSubmitting || editablePdfCards.length === 0}
+                  onClick={() => handlePdfSubmit(false)}
+                >
+                  <Check size={15} />
+                  <span>Chỉ lưu vào bộ thẻ</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Built-in PDF Format Guide Panel */}
+          <div className="fc-pdf-guide" data-testid="fc-pdf-format-guide">
+            <div className="fc-pdf-guide-head">
+              <div>
+                <h3 className="fc-pdf-guide-title">Cấu trúc file PDF gợi ý</h3>
+                <p className="fc-pdf-guide-sub">
+                  Soạn trong Word, Google Docs hoặc Canva theo 1 trong 3 mẫu bên dưới rồi xuất{" "}
+                  <strong>PDF (có lớp chữ)</strong> để tải lên.
+                </p>
+              </div>
+              {pdfFileMeta && (
+                <button
+                  type="button"
+                  className="fc-field-inline-action"
+                  onClick={() => setShowPdfGuide((v) => !v)}
+                  aria-expanded={showPdfGuide}
+                >
+                  <span>{showPdfGuide ? "Thu gọn mẫu" : "Xem mẫu cấu trúc"}</span>
+                  {showPdfGuide ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              )}
+            </div>
+
+            {showPdfGuide && activeGuide && (
+              <div className="fc-pdf-guide-body">
+                <div
+                  className="fc-pdf-guide-tabs"
+                  role="tablist"
+                  aria-label="Các mẫu cấu trúc file PDF"
+                >
+                  {PDF_FORMAT_EXAMPLES.map((ex) => (
+                    <button
+                      key={ex.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeGuide.id === ex.id}
+                      className={`fc-pdf-guide-tab ${activeGuide.id === ex.id ? "is-active" : ""}`}
+                      onClick={() => setActiveGuideId(ex.id)}
+                    >
+                      {ex.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="fc-pdf-guide-card">
+                  <div className="fc-pdf-guide-card-top">
+                    <div>
+                      <strong>{activeGuide.title}</strong>
+                      <span className="fc-pdf-guide-badge">{activeGuide.badge}</span>
+                    </div>
+                    <div className="fc-pdf-guide-actions">
+                      <button
+                        type="button"
+                        className="fc-field-inline-action"
+                        onClick={() => handleTryGuideExample(activeGuide)}
+                      >
+                        <ClipboardList size={13} />
+                        <span>Dùng thử mẫu</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="fc-pdf-copy-btn"
+                        onClick={() => handleCopyGuideTemplate(activeGuide)}
+                      >
+                        {copiedGuideId === activeGuide.id ? (
+                          <>
+                            <Check size={13} />
+                            <span>Đã sao chép</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={13} />
+                            <span>Sao chép mẫu</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="fc-pdf-guide-desc">{activeGuide.description}</p>
+
+                  <pre className="fc-pdf-guide-pre">
+                    <code>{activeGuide.template}</code>
+                  </pre>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

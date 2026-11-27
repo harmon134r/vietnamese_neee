@@ -12,15 +12,62 @@ import {
   X,
 } from "lucide-react";
 import { MASTERY_LEVELS } from "../../lib/contracts.js";
-import {
-  isSpeechRecognitionSupported,
-  speakVietnamese,
-  startVietnameseListening,
-  stopSpeaking,
-} from "../../lib/speech.js";
+import * as speechApi from "../../lib/speech.js";
 import { scoreVietnamesePronunciation } from "../../lib/pronunciation.js";
 
 const SPEED_OPTIONS = [0.75, 0.9, 1, 1.15];
+
+const FALLBACK_VIETNAMESE_VOICES = Object.freeze([
+  { id: "hoaimy", label: "Hoài My", gender: "female" },
+  { id: "namminh", label: "Nam Minh", gender: "male" },
+]);
+
+function getAvailableVoices() {
+  if (Array.isArray(speechApi.VIETNAMESE_VOICES) && speechApi.VIETNAMESE_VOICES.length > 0) {
+    return speechApi.VIETNAMESE_VOICES;
+  }
+  return FALLBACK_VIETNAMESE_VOICES;
+}
+
+function readSelectedVoice() {
+  if (typeof speechApi.getSelectedVoice === "function") {
+    try {
+      return speechApi.getSelectedVoice() || "hoaimy";
+    } catch {
+      return "hoaimy";
+    }
+  }
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const saved = window.localStorage.getItem("vietflow_tts_voice");
+      if (saved === "hoaimy" || saved === "namminh") return saved;
+    } catch {
+      // ignore
+    }
+  }
+  return "hoaimy";
+}
+
+function writeSelectedVoice(voiceId) {
+  if (typeof speechApi.setSelectedVoice === "function") {
+    try {
+      speechApi.setSelectedVoice(voiceId);
+      return;
+    } catch {
+      // fallback below
+    }
+  }
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage?.setItem("vietflow_tts_voice", voiceId);
+      window.dispatchEvent(
+        new CustomEvent("vietflow:voice-change", { detail: { voice: voiceId } })
+      );
+    } catch {
+      // ignore
+    }
+  }
+}
 
 function isTypingElement(target) {
   if (!target || !(target instanceof HTMLElement)) return false;
@@ -91,6 +138,7 @@ export function FlashcardStage({
   const [isFlipped, setIsFlipped] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rate, setRate] = useState(1);
+  const [selectedVoice, setSelectedVoiceState] = useState(() => readSelectedVoice());
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [autoSpeakExample, setAutoSpeakExample] = useState(false);
   const [showPos, setShowPos] = useState(true);
@@ -110,12 +158,27 @@ export function FlashcardStage({
 
   const safeIndex = cards.length > 0 ? Math.min(Math.max(0, currentIndex), cards.length - 1) : 0;
   const card = cards[safeIndex] || null;
+  const availableVoices = useMemo(() => getAvailableVoices(), []);
   const sttSupported = useMemo(() => {
     try {
-      return Boolean(isSpeechRecognitionSupported());
+      return Boolean(speechApi.isSpeechRecognitionSupported?.());
     } catch {
       return false;
     }
+  }, []);
+
+  useEffect(() => {
+    const handleVoiceSync = (event) => {
+      const nextVoice = event?.detail?.voice || readSelectedVoice();
+      if (nextVoice) setSelectedVoiceState(nextVoice);
+    };
+    window.addEventListener("vietflow:voice-change", handleVoiceSync);
+    return () => window.removeEventListener("vietflow:voice-change", handleVoiceSync);
+  }, []);
+
+  const handleSelectVoice = useCallback((voiceId) => {
+    setSelectedVoiceState(voiceId);
+    writeSelectedVoice(voiceId);
   }, []);
 
   const stopActiveListening = useCallback(() => {
@@ -144,7 +207,7 @@ export function FlashcardStage({
   // Cleanup speech / mic on unmount
   useEffect(() => {
     return () => {
-      stopSpeaking();
+      speechApi.stopSpeaking?.();
       stopActiveListening();
     };
   }, [stopActiveListening]);
@@ -175,8 +238,9 @@ export function FlashcardStage({
       stopActiveListening();
       setSpeakingTarget(target);
       Promise.resolve(
-        speakVietnamese(text, {
+        speechApi.speakVietnamese?.(text, {
           rate,
+          voice: selectedVoice,
           onStart: () => setSpeakingTarget(target),
           onEnd: () => setSpeakingTarget((curr) => (curr === target ? null : curr)),
           onError: () => setSpeakingTarget((curr) => (curr === target ? null : curr)),
@@ -189,7 +253,7 @@ export function FlashcardStage({
           setSpeakingTarget((curr) => (curr === target ? null : curr));
         });
     },
-    [rate, stopActiveListening]
+    [rate, selectedVoice, stopActiveListening]
   );
 
   // Auto-pronounce when switching to a new card (not on initial mount if unchanged, yes when card switches)
@@ -269,7 +333,7 @@ export function FlashcardStage({
         return;
       }
 
-      stopSpeaking();
+      speechApi.stopSpeaking?.();
       setSpeakingTarget(null);
       setPronResult(null);
       setMicNotice("");
@@ -284,7 +348,7 @@ export function FlashcardStage({
       try {
         setIsListening(true);
         setInterimText("");
-        recognizerRef.current = startVietnameseListening({
+        recognizerRef.current = speechApi.startVietnameseListening?.({
           continuous: false,
           maxDurationMs: 7500,
           onInterim: (payload) => {
@@ -484,6 +548,32 @@ export function FlashcardStage({
                   {sp}x
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="fc-popover-section">
+            <span className="fc-popover-label">Giọng đọc tiếng Việt</span>
+            <div className="fc-direction-row" role="group" aria-label="Giọng đọc tiếng Việt">
+              {availableVoices.map((voiceOpt) => {
+                const displayLabel =
+                  voiceOpt.gender === "male"
+                    ? `${voiceOpt.label} (Nam)`
+                    : voiceOpt.gender === "female"
+                      ? `${voiceOpt.label} (Nữ)`
+                      : voiceOpt.label;
+                const isActive = selectedVoice === voiceOpt.id;
+                return (
+                  <button
+                    key={voiceOpt.id}
+                    type="button"
+                    aria-pressed={isActive}
+                    className={`fc-dir-pill ${isActive ? "is-active" : ""}`}
+                    onClick={() => handleSelectVoice(voiceOpt.id)}
+                  >
+                    {displayLabel}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

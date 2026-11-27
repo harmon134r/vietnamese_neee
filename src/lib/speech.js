@@ -9,10 +9,93 @@
 const MAX_CACHE_ENTRIES = 120;
 const audioBlobCache = new Map();
 
+export const VOICE_STORAGE_KEY = "vietflow_tts_voice";
+export const VOICE_CHANGE_EVENT = "vietflow:voice-change";
+
+export const VIETNAMESE_VOICES = Object.freeze([
+  Object.freeze({
+    id: "hoaimy",
+    label: "Hoài My",
+    shortLabel: "Giọng nữ · Hoài My",
+    gender: "female",
+    edgeName: "vi-VN-HoaiMyNeural",
+  }),
+  Object.freeze({
+    id: "namminh",
+    label: "Nam Minh",
+    shortLabel: "Giọng nam · Nam Minh",
+    gender: "male",
+    edgeName: "vi-VN-NamMinhNeural",
+  }),
+]);
+
+const VALID_VOICE_IDS = new Set(VIETNAMESE_VOICES.map((v) => v.id));
+const DEFAULT_VOICE_ID = "hoaimy";
+
 let playbackSeq = 0;
 let activeAudio = null;
 let activeAbortController = null;
 let activeResolve = null;
+
+function normalizeVoiceId(rawVoice) {
+  if (typeof rawVoice !== "string") return DEFAULT_VOICE_ID;
+  const cleaned = rawVoice.trim().toLowerCase();
+  if (VALID_VOICE_IDS.has(cleaned)) return cleaned;
+  if (cleaned.includes("namminh") || cleaned === "male" || cleaned === "nam") {
+    return "namminh";
+  }
+  if (cleaned.includes("hoaimy") || cleaned === "female" || cleaned === "nu" || cleaned === "nữ") {
+    return "hoaimy";
+  }
+  return DEFAULT_VOICE_ID;
+}
+
+/**
+ * Return the currently selected Vietnamese TTS voice ID (`'hoaimy' | 'namminh'`).
+ * Reads `localStorage` key `'vietflow_tts_voice'` safely, defaulting to `'hoaimy'`.
+ * @returns {"hoaimy" | "namminh"}
+ */
+export function getSelectedVoice() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return DEFAULT_VOICE_ID;
+  }
+  try {
+    const stored = window.localStorage.getItem(VOICE_STORAGE_KEY);
+    return normalizeVoiceId(stored);
+  } catch {
+    return DEFAULT_VOICE_ID;
+  }
+}
+
+/**
+ * Persist the selected Vietnamese TTS voice ID and notify mounted components
+ * via the custom `window` event `'vietflow:voice-change'`.
+ * @param {string} voiceId
+ * @returns {"hoaimy" | "namminh"}
+ */
+export function setSelectedVoice(voiceId) {
+  const normalized = normalizeVoiceId(voiceId);
+
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage?.setItem(VOICE_STORAGE_KEY, normalized);
+    } catch {
+      // ignore storage quota/privacy mode errors
+    }
+
+    try {
+      const event =
+        typeof CustomEvent === "function"
+          ? new CustomEvent(VOICE_CHANGE_EVENT, { detail: { voice: normalized } })
+          : new Event(VOICE_CHANGE_EVENT);
+      window.dispatchEvent(event);
+    } catch {
+      // ignore event dispatch errors in non-DOM runtimes
+    }
+  }
+
+  return normalized;
+}
 
 function clampRate(rate) {
   const num = Number(rate);
@@ -20,8 +103,8 @@ function clampRate(rate) {
   return Math.min(1.5, Math.max(0.5, num));
 }
 
-function getCacheKey(text) {
-  return text.trim();
+function getCacheKey(text, voice) {
+  return `${normalizeVoiceId(voice)}::${text.trim()}`;
 }
 
 function setCachedBlobUrl(key, url) {
@@ -139,11 +222,12 @@ export function getVietnameseVoices() {
  * Play Vietnamese TTS via `/api/tts` with in-memory blob URL caching.
  * @param {string} cleanText
  * @param {number} rate
+ * @param {string} voice
  * @param {number} token
  * @param {{ onStart?: Function, onEnd?: Function }} callbacks
  * @returns {Promise<{ source: "api", stopped?: boolean }>}
  */
-async function speakViaApi(cleanText, rate, token, { onStart, onEnd }) {
+async function speakViaApi(cleanText, rate, voice, token, { onStart, onEnd }) {
   if (
     typeof fetch !== "function" ||
     typeof Audio === "undefined" ||
@@ -153,7 +237,8 @@ async function speakViaApi(cleanText, rate, token, { onStart, onEnd }) {
     throw new Error("Audio/Fetch API unavailable");
   }
 
-  const cacheKey = getCacheKey(cleanText);
+  const resolvedVoice = normalizeVoiceId(voice);
+  const cacheKey = getCacheKey(cleanText, resolvedVoice);
   let blobUrl = audioBlobCache.get(cacheKey);
 
   if (!blobUrl) {
@@ -161,7 +246,7 @@ async function speakViaApi(cleanText, rate, token, { onStart, onEnd }) {
     activeAbortController = controller;
 
     // Request speed=1 from upstream and apply exact pitch-preserved playbackRate client-side
-    const endpoint = `/api/tts?text=${encodeURIComponent(cleanText)}&lang=vi&speed=1`;
+    const endpoint = `/api/tts?text=${encodeURIComponent(cleanText)}&lang=vi&voice=${encodeURIComponent(resolvedVoice)}&speed=1`;
     const response = await fetch(endpoint, {
       method: "GET",
       signal: controller.signal,
@@ -249,11 +334,12 @@ async function speakViaApi(cleanText, rate, token, { onStart, onEnd }) {
  * @param {string} cleanText
  * @param {number} rate
  * @param {string} voiceName
+ * @param {string} voice
  * @param {number} token
  * @param {{ onStart?: Function, onEnd?: Function }} callbacks
  * @returns {Promise<{ source: "webspeech", stopped?: boolean }>}
  */
-function speakViaWebSpeech(cleanText, rate, voiceName, token, { onStart, onEnd }) {
+function speakViaWebSpeech(cleanText, rate, voiceName, voice, token, { onStart, onEnd }) {
   return new Promise((resolve, reject) => {
     if (
       typeof window === "undefined" ||
@@ -274,9 +360,21 @@ function speakViaWebSpeech(cleanText, rate, voiceName, token, { onStart, onEnd }
     utterance.rate = rate;
 
     const viVoices = getVietnameseVoices();
-    const chosenVoice = voiceName
-      ? viVoices.find((v) => v.name === voiceName) || viVoices[0]
-      : viVoices[0];
+    const resolvedVoice = normalizeVoiceId(voice);
+    let chosenVoice = voiceName
+      ? viVoices.find((v) => v.name === voiceName)
+      : null;
+    if (!chosenVoice && viVoices.length > 0) {
+      if (resolvedVoice === "namminh") {
+        chosenVoice =
+          viVoices.find((v) => /namminh|nam\b|\ban\b|male/i.test(String(v?.name || ""))) ||
+          viVoices[0];
+      } else {
+        chosenVoice =
+          viVoices.find((v) => /hoaimy|hoai|linh|mai|female/i.test(String(v?.name || ""))) ||
+          viVoices[0];
+      }
+    }
     if (chosenVoice) {
       utterance.voice = chosenVoice;
       utterance.lang = chosenVoice.lang || "vi-VN";
@@ -328,11 +426,11 @@ function speakViaWebSpeech(cleanText, rate, voiceName, token, { onStart, onEnd }
  * Cancels any currently playing audio before starting.
  *
  * @param {string} text
- * @param {{ rate?: number, voiceName?: string, onStart?: Function, onEnd?: Function, onError?: Function }} [options={}]
+ * @param {{ rate?: number, voice?: string, voiceName?: string, onStart?: Function, onEnd?: Function, onError?: Function }} [options={}]
  * @returns {Promise<{ source: "api" | "webspeech" | "none", stopped?: boolean }>}
  */
 export async function speakVietnamese(text, options = {}) {
-  const { rate = 1, voiceName = "", onStart, onEnd, onError } = options;
+  const { rate = 1, voice, voiceName = "", onStart, onEnd, onError } = options;
   const cleanText = String(text || "").replace(/\s+/g, " ").trim();
 
   stopSpeaking();
@@ -344,11 +442,15 @@ export async function speakVietnamese(text, options = {}) {
   }
 
   const clampedRate = clampRate(rate);
+  const resolvedVoice = normalizeVoiceId(voice ?? getSelectedVoice());
   const myToken = playbackSeq;
 
   // 1. Primary path: /api/tts MP3 audio
   try {
-    const apiResult = await speakViaApi(cleanText, clampedRate, myToken, { onStart, onEnd });
+    const apiResult = await speakViaApi(cleanText, clampedRate, resolvedVoice, myToken, {
+      onStart,
+      onEnd,
+    });
     return apiResult;
   } catch (apiErr) {
     if (myToken !== playbackSeq) {
@@ -360,10 +462,17 @@ export async function speakVietnamese(text, options = {}) {
 
   // 2. Fallback path: Browser Web Speech API (preferring vi-VN voice)
   try {
-    const webResult = await speakViaWebSpeech(cleanText, clampedRate, voiceName, myToken, {
-      onStart,
-      onEnd,
-    });
+    const webResult = await speakViaWebSpeech(
+      cleanText,
+      clampedRate,
+      voiceName,
+      resolvedVoice,
+      myToken,
+      {
+        onStart,
+        onEnd,
+      }
+    );
     return webResult;
   } catch (webErr) {
     if (myToken !== playbackSeq) {

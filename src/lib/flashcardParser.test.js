@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  PDF_FORMAT_EXAMPLES,
   SAMPLE_BULK_TEMPLATE,
   formatIpaDisplay,
   normalizeVietnamesePos,
   parseBulkFlashcards,
 } from "./flashcardParser.js";
+import {
+  reconstructPageLines,
+  suggestDeckTitleFromFilename,
+} from "./pdfImport.js";
 
 describe("flashcardParser utilities", () => {
   it("normalizes Vietnamese and English POS aliases cleanly", () => {
@@ -157,5 +162,110 @@ VD: Theo quan điểm của tôi, làm việc từ xa khá linh hoạt.
     expect(warnings).toHaveLength(0);
     expect(cards).toHaveLength(4);
     expect(cards.every((c) => c.frontVi && c.definition && c.exampleVi)).toBe(true);
+  });
+
+  it("parses all 3 exported PDF_FORMAT_EXAMPLES with zero warnings", () => {
+    expect(PDF_FORMAT_EXAMPLES).toHaveLength(3);
+    for (const example of PDF_FORMAT_EXAMPLES) {
+      const { cards, warnings } = parseBulkFlashcards(example.template);
+      expect(warnings).toEqual([]);
+      expect(cards.length).toBeGreaterThanOrEqual(3);
+      expect(cards.every((c) => c.frontVi && c.definition && c.exampleVi)).toBe(true);
+    }
+  });
+
+  it("parses numbered PDF lines, bullet prefixes, and ignores page numbers", () => {
+    const pdfExtracted = [
+      "Trang 1",
+      "1. cân bằng (động từ): giữ sự hài hòa giữa các mặt - VD: Tôi cố gắng cân bằng công việc và gia đình.",
+      "• linh hoạt | tính từ | dễ thích nghi theo hoàn cảnh | Lịch làm việc của tôi rất linh hoạt.",
+      "▪ đồng nghiệp (danh từ): người cùng làm việc trong một công ty",
+      "Ví dụ: Đồng nghiệp mới ở phòng tôi rất nhiệt tình.",
+      "---",
+      "2 / 4",
+    ].join("\n");
+
+    const { cards, warnings } = parseBulkFlashcards(pdfExtracted);
+    expect(warnings).toEqual([]);
+    expect(cards).toHaveLength(3);
+
+    expect(cards[0]).toMatchObject({
+      frontVi: "cân bằng",
+      pos: "động từ",
+      definition: "giữ sự hài hòa giữa các mặt",
+      exampleVi: "Tôi cố gắng cân bằng công việc và gia đình.",
+    });
+    expect(cards[1]).toMatchObject({
+      frontVi: "linh hoạt",
+      pos: "tính từ",
+      definition: "dễ thích nghi theo hoàn cảnh",
+      exampleVi: "Lịch làm việc của tôi rất linh hoạt.",
+    });
+    expect(cards[2]).toMatchObject({
+      frontVi: "đồng nghiệp",
+      pos: "danh từ",
+      definition: "người cùng làm việc trong một công ty",
+      exampleVi: "Đồng nghiệp mới ở phòng tôi rất nhiệt tình.",
+    });
+  });
+
+  it("parses wrapped multi-line PDF paragraphs inside labeled blocks including colons and bullet markers", () => {
+    const wrappedPdf = [
+      "- Từ: đúng giờ",
+      "- Loại từ: cụm từ",
+      "- Định nghĩa: có mặt vào đúng thời điểm đã hẹn trước,",
+      "không đến muộn dù lịch trình bận rộn",
+      "- Ví dụ: Anh ấy nói: tôi luôn đến văn phòng lúc",
+      "8:30 sáng mỗi ngày.",
+      "- Dịch: He said: I always arrive at the office at",
+      "8:30 every morning.",
+      "- Ghi chú: Thường dùng trong công việc và cuộc hẹn",
+      "hằng ngày.",
+      "",
+      "2. Từ: trải nghiệm",
+      "Loại từ: danh từ",
+      "Định nghĩa: điều bản thân trực tiếp trải qua và",
+      "cảm nhận sâu sắc",
+      "Ví dụ: Chuyến đi Hội An là một trải nghiệm",
+      "khó quên đối với tôi.",
+    ].join("\n");
+
+    const { cards, warnings } = parseBulkFlashcards(wrappedPdf);
+    expect(warnings).toEqual([]);
+    expect(cards).toHaveLength(2);
+
+    expect(cards[0]).toMatchObject({
+      frontVi: "đúng giờ",
+      pos: "cụm từ",
+      definition: "có mặt vào đúng thời điểm đã hẹn trước, không đến muộn dù lịch trình bận rộn",
+      exampleVi: "Anh ấy nói: tôi luôn đến văn phòng lúc 8:30 sáng mỗi ngày.",
+      exampleEn: "He said: I always arrive at the office at 8:30 every morning.",
+      notes: "Thường dùng trong công việc và cuộc hẹn hằng ngày.",
+    });
+
+    expect(cards[1]).toMatchObject({
+      frontVi: "trải nghiệm",
+      pos: "danh từ",
+      definition: "điều bản thân trực tiếp trải qua và cảm nhận sâu sắc",
+      exampleVi: "Chuyến đi Hội An là một trải nghiệm khó quên đối với tôi.",
+    });
+  });
+
+  it("reconstructs Vietnamese PDF lines with Y clustering, combining marks, and paragraph breaks", () => {
+    const items = [
+      // Row 1 (y = 700): "Từ: cân bằng" split into separate runs + NFD combining accent
+      { str: "Tu\u031b\u0300:", transform: [1, 0, 0, 12, 40, 700], width: 22, height: 12 },
+      { str: "cân", transform: [1, 0, 0, 12, 68, 700.4], width: 20, height: 12 },
+      { str: "bằng", transform: [1, 0, 0, 12, 92, 699.7], width: 28, height: 12 },
+      // Row 2 (y = 684): "Định nghĩa: hài hòa" (normal line step = 16)
+      { str: "Định nghĩa:", transform: [1, 0, 0, 12, 40, 684], width: 60, height: 12 },
+      { str: "hài hòa", transform: [1, 0, 0, 12, 106, 684], width: 42, height: 12 },
+      // Row 3 (y = 640): large vertical gap (44pt) -> should insert paragraph blank line!
+      { str: "Từ: thư giãn", transform: [1, 0, 0, 12, 40, 640], width: 72, height: 12 },
+    ];
+
+    const text = reconstructPageLines(items);
+    expect(text).toBe("Từ: cân bằng\nĐịnh nghĩa: hài hòa\n\nTừ: thư giãn");
+    expect(suggestDeckTitleFromFilename("Tu_vung_B1_Am_thuc.pdf")).toBe("Tu vung B1 Am thuc");
   });
 });

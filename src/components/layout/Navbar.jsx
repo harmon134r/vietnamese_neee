@@ -1,6 +1,14 @@
-import React from "react";
-import { BookOpen, Compass, Gamepad2, Layers } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { BookOpen, Compass, Gamepad2, Layers, Volume2 } from "lucide-react";
 import { resolveStudentDisplayName } from "../../lib/supabase";
+import {
+  VIETNAMESE_VOICES,
+  VOICE_CHANGE_EVENT,
+  VOICE_STORAGE_KEY,
+  getSelectedVoice,
+  setSelectedVoice,
+  stopSpeaking,
+} from "../../lib/speech";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Tổng quan", icon: BookOpen },
@@ -19,6 +27,55 @@ export function Navbar({
   isSupabaseConfigured,
   onOpenAuth,
 }) {
+  const [voiceId, setVoiceId] = useState(() => getSelectedVoice());
+  const [voiceJustChanged, setVoiceJustChanged] = useState(false);
+  const pulseTimerRef = useRef(null);
+
+  useEffect(() => {
+    const syncVoice = (event) => {
+      const next = event?.detail?.voice || getSelectedVoice();
+      setVoiceId(next);
+    };
+    const handleStorage = (event) => {
+      if (!event?.key || event.key === VOICE_STORAGE_KEY) {
+        setVoiceId(getSelectedVoice());
+      }
+    };
+
+    window.addEventListener(VOICE_CHANGE_EVENT, syncVoice);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(VOICE_CHANGE_EVENT, syncVoice);
+      window.removeEventListener("storage", handleStorage);
+      if (pulseTimerRef.current !== null) {
+        clearTimeout(pulseTimerRef.current);
+      }
+    };
+  }, []);
+
+  const currentVoiceIndex = Math.max(
+    0,
+    VIETNAMESE_VOICES.findIndex((v) => v.id === voiceId)
+  );
+  const currentVoice = VIETNAMESE_VOICES[currentVoiceIndex] || VIETNAMESE_VOICES[0];
+  const nextVoice =
+    VIETNAMESE_VOICES[(currentVoiceIndex + 1) % VIETNAMESE_VOICES.length] ||
+    VIETNAMESE_VOICES[0];
+
+  const handleCycleVoice = () => {
+    stopSpeaking();
+    const updated = setSelectedVoice(nextVoice.id);
+    setVoiceId(updated);
+    setVoiceJustChanged(true);
+    if (pulseTimerRef.current !== null) {
+      clearTimeout(pulseTimerRef.current);
+    }
+    pulseTimerRef.current = setTimeout(() => {
+      setVoiceJustChanged(false);
+      pulseTimerRef.current = null;
+    }, 900);
+  };
+
   const xp = Math.round(Number(skillProgress?.xp || 0));
   const streakDays = Math.round(Number(skillProgress?.streakDays || 0));
   const isCloud = storageMode === "supabase" && Boolean(user);
@@ -75,6 +132,37 @@ export function Navbar({
             >
               {xp.toLocaleString("vi-VN")} XP · {streakDays} ngày
             </span>
+
+            <button
+              type="button"
+              className="vf-nav-auth-btn"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleCycleVoice}
+              title={`Giọng đọc: ${currentVoice.shortLabel} — Bấm để đổi sang ${nextVoice.label}`}
+              aria-label={`Đổi giọng đọc tiếng Việt, hiện tại ${currentVoice.shortLabel}`}
+              data-voice={currentVoice.id}
+              style={{
+                borderColor: voiceJustChanged
+                  ? "var(--border-highlight)"
+                  : undefined,
+                color: voiceJustChanged
+                  ? "var(--text-primary)"
+                  : "var(--text-secondary)",
+              }}
+            >
+              <Volume2
+                size={14}
+                aria-hidden="true"
+                style={{
+                  color: voiceJustChanged
+                    ? "var(--accent-primary)"
+                    : "var(--text-muted)",
+                  flexShrink: 0,
+                  transition: "color var(--transition-fast)",
+                }}
+              />
+              <span>{currentVoice.label}</span>
+            </button>
 
             <button
               type="button"

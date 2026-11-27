@@ -124,11 +124,27 @@ export function formatIpaDisplay(ipa = "") {
   return `/${trimmed}/`;
 }
 
+const LEADING_LIST_MARKER_RE =
+  /^(?:(?:\(?\d{1,3}\)?[.)]|\d{1,3}\/)\s+|[•·▪▫◦‣⁃➢➤❖▸▹✓✔]\s*|[-*–—]\s+)/;
+
 function stripLeadingListMarker(line = "") {
   return String(line || "")
     .trim()
-    .replace(/^(?:\d+[.)]\s+|[-*•·]\s+)/, "")
+    .replace(LEADING_LIST_MARKER_RE, "")
     .trim();
+}
+
+function isIgnorablePdfNoiseLine(trimmed = "") {
+  if (!trimmed) return true;
+  // Pure page numbers like "1", "Trang 2", "Page 2 / 5", "- 3 -"
+  if (/^(?:trang|page|p\.)?\s*[-–—]?\s*\d{1,4}\s*(?:\/\s*\d{1,4})?\s*[-–—]?$/iu.test(trimmed)) {
+    return true;
+  }
+  // Pure decorative horizontal rules exported from Docs/Word/Canva
+  if (/^[-=_*•·~–—]{3,}$/.test(trimmed)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -281,7 +297,7 @@ function mapColumnsToCard(rawCols) {
 }
 
 const LABELED_FIELD_REGEX =
-  /^(?:[-*•·]\s*)?(từ\s*vựng|từ|cụm\s*từ|mặt\s*trước|term|word|front|loại\s*từ|từ\s*loại|pos|phiên\s*âm|ipa|cách\s*đọc|định\s*nghĩa|nghĩa|giải\s*thích|mặt\s*sau|definition|meaning|back|câu\s*ví\s*dụ|ví\s*dụ|vd|example|ex|dịch\s*ví\s*dụ|dịch|tiếng\s*anh|english|en|translation|ghi\s*chú|lưu\s*ý|notes?)\s*[:：]\s*(.*)$/iu;
+  /^(?:(?:\(?\d{1,3}\)?[.)]|\d{1,3}\/)\s+|[•·▪▫◦‣⁃➢➤❖▸▹✓✔]\s*|[-*–—]\s+)?(?:\*\*)?(từ\s*vựng|từ|cụm\s*từ|mặt\s*trước|term|word|front|loại\s*từ|từ\s*loại|pos|phiên\s*âm|ipa|cách\s*đọc|định\s*nghĩa|nghĩa|giải\s*thích|mặt\s*sau|definition|meaning|back|câu\s*ví\s*dụ|ví\s*dụ|vd|example|ex|dịch\s*ví\s*dụ|dịch|tiếng\s*anh|english|en|translation|ghi\s*chú|lưu\s*ý|notes?)(?:\*\*)?\s*[:：]\s*(.*)$/iu;
 
 function classifyLabel(rawLabel = "") {
   const label = rawLabel.trim().toLocaleLowerCase("vi").replace(/\s+/g, " ");
@@ -299,6 +315,25 @@ function classifyLabel(rawLabel = "") {
   }
   if (["ghi chú", "lưu ý", "note", "notes"].includes(label)) return "notes";
   return null;
+}
+
+function looksLikeNewInlineCard(trimmed = "") {
+  if (!trimmed) return false;
+  if (trimmed.includes("|") || trimmed.includes("\t")) return true;
+  // Numbered/bulleted entry with explicit colon separator: "2. từ mới (danh từ): ..."
+  if (/^(?:(?:\(?\d{1,3}\)?[.)]|\d{1,3}\/)\s+|[•▪▫◦➢➤❖▸▹]\s*).+\s*[:：]\s+\S/u.test(trimmed)) {
+    return true;
+  }
+  // Inline "(pos): definition" pattern starting a new entry
+  const colonIdx = trimmed.search(/[:：]/);
+  if (colonIdx > 0) {
+    const left = trimmed.slice(0, colonIdx).trim();
+    const right = trimmed.slice(colonIdx + 1).trim();
+    if (right && /\([^()]{1,24}\)\s*$/.test(left)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function parseSingleLineFallback(rawLine) {
@@ -324,17 +359,25 @@ function parseSingleLineFallback(rawLine) {
     exampleVi = exSplit[2].trim();
   }
 
-  // Split term & definition by ":" first, or " - " / " – " / " — "
-  const colonIdx = mainPart.indexOf(":");
+  // Split term & definition by ":" or "：" first, or " - " / " – " / " — "
+  const colonIdx = mainPart.search(/[:：]/);
   if (colonIdx > 0) {
     const left = mainPart.slice(0, colonIdx).trim();
-    const right = mainPart.slice(colonIdx + 1).trim();
+    let right = mainPart.slice(colonIdx + 1).trim();
     if (left && right) {
       const meta = extractInlineMeta(left);
-      if (meta.frontVi) {
+      let pos = meta.pos;
+      if (!pos) {
+        const leadingPos = right.match(/^\(([^()]{1,24})\)\s*(.+)$/);
+        if (leadingPos && isPosToken(leadingPos[1])) {
+          pos = normalizeVietnamesePos(leadingPos[1]);
+          right = leadingPos[2].trim();
+        }
+      }
+      if (meta.frontVi && right) {
         return {
           frontVi: meta.frontVi,
-          pos: meta.pos,
+          pos,
           ipa: meta.ipa ? formatIpaDisplay(meta.ipa) : "",
           definition: right,
           exampleVi,
@@ -356,12 +399,13 @@ function parseSingleLineFallback(rawLine) {
 }
 
 /**
- * Smart multi-format bulk flashcard parser for Vietnamese vocabulary.
+ * Smart multi-format bulk flashcard parser for Vietnamese vocabulary (paste & PDF text).
  * Supports:
- * 1) Labeled blocks (`Từ: ... / Loại từ: ... / Phiên âm: ... / Định nghĩa: ... / Ví dụ: ...`)
- * 2) Pipe-delimited (`từ | định nghĩa | ví dụ` or 4-6 columns with POS/IPA/EN/notes)
+ * 1) Labeled blocks (`Từ: ... / Loại từ: ... / Định nghĩa: ... / Ví dụ: ... / Dịch: ... / Ghi chú: ...`)
+ *    including wrapped multi-line PDF paragraphs and bullet/number prefixes
+ * 2) Pipe-delimited (`từ | định nghĩa | ví dụ` or 4-6 columns with POS/EN/notes)
  * 3) Tab-separated (pasted from Excel / Google Sheets)
- * 4) Colon / dash lines (`từ (loại từ) /ipa/: định nghĩa - VD: ví dụ`)
+ * 4) Numbered/bulleted textbook & colon/dash lines (`1. từ (loại từ): định nghĩa - VD: ví dụ`)
  *
  * @param {string} rawText
  * @param {{ deckId?: string, topicId?: string | null }} [options]
@@ -372,6 +416,7 @@ export function parseBulkFlashcards(rawText = "", options = {}) {
   const topicId = isValidTopicId(options.topicId) ? options.topicId : null;
 
   const normalizedText = String(rawText || "")
+    .normalize("NFC")
     .replace(/\r\n?/g, "\n")
     .replace(/\u00a0/g, " ");
 
@@ -381,6 +426,8 @@ export function parseBulkFlashcards(rawText = "", options = {}) {
 
   let activeBlock = null;
   let lastField = null;
+  let lastSingleRecord = null;
+  let lastSingleField = null;
 
   const flushActiveBlock = () => {
     if (!activeBlock) return;
@@ -419,6 +466,12 @@ export function parseBulkFlashcards(rawText = "", options = {}) {
 
     if (!trimmed) {
       flushActiveBlock();
+      lastSingleRecord = null;
+      lastSingleField = null;
+      continue;
+    }
+
+    if (isIgnorablePdfNoiseLine(trimmed)) {
       continue;
     }
 
@@ -433,6 +486,26 @@ export function parseBulkFlashcards(rawText = "", options = {}) {
       const value = labelMatch[2].trim();
 
       if (field) {
+        // Attach trailing Ví dụ / Dịch / Ghi chú / Loại từ directly to a preceding single-line card
+        if (
+          !activeBlock &&
+          lastSingleRecord &&
+          ["exampleVi", "exampleEn", "notes", "pos"].includes(field)
+        ) {
+          if (field === "pos") {
+            lastSingleRecord.pos = normalizeVietnamesePos(value);
+          } else {
+            lastSingleRecord[field] = lastSingleRecord[field]
+              ? `${lastSingleRecord[field]} ${value}`.replace(/\s+/g, " ").trim()
+              : value;
+          }
+          lastSingleField = field;
+          continue;
+        }
+
+        lastSingleRecord = null;
+        lastSingleField = null;
+
         if (field === "frontVi" && activeBlock && (activeBlock.frontVi || activeBlock.definition)) {
           flushActiveBlock();
         }
@@ -447,30 +520,52 @@ export function parseBulkFlashcards(rawText = "", options = {}) {
             notes: "",
           };
         }
-        activeBlock[field] = activeBlock[field] ? `${activeBlock[field]} ${value}` : value;
+        activeBlock[field] = activeBlock[field]
+          ? `${activeBlock[field]} ${value}`.replace(/\s+/g, " ").trim()
+          : value;
         lastField = field;
         continue;
       }
     }
 
-    // If we are inside an active labeled block and the line has no delimiters, treat as continuation
+    // Continuation lines for a trailing labeled field attached to a single-line card (e.g. wrapped Ví dụ:)
     if (
-      activeBlock &&
-      lastField &&
-      !trimmed.includes("|") &&
-      !trimmed.includes("\t") &&
-      !trimmed.includes(":")
+      !activeBlock &&
+      lastSingleRecord &&
+      lastSingleField &&
+      !looksLikeNewInlineCard(trimmed)
     ) {
-      activeBlock[lastField] = `${activeBlock[lastField]} ${trimmed}`.trim();
+      lastSingleRecord[lastSingleField] = `${lastSingleRecord[lastSingleField]} ${trimmed}`
+        .replace(/\s+/g, " ")
+        .trim();
       continue;
+    }
+
+    // Inside an active labeled block, append wrapped PDF paragraph continuation lines to the previous field
+    if (activeBlock && lastField) {
+      const blockComplete = Boolean(activeBlock.frontVi && activeBlock.definition);
+      const startsNewInline =
+        trimmed.includes("|") ||
+        trimmed.includes("\t") ||
+        (blockComplete && looksLikeNewInlineCard(trimmed));
+
+      if (!startsNewInline) {
+        activeBlock[lastField] = `${activeBlock[lastField]} ${trimmed}`
+          .replace(/\s+/g, " ")
+          .trim();
+        continue;
+      }
     }
 
     // Otherwise flush any open labeled block and parse as a single-line entry
     flushActiveBlock();
+    lastSingleRecord = null;
+    lastSingleField = null;
 
     const parsed = parseSingleLineFallback(trimmed);
     if (parsed) {
       rawRecords.push(parsed);
+      lastSingleRecord = parsed;
     } else {
       // Ignore pure header rows silently
       const cols = trimmed.includes("|")
@@ -532,6 +627,62 @@ export function parseBulkFlashcards(rawText = "", options = {}) {
     },
   };
 }
+
+export const PDF_FORMAT_EXAMPLES = Object.freeze([
+  {
+    id: "labeled",
+    label: "Khối có nhãn",
+    title: "Mẫu 1: Khối có nhãn (Khuyên dùng)",
+    badge: "Chuẩn nhất cho Word / Google Docs",
+    description:
+      "Mỗi thẻ là một nhóm dòng bắt đầu bằng Từ:. Khi xuất PDF, dù định nghĩa hay câu ví dụ tự xuống dòng dài, hệ thống vẫn tự nối lại chính xác.",
+    template: [
+      "Từ: cân bằng",
+      "Loại từ: động từ",
+      "Định nghĩa: giữ sự hài hòa, không để một mặt lấn át mặt khác",
+      "Ví dụ: Tôi luôn cố gắng cân bằng giữa công việc và thời gian cho gia đình.",
+      "Dịch: I always try to balance work and family time.",
+      "",
+      "Từ: linh hoạt",
+      "Loại từ: tính từ",
+      "Định nghĩa: dễ thay đổi, thích nghi nhanh với hoàn cảnh thực tế",
+      "Ví dụ: Lịch làm việc từ xa giúp tôi sắp xếp thời gian rất linh hoạt.",
+      "Ghi chú: Thường dùng cho lịch trình, thời gian hoặc cách làm việc",
+      "",
+      "Từ: đồng nghiệp",
+      "Loại từ: danh từ",
+      "Định nghĩa: người cùng làm việc trong một công ty hoặc cơ quan",
+      "Ví dụ: Các đồng nghiệp mới ở văn phòng rất thân thiện và cởi mở.",
+    ].join("\n"),
+  },
+  {
+    id: "pipe",
+    label: "Gạch đứng (|)",
+    title: "Mẫu 2: Gạch đứng 1 dòng (|)",
+    badge: "Nhanh & gọn",
+    description:
+      "Mỗi dòng là một thẻ ngăn cách bằng dấu |. Hỗ trợ cả 3 cột (từ | nghĩa | ví dụ) hoặc 4 cột có loại từ, và tự bỏ qua dòng tiêu đề.",
+    template: [
+      "Từ vựng | Loại từ | Định nghĩa | Ví dụ",
+      "hài lòng | tính từ | cảm thấy vừa ý, thỏa mãn với kết quả | Tôi rất hài lòng với chất lượng dịch vụ ở đây.",
+      "đậm đà | tính từ | có hương vị rõ nét, hòa quyện và hấp dẫn | Nước dùng bún bò Huế ở quán này rất đậm đà.",
+      "thói quen | danh từ | việc làm lặp đi lặp lại hằng ngày | Anh ấy giữ thói quen đi bộ ba mươi phút mỗi sáng.",
+    ].join("\n"),
+  },
+  {
+    id: "numbered",
+    label: "Giáo trình đánh số",
+    title: "Mẫu 3: Danh sách giáo trình (1. 2. 3.)",
+    badge: "Giống tài liệu PDF sẵn có",
+    description:
+      "Phù hợp với tài liệu đánh số 1. 2. 3. hoặc gạch đầu dòng (•) kèm loại từ trong ngoặc và phần VD: ở cuối dòng.",
+    template: [
+      "1. hào hứng (tính từ): cảm thấy rất vui và mong đợi điều sắp tới - VD: Cả nhóm đều hào hứng với chuyến đi Đà Lạt cuối tuần này.",
+      "2. thư giãn (động từ): nghỉ ngơi để tinh thần thoải mái, giảm căng thẳng - VD: Buổi tối tôi thường nghe nhạc nhẹ để thư giãn.",
+      "3. trải nghiệm (danh từ): điều trực tiếp làm, chứng kiến và cảm nhận - VD: Du lịch một mình là một trải nghiệm rất đáng nhớ.",
+    ].join("\n"),
+  },
+]);
 
 export const SAMPLE_BULK_TEMPLATE = `hài lòng | tính từ | /haːj˨˩ lɔŋ˨˩/ | cảm thấy vừa ý, thỏa mãn với điều gì đó | Tôi rất hài lòng với món phở ở quán này.
 ẩm thực | danh từ | /əm˧˩ tʰɨk˧˨ʔ/ | nghệ thuật nấu nướng và văn hóa ăn uống | Ẩm thực Việt Nam có sự cân bằng tuyệt vời giữa các vị.

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  VOICE_CHANGE_EVENT,
+  VOICE_STORAGE_KEY,
   createAudioRecorder,
+  getSelectedVoice,
   isSpeechRecognitionSupported,
+  setSelectedVoice,
   speakVietnamese,
   startVietnameseListening,
   stopSpeaking,
@@ -20,6 +24,7 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
     const n = Number(defaultRate);
     return Number.isFinite(n) && n > 0 ? Math.min(1.5, Math.max(0.5, n)) : 1;
   });
+  const [voice, setVoiceState] = useState(() => getSelectedVoice());
 
   const [isListening, setIsListening] = useState(false);
   const [sttSupported] = useState(() => isSpeechRecognitionSupported());
@@ -87,6 +92,38 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
     setRateState(Math.min(1.5, Math.max(0.5, num)));
   }, []);
 
+  const setVoice = useCallback((nextVoice) => {
+    const normalized = setSelectedVoice(nextVoice);
+    setVoiceState(normalized);
+    return normalized;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handleVoiceChange = (event) => {
+      const next = event?.detail?.voice || getSelectedVoice();
+      if (mountedRef.current) {
+        setVoiceState(next);
+      }
+    };
+
+    const handleStorage = (event) => {
+      if (!event?.key || event.key === VOICE_STORAGE_KEY) {
+        if (mountedRef.current) {
+          setVoiceState(getSelectedVoice());
+        }
+      }
+    };
+
+    window.addEventListener(VOICE_CHANGE_EVENT, handleVoiceChange);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(VOICE_CHANGE_EVENT, handleVoiceChange);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   const stopSpeak = useCallback(() => {
     speakRequestIdRef.current += 1;
     stopSpeaking();
@@ -110,6 +147,7 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
 
       const result = await speakVietnamese(cleanText, {
         rate: overrideOptions.rate ?? rate,
+        voice: overrideOptions.voice ?? voice,
         voiceName: overrideOptions.voiceName || "",
         onStart(meta) {
           overrideOptions.onStart?.(meta);
@@ -136,7 +174,7 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
 
       return result;
     },
-    [rate]
+    [rate, voice]
   );
 
   const stopListening = useCallback(() => {
@@ -270,6 +308,8 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
     speakingText,
     rate,
     setRate,
+    voice,
+    setVoice,
     speak,
     stopSpeak,
     isListening,

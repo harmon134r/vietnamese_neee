@@ -4,11 +4,25 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("../../lib/speech.js", () => ({
+  VIETNAMESE_VOICES: [
+    { id: "hoaimy", label: "Hoài My", shortLabel: "Giọng nữ · Hoài My", gender: "female" },
+    { id: "namminh", label: "Nam Minh", shortLabel: "Giọng nam · Nam Minh", gender: "male" },
+  ],
+  getSelectedVoice: vi.fn(() => "hoaimy"),
+  setSelectedVoice: vi.fn(),
   speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
   stopSpeaking: vi.fn(),
   isSpeechRecognitionSupported: vi.fn(() => true),
   startVietnameseListening: vi.fn(),
 }));
+
+vi.mock("../../lib/pdfImport.js", async () => {
+  const actual = await vi.importActual("../../lib/pdfImport.js");
+  return {
+    ...actual,
+    extractTextFromStudyFile: vi.fn(),
+  };
+});
 
 vi.mock("../../lib/pronunciation.js", () => ({
   scoreVietnamesePronunciation: vi.fn((expected, spoken) => ({
@@ -32,9 +46,11 @@ vi.mock("../../lib/pronunciation.js", () => ({
 import { FlashcardStudio } from "./FlashcardStudio.jsx";
 import {
   isSpeechRecognitionSupported,
+  setSelectedVoice,
   speakVietnamese,
   startVietnameseListening,
 } from "../../lib/speech.js";
+import { SCANNED_PDF_ERROR_VI, extractTextFromStudyFile } from "../../lib/pdfImport.js";
 import { MASTERY_LEVELS } from "../../lib/contracts.js";
 
 const MOCK_DECKS = [
@@ -191,6 +207,12 @@ describe("FlashcardStudio", () => {
       );
     });
 
+    // Settings popover has voice switcher (Hoài My / Nam Minh)
+    const namMinhBtn = screen.getByRole("button", { name: "Nam Minh (Nam)" });
+    expect(screen.getByRole("button", { name: "Hoài My (Nữ)" })).toBeInTheDocument();
+    fireEvent.click(namMinhBtn);
+    expect(setSelectedVoice).toHaveBeenCalledWith("namminh");
+
     // Settings popover has no IPA toggle, only POS visibility
     expect(screen.queryByText(/phiên âm|IPA/i)).not.toBeInTheDocument();
 
@@ -299,7 +321,7 @@ describe("FlashcardStudio", () => {
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ mới" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Nhập nhanh hàng loạt" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Dán danh sách" }));
 
     const bulkInput = screen.getByLabelText(/Dán danh sách từ vựng tiếng Việt/);
     fireEvent.change(bulkInput, {
@@ -380,5 +402,116 @@ describe("FlashcardStudio", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Xóa thẻ đậm đà" }));
     expect(onDeleteCard).toHaveBeenCalledWith("card-2");
+  });
+
+  it("shows the PDF upload tab with format guide examples and generates flashcards from an uploaded PDF", async () => {
+    const onCreateDeck = vi.fn(() => Promise.resolve({ id: "deck-pdf-1" }));
+    extractTextFromStudyFile.mockResolvedValueOnce({
+      text: [
+        "1. cân bằng (động từ): giữ sự hài hòa giữa các mặt - VD: Tôi cố gắng cân bằng công việc và gia đình.",
+        "Từ: linh hoạt",
+        "Loại từ: tính từ",
+        "Định nghĩa: dễ thay đổi, thích nghi nhanh",
+        "với hoàn cảnh thực tế",
+        "Ví dụ: Lịch làm việc từ xa rất linh hoạt.",
+      ].join("\n"),
+      pageCount: 2,
+      isEmpty: false,
+      error: "",
+      fileType: "pdf",
+    });
+
+    render(
+      <FlashcardStudio
+        decks={MOCK_DECKS}
+        activeDeckId="deck-food"
+        onCreateDeck={onCreateDeck}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ mới" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Tải file PDF" }));
+
+    expect(screen.getByTestId("fc-pdf-panel")).toBeInTheDocument();
+    const guide = screen.getByTestId("fc-pdf-format-guide");
+    expect(guide).toHaveTextContent("Cấu trúc file PDF gợi ý");
+    expect(within(guide).getByRole("tab", { name: "Khối có nhãn" })).toBeInTheDocument();
+    expect(within(guide).getByRole("tab", { name: "Gạch đứng (|)" })).toBeInTheDocument();
+    expect(within(guide).getByRole("tab", { name: "Giáo trình đánh số" })).toBeInTheDocument();
+    expect(within(guide).getByRole("button", { name: /Sao chép mẫu/ })).toBeInTheDocument();
+
+    // Switch format example tab to verify interactive example switching
+    fireEvent.click(within(guide).getByRole("tab", { name: "Gạch đứng (|)" }));
+    expect(guide).toHaveTextContent("hài lòng | tính từ");
+
+    // Upload a mocked PDF file
+    const fileInput = screen.getByLabelText("Chọn file PDF hoặc TXT để tạo flashcard");
+    const mockPdf = new File(["%PDF-1.4"], "Tu_vung_cong_viec_B1.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(fileInput, { target: { files: [mockPdf] } });
+
+    await waitFor(() => {
+      expect(extractTextFromStudyFile).toHaveBeenCalledWith(mockPdf, expect.any(Function));
+      expect(screen.getByTestId("fc-pdf-preview-list")).toBeInTheDocument();
+    });
+
+    // Auto-suggested deck title derived from filename
+    expect(screen.getByLabelText(/Tên bộ thẻ mới/)).toHaveValue("Tu vung cong viec B1");
+    expect(screen.getByText("2 trang")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("cân bằng")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("linh hoạt")).toBeInTheDocument();
+
+    // Toggleable raw PDF text editor works
+    fireEvent.click(screen.getByRole("button", { name: /Xem chữ đọc từ PDF/ }));
+    expect(screen.getByLabelText("Nội dung chữ đọc từ PDF")).toBeInTheDocument();
+
+    // Create flashcards & new deck in 1 click
+    fireEvent.click(screen.getByRole("button", { name: /Tạo 2 flashcard & học ngay/ }));
+
+    await waitFor(() => {
+      expect(onCreateDeck).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Tu vung cong viec B1",
+          cards: expect.arrayContaining([
+            expect.objectContaining({
+              frontVi: "cân bằng",
+              pos: "động từ",
+              definition: "giữ sự hài hòa giữa các mặt",
+            }),
+            expect.objectContaining({
+              frontVi: "linh hoạt",
+              pos: "tính từ",
+              definition: "dễ thay đổi, thích nghi nhanh với hoàn cảnh thực tế",
+            }),
+          ]),
+        })
+      );
+    });
+  });
+
+  it("displays a clear Vietnamese error when uploading a scanned PDF with no selectable text", async () => {
+    extractTextFromStudyFile.mockResolvedValueOnce({
+      text: "",
+      pageCount: 3,
+      isEmpty: true,
+      error: SCANNED_PDF_ERROR_VI,
+      fileType: "pdf",
+    });
+
+    render(<FlashcardStudio decks={MOCK_DECKS} activeDeckId="deck-food" />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ mới" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Tải file PDF" }));
+
+    const fileInput = screen.getByLabelText("Chọn file PDF hoặc TXT để tạo flashcard");
+    const scannedPdf = new File(["%PDF-1.4"], "scan_photo.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(fileInput, { target: { files: [scannedPdf] } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(SCANNED_PDF_ERROR_VI);
+    });
   });
 });

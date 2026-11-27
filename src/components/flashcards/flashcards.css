@@ -1724,6 +1724,450 @@
   border-color: var(--fc-accent);
 }
 
+.fc-bulk-cols-head {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) 115px minmax(150px, 1.1fr) minmax(150px, 1.2fr) 32px;
+  gap: 8px;
+  padding: 0 12px 2px;
+  font-family: var(--fc-font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fc-muted);
+}
+
+/* ---------- PDF Upload & Format Guide (Claude Warm Stone) ---------- */
+.fc-pdf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fc-sr-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.fc-pdf-dropzone {
+  border-radius: 14px;
+  border: 1.5px dashed rgba(236, 235, 228, 0.2);
+  background: var(--fc-surface);
+  padding: 28px 22px;
+  transition: border-color 0.16s ease, background 0.16s ease;
+  cursor: pointer;
+}
+
+.fc-pdf-dropzone:hover,
+.fc-pdf-dropzone.is-dragging {
+  border-color: rgba(217, 119, 87, 0.65);
+  background: rgba(217, 119, 87, 0.06);
+}
+
+.fc-pdf-dropzone.has-file {
+  border-style: solid;
+  border-color: var(--fc-border-strong);
+  padding: 14px 16px;
+  cursor: default;
+}
+
+.fc-pdf-dropzone.has-file:hover {
+  background: var(--fc-surface);
+  border-color: var(--fc-border-strong);
+}
+
+.fc-pdf-empty-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.fc-pdf-upload-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--fc-surface-card);
+  border: 1px solid var(--fc-border-strong);
+  color: var(--fc-accent);
+  display: grid;
+  place-items: center;
+}
+
+.fc-pdf-prompt-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fc-pdf-prompt-copy strong {
+  font-family: var(--fc-font-serif);
+  font-size: 1.06rem;
+  font-weight: 500;
+  color: var(--fc-ink);
+}
+
+.fc-pdf-prompt-copy p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--fc-muted);
+  line-height: 1.55;
+}
+
+.fc-pdf-prompt-copy code {
+  font-family: var(--fc-font-mono);
+  font-size: 0.76rem;
+  color: var(--fc-secondary);
+  background: rgba(236, 235, 228, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.fc-pdf-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 0;
+  color: var(--fc-ink);
+}
+
+.fc-pdf-loading strong {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.fc-pdf-loading p {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--fc-muted);
+}
+
+.fc-spin {
+  color: var(--fc-accent);
+  animation: fcSpin 0.95s linear infinite;
+}
+
+.fc-pdf-file-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fc-pdf-file-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fc-pdf-file-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--fc-accent-soft);
+  border: 1px solid rgba(217, 119, 87, 0.34);
+  color: var(--fc-accent);
+  display: grid;
+  place-items: center;
+}
+
+.fc-pdf-file-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fc-pdf-file-meta strong {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--fc-ink);
+  word-break: break-word;
+}
+
+.fc-pdf-file-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fc-pdf-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--fc-border);
+  background: var(--fc-surface-card);
+  color: var(--fc-secondary);
+  font-family: var(--fc-font-mono);
+  font-size: 0.71rem;
+}
+
+.fc-pdf-pill.is-good {
+  background: var(--fc-good-soft);
+  border-color: rgba(95, 168, 136, 0.32);
+  color: var(--fc-good);
+}
+
+.fc-pdf-pill.is-warn {
+  background: var(--fc-warn-soft);
+  border-color: rgba(217, 160, 78, 0.32);
+  color: var(--fc-warn);
+}
+
+.fc-pdf-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fc-btn-compact {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 0.79rem;
+}
+
+.fc-pdf-deck-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: rgba(217, 119, 87, 0.08);
+  border: 1px solid rgba(217, 119, 87, 0.24);
+  color: var(--fc-secondary);
+  font-size: 0.79rem;
+  line-height: 1.5;
+}
+
+.fc-pdf-deck-hint svg {
+  color: var(--fc-accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.fc-pdf-deck-hint strong {
+  color: var(--fc-ink);
+  font-weight: 500;
+}
+
+.fc-pdf-raw-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fc-pdf-raw-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--fc-border);
+  background: var(--fc-surface);
+  color: var(--fc-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.fc-pdf-raw-toggle:hover {
+  color: var(--fc-ink);
+  border-color: var(--fc-border-strong);
+  background: var(--fc-surface-card);
+}
+
+.fc-pdf-raw-caption {
+  font-size: 0.74rem;
+  color: var(--fc-muted);
+}
+
+/* Format Guide Panel */
+.fc-pdf-guide {
+  border-radius: 12px;
+  border: 1px solid var(--fc-border);
+  background: var(--fc-surface);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fc-pdf-guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fc-pdf-guide-title {
+  margin: 0;
+  font-family: var(--fc-font-serif);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--fc-ink);
+}
+
+.fc-pdf-guide-sub {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--fc-muted);
+  line-height: 1.5;
+}
+
+.fc-pdf-guide-sub strong {
+  color: var(--fc-secondary);
+  font-weight: 500;
+}
+
+.fc-pdf-guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fc-pdf-guide-tabs {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--fc-canvas);
+  border: 1px solid var(--fc-border);
+  align-self: flex-start;
+}
+
+.fc-pdf-guide-tab {
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fc-secondary);
+  font-size: 0.78rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.fc-pdf-guide-tab:hover {
+  color: var(--fc-ink);
+}
+
+.fc-pdf-guide-tab.is-active {
+  background: var(--fc-surface-elevated);
+  color: var(--fc-ink);
+  font-weight: 500;
+}
+
+.fc-pdf-guide-card {
+  border-radius: 10px;
+  border: 1px solid var(--fc-border);
+  background: var(--fc-canvas);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fc-pdf-guide-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fc-pdf-guide-card-top > div:first-child {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fc-pdf-guide-card-top strong {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--fc-ink);
+}
+
+.fc-pdf-guide-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--fc-accent-soft);
+  color: #ebb09a;
+  font-size: 0.71rem;
+  font-weight: 500;
+}
+
+.fc-pdf-guide-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fc-pdf-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--fc-border-strong);
+  background: var(--fc-surface-card);
+  color: var(--fc-ink);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.fc-pdf-copy-btn:hover {
+  border-color: rgba(217, 119, 87, 0.56);
+  background: var(--fc-accent-soft);
+  color: var(--fc-ink);
+}
+
+.fc-pdf-guide-desc {
+  margin: 0;
+  font-size: 0.79rem;
+  color: var(--fc-muted);
+  line-height: 1.55;
+}
+
+.fc-pdf-guide-pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #1a1918;
+  border: 1px solid var(--fc-border);
+  overflow-x: auto;
+}
+
+.fc-pdf-guide-pre code {
+  font-family: var(--fc-font-mono);
+  font-size: 0.77rem;
+  line-height: 1.65;
+  color: #e5d2c5;
+  white-space: pre;
+}
+
 .fc-alert {
   display: flex;
   align-items: flex-start;
@@ -2020,6 +2464,15 @@
   }
 }
 
+@keyframes fcSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 899px) {
   .fc-filter-bar,
@@ -2040,6 +2493,10 @@
 
   .fc-format-hints {
     grid-template-columns: 1fr;
+  }
+
+  .fc-bulk-cols-head {
+    display: none;
   }
 
   .fc-bulk-row {
@@ -2108,6 +2565,21 @@
 
   .fc-form-row {
     grid-template-columns: 1fr;
+  }
+
+  .fc-subtabs {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .fc-subtab-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .fc-pdf-guide-pre code {
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .fc-search-input {

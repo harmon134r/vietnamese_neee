@@ -1,5 +1,7 @@
+import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { Navbar } from "../components/layout/Navbar.jsx";
 import {
   TONE_ORDER,
   VIETNAMESE_TONES,
@@ -11,9 +13,14 @@ import {
   stripVietnameseTones,
 } from "./pronunciation.js";
 import {
+  VIETNAMESE_VOICES,
+  VOICE_CHANGE_EVENT,
+  VOICE_STORAGE_KEY,
   clearTtsCache,
+  getSelectedVoice,
   getVietnameseVoices,
   isSpeechRecognitionSupported,
+  setSelectedVoice,
   speakVietnamese,
   startVietnameseListening,
   stopSpeaking,
@@ -255,11 +262,48 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
   afterEach(() => {
     stopSpeaking();
     clearTtsCache();
+    window.localStorage.removeItem(VOICE_STORAGE_KEY);
     vi.restoreAllMocks();
     delete window.SpeechRecognition;
     delete window.webkitSpeechRecognition;
     delete window.speechSynthesis;
     delete window.SpeechSynthesisUtterance;
+  });
+
+  it("exposes Vietnamese neural voice metadata, persists voice selection, and dispatches voice-change events", () => {
+    expect(VIETNAMESE_VOICES).toEqual([
+      {
+        id: "hoaimy",
+        label: "Hoài My",
+        shortLabel: "Giọng nữ · Hoài My",
+        gender: "female",
+        edgeName: "vi-VN-HoaiMyNeural",
+      },
+      {
+        id: "namminh",
+        label: "Nam Minh",
+        shortLabel: "Giọng nam · Nam Minh",
+        gender: "male",
+        edgeName: "vi-VN-NamMinhNeural",
+      },
+    ]);
+
+    expect(getSelectedVoice()).toBe("hoaimy");
+
+    const listener = vi.fn();
+    window.addEventListener(VOICE_CHANGE_EVENT, listener);
+
+    expect(setSelectedVoice("namminh")).toBe("namminh");
+    expect(window.localStorage.getItem(VOICE_STORAGE_KEY)).toBe("namminh");
+    expect(getSelectedVoice()).toBe("namminh");
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0][0].detail).toEqual({ voice: "namminh" });
+
+    // Unknown voice safely normalizes to default 'hoaimy'
+    expect(setSelectedVoice("unknown-voice")).toBe("hoaimy");
+    expect(getSelectedVoice()).toBe("hoaimy");
+
+    window.removeEventListener(VOICE_CHANGE_EVENT, listener);
   });
 
   it("handles missing Web Speech APIs safely without throwing", async () => {
@@ -271,17 +315,19 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(empty.source).toBe("none");
   });
 
-  it("caches /api/tts audio blob URLs for instant replay and applies playbackRate", async () => {
+  it("caches /api/tts audio blob URLs per voice and applies playbackRate", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       headers: { get: () => "audio/mpeg" },
       blob: async () => new Blob(["fake-mp3"], { type: "audio/mpeg" }),
     });
     vi.stubGlobal("fetch", fetchMock);
-    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-tts-url");
+    let blobCounter = 0;
+    vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:mock-tts-${++blobCounter}`);
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 
     const playedRates = [];
+    const playedSrcs = [];
     class MockAudio {
       constructor(src) {
         this.src = src;
@@ -290,6 +336,7 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
       }
       play() {
         playedRates.push(this.playbackRate);
+        playedSrcs.push(this.src);
         queueMicrotask(() => this.onended?.());
         return Promise.resolve();
       }
@@ -299,11 +346,17 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
 
     const first = await speakVietnamese("Xin chào", { rate: 0.9 });
     const second = await speakVietnamese("Xin chào", { rate: 1.15 });
+    const thirdMale = await speakVietnamese("Xin chào", { rate: 1, voice: "namminh" });
 
     expect(first).toEqual({ source: "api" });
     expect(second).toEqual({ source: "api" });
-    expect(fetchMock).toHaveBeenCalledTimes(1); // second replay served from Map cache
-    expect(playedRates).toEqual([0.9, 1.15]);
+    expect(thirdMale).toEqual({ source: "api" });
+    expect(fetchMock).toHaveBeenCalledTimes(2); // hoaimy cached on 2nd call; namminh fetches fresh audio
+    expect(fetchMock.mock.calls[0][0]).toContain("voice=hoaimy");
+    expect(fetchMock.mock.calls[1][0]).toContain("voice=namminh");
+    expect(playedRates).toEqual([0.9, 1.15, 1]);
+    expect(playedSrcs[0]).toBe(playedSrcs[1]);
+    expect(playedSrcs[2]).not.toBe(playedSrcs[0]);
   });
 
   it("falls back automatically to Web Speech vi-VN when /api/tts fails", async () => {
@@ -386,9 +439,10 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(onError).toHaveBeenCalledWith(expect.stringContaining("quyền sử dụng micro"), "not-allowed");
   });
 
-  it("useVietnameseSpeech hook exposes expected state and controls", () => {
+  it("useVietnameseSpeech hook exposes expected state and controls including voice sync", () => {
     const { result, unmount } = renderHook(() => useVietnameseSpeech({ defaultRate: 0.9 }));
     expect(result.current.rate).toBe(0.9);
+    expect(result.current.voice).toBe("hoaimy");
     expect(result.current.isSpeaking).toBe(false);
     expect(result.current.isListening).toBe(false);
     expect(result.current.sttSupported).toBe(false);
@@ -401,9 +455,48 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(result.current.rate).toBe(1.15);
 
     act(() => {
+      result.current.setVoice("namminh");
+    });
+    expect(result.current.voice).toBe("namminh");
+    expect(getSelectedVoice()).toBe("namminh");
+
+    // External voice change event syncs mounted hooks automatically
+    act(() => {
+      setSelectedVoice("hoaimy");
+    });
+    expect(result.current.voice).toBe("hoaimy");
+
+    act(() => {
       result.current.resetTranscript();
     });
     expect(result.current.finalTranscript).toBe("");
     unmount();
+  });
+
+  it("Navbar voice switcher toggles between Hoài My and Nam Minh and stays synced with voice-change events", () => {
+    render(
+      React.createElement(Navbar, {
+        activeView: "dashboard",
+        onNavigate: vi.fn(),
+        skillProgress: { xp: 120, streakDays: 3 },
+        user: null,
+        userProfile: null,
+        storageMode: "local",
+        isSupabaseConfigured: false,
+        onOpenAuth: vi.fn(),
+      })
+    );
+
+    const voiceBtn = screen.getByRole("button", { name: /Đổi giọng đọc tiếng Việt/i });
+    expect(voiceBtn.textContent).toContain("Hoài My");
+
+    fireEvent.click(voiceBtn);
+    expect(voiceBtn.textContent).toContain("Nam Minh");
+    expect(getSelectedVoice()).toBe("namminh");
+
+    act(() => {
+      setSelectedVoice("hoaimy");
+    });
+    expect(voiceBtn.textContent).toContain("Hoài My");
   });
 });
