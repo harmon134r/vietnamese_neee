@@ -131,11 +131,30 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
       }
     };
 
+    const handleFocusSync = () => {
+      if (mountedRef.current) {
+        setVoiceState(getSelectedVoice());
+      }
+    };
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        handleFocusSync();
+      }
+    };
+
     window.addEventListener(VOICE_CHANGE_EVENT, handleVoiceChange);
     window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocusSync);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
     return () => {
       window.removeEventListener(VOICE_CHANGE_EVENT, handleVoiceChange);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocusSync);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
     };
   }, []);
 

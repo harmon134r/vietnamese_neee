@@ -81,6 +81,27 @@ function getAvailableVoices() {
   return FALLBACK_VIETNAMESE_VOICES;
 }
 
+function resolveCanonicalVoiceId(rawVoice) {
+  const randomId = getRandomVoiceOption().id;
+  const validIds = new Set([randomId, ...getAvailableVoices().map((v) => v.id)]);
+  if (typeof rawVoice === "string" && validIds.has(rawVoice)) {
+    return rawVoice;
+  }
+  if (rawVoice === "hoaimy") return "ngochuyen";
+  if (rawVoice === "namminh") return "haidang";
+  if (typeof speechApi.getVoiceMeta === "function") {
+    try {
+      const meta = speechApi.getVoiceMeta(rawVoice);
+      if (meta?.id && validIds.has(meta.id)) {
+        return meta.id;
+      }
+    } catch {
+      // fallback below
+    }
+  }
+  return randomId;
+}
+
 function formatVoiceSublabel(voice) {
   if (!voice) return "";
   if (voice.shortLabel) {
@@ -91,10 +112,10 @@ function formatVoiceSublabel(voice) {
 }
 
 function readSelectedVoice() {
-  const defaultVoiceId = speechApi.RANDOM_VOICE_ID || "random";
+  const defaultVoiceId = getRandomVoiceOption().id;
   if (typeof speechApi.getSelectedVoice === "function") {
     try {
-      return speechApi.getSelectedVoice() || defaultVoiceId;
+      return resolveCanonicalVoiceId(speechApi.getSelectedVoice());
     } catch {
       return defaultVoiceId;
     }
@@ -104,11 +125,7 @@ function readSelectedVoice() {
       const saved = window.localStorage.getItem(
         speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice"
       );
-      if (saved === defaultVoiceId) return defaultVoiceId;
-      if (saved === "hoaimy") return "ngochuyen";
-      if (saved === "namminh") return "haidang";
-      const validIds = new Set(getAvailableVoices().map((v) => v.id));
-      if (saved && validIds.has(saved)) return saved;
+      return resolveCanonicalVoiceId(saved);
     } catch {
       // ignore
     }
@@ -241,34 +258,77 @@ export function FlashcardStage({
     }
   }, []);
 
+  const voiceStorageKey = speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice";
+  const readRawStoredVoice = useCallback(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage
+        ? window.localStorage.getItem(voiceStorageKey)
+        : null;
+    } catch {
+      return null;
+    }
+  }, [voiceStorageKey]);
+  const lastStoredVoiceRef = useRef(readRawStoredVoice());
+
+  const syncIfStorageChanged = useCallback(() => {
+    const currentRaw = readRawStoredVoice();
+    if (currentRaw !== lastStoredVoiceRef.current) {
+      lastStoredVoiceRef.current = currentRaw;
+      setSelectedVoiceState(readSelectedVoice());
+    }
+  }, [readRawStoredVoice]);
+
   useEffect(() => {
     const voiceChangeEvent =
       speechApi.VOICE_CHANGE_EVENT || "vietflow:voice-change";
-    const voiceStorageKey = speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice";
 
     const handleVoiceSync = (event) => {
-      const nextVoice = event?.detail?.voice || readSelectedVoice();
+      lastStoredVoiceRef.current = readRawStoredVoice();
+      const rawNext = event?.detail?.voice;
+      const nextVoice =
+        rawNext !== undefined && rawNext !== null && rawNext !== ""
+          ? resolveCanonicalVoiceId(rawNext)
+          : readSelectedVoice();
       if (nextVoice) setSelectedVoiceState(nextVoice);
     };
     const handleStorage = (event) => {
       if (!event?.key || event.key === voiceStorageKey) {
+        lastStoredVoiceRef.current = readRawStoredVoice();
         setSelectedVoiceState(readSelectedVoice());
+      }
+    };
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        syncIfStorageChanged();
       }
     };
 
     window.addEventListener(voiceChangeEvent, handleVoiceSync);
     window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", syncIfStorageChanged);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
     return () => {
       window.removeEventListener(voiceChangeEvent, handleVoiceSync);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", syncIfStorageChanged);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
     };
-  }, []);
+  }, [voiceStorageKey, readRawStoredVoice, syncIfStorageChanged]);
 
-  const handleSelectVoice = useCallback((voiceId) => {
-    speechApi.stopSpeaking?.();
-    const updated = writeSelectedVoice(voiceId) || voiceId;
-    setSelectedVoiceState(updated);
-  }, []);
+  const handleSelectVoice = useCallback(
+    (voiceId) => {
+      speechApi.stopSpeaking?.();
+      const rawUpdated = writeSelectedVoice(voiceId) ?? voiceId;
+      const updated = resolveCanonicalVoiceId(rawUpdated);
+      lastStoredVoiceRef.current = readRawStoredVoice();
+      setSelectedVoiceState(updated);
+    },
+    [readRawStoredVoice]
+  );
 
   // Smart background pre-fetching for active card + example + next 2 cards
   const nextCard1FrontVi = cards[safeIndex + 1]?.frontVi || "";
@@ -563,6 +623,7 @@ export function FlashcardStage({
 
   const isMastered = (card.masteryLevel || 0) >= MASTERY_LEVELS.STRONG;
   const isReview = (card.masteryLevel || 0) >= MASTERY_LEVELS.REVIEW && !isMastered;
+  const canonicalSelectedVoice = resolveCanonicalVoiceId(selectedVoice);
 
   const renderBottomRightControls = () => (
     <div
@@ -626,6 +687,7 @@ export function FlashcardStage({
         className={`fc-icon-ghost ${settingsOpen ? "is-open" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
+          syncIfStorageChanged();
           setSettingsOpen((o) => !o);
         }}
         aria-label="Cài đặt thẻ flashcard"
@@ -674,8 +736,8 @@ export function FlashcardStage({
             >
               <button
                 type="button"
-                aria-pressed={selectedVoice === randomVoice.id}
-                className={`fc-voice-option ${selectedVoice === randomVoice.id ? "is-active" : ""}`}
+                aria-pressed={canonicalSelectedVoice === randomVoice.id}
+                className={`fc-voice-option ${canonicalSelectedVoice === randomVoice.id ? "is-active" : ""}`}
                 onClick={() => handleSelectVoice(randomVoice.id)}
                 data-voice-option={randomVoice.id}
               >
@@ -691,7 +753,7 @@ export function FlashcardStage({
                   <span className="fc-voice-option-sub">
                     {randomVoice.shortLabel || "Xoay vòng 5 giọng Bắc"}
                   </span>
-                  {selectedVoice === randomVoice.id && (
+                  {canonicalSelectedVoice === randomVoice.id && (
                     <Check
                       size={14}
                       strokeWidth={2.2}
@@ -705,7 +767,7 @@ export function FlashcardStage({
               <div className="fc-voice-divider" aria-hidden="true" />
 
               {availableVoices.map((voiceOpt) => {
-                const isActive = selectedVoice === voiceOpt.id;
+                const isActive = canonicalSelectedVoice === voiceOpt.id;
                 const sublabel = formatVoiceSublabel(voiceOpt);
                 return (
                   <button

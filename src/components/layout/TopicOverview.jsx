@@ -61,11 +61,25 @@ export function TopicOverview({
       }
     };
 
+    const handleFocusSync = () => {
+      const next = speechApi.getSelectedVoice?.();
+      if (next) setVoiceId(next);
+    };
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        handleFocusSync();
+      }
+    };
+
     window.addEventListener(voiceChangeEvent, syncVoice);
     window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocusSync);
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       window.removeEventListener(voiceChangeEvent, syncVoice);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocusSync);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 
@@ -105,6 +119,7 @@ export function TopicOverview({
     try {
       await speechApi.speakVietnamese?.(text, {
         rate: speechRate,
+        voice: voiceId,
         onStart: () => setPlayingKey(key),
         onEnd: () => setPlayingKey((prev) => (prev === key ? null : prev)),
         onError: () => setPlayingKey((prev) => (prev === key ? null : prev)),

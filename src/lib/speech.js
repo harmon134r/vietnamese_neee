@@ -149,10 +149,11 @@ export function pickRandomVoiceForText(text) {
   return NORTHERN_VOICE_IDS[hash % NORTHERN_VOICE_IDS.length];
 }
 
-function normalizeVoiceId(rawVoice) {
+export function normalizeVoiceId(rawVoice) {
   if (typeof rawVoice !== "string") return DEFAULT_VOICE_ID;
   const canonical = rawVoice
     .trim()
+    .replace(/^['"]+|['"]+$/g, "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[đĐ]/g, "d")

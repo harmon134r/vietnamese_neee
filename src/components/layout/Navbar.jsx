@@ -78,6 +78,47 @@ function getNorthernVoices() {
   return FALLBACK_NORTHERN_VOICES;
 }
 
+function getAllVoiceOptions() {
+  if (
+    Array.isArray(speechApi.VOICE_OPTIONS) &&
+    speechApi.VOICE_OPTIONS.length > 0
+  ) {
+    return speechApi.VOICE_OPTIONS;
+  }
+  return [getRandomVoiceOption(), ...getNorthernVoices()];
+}
+
+function resolveCanonicalVoiceId(rawVoice) {
+  const randomOption = getRandomVoiceOption();
+  const allOptions = getAllVoiceOptions();
+  if (typeof rawVoice === "string" && allOptions.some((v) => v.id === rawVoice)) {
+    return rawVoice;
+  }
+  if (typeof speechApi.getVoiceMeta === "function") {
+    try {
+      const meta = speechApi.getVoiceMeta(rawVoice);
+      if (meta?.id && allOptions.some((v) => v.id === meta.id)) {
+        return meta.id;
+      }
+    } catch {
+      // fallback below
+    }
+  }
+  return randomOption.id;
+}
+
+function readCurrentVoiceId() {
+  const randomOption = getRandomVoiceOption();
+  if (typeof speechApi.getSelectedVoice === "function") {
+    try {
+      return resolveCanonicalVoiceId(speechApi.getSelectedVoice());
+    } catch {
+      return randomOption.id;
+    }
+  }
+  return randomOption.id;
+}
+
 function formatVoiceSublabel(voice) {
   if (!voice) return "";
   if (voice.shortLabel) {
@@ -106,41 +147,82 @@ export function Navbar({
 }) {
   const randomOption = getRandomVoiceOption();
   const voices = getNorthernVoices();
-  const [voiceId, setVoiceId] = useState(
-    () => speechApi.getSelectedVoice?.() || randomOption.id
-  );
+  const voiceStorageKey = speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice";
+  const readRawStoredVoice = () => {
+    try {
+      return typeof window !== "undefined" && window.localStorage
+        ? window.localStorage.getItem(voiceStorageKey)
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const [voiceId, setVoiceId] = useState(() => readCurrentVoiceId());
   const [menuOpen, setMenuOpen] = useState(false);
   const [voiceJustChanged, setVoiceJustChanged] = useState(false);
   const voicePickerRef = useRef(null);
   const voiceTriggerRef = useRef(null);
   const pulseTimerRef = useRef(null);
+  const lastStoredVoiceRef = useRef(readRawStoredVoice());
+
+  const syncIfStorageChanged = () => {
+    const currentRaw = readRawStoredVoice();
+    if (currentRaw !== lastStoredVoiceRef.current) {
+      lastStoredVoiceRef.current = currentRaw;
+      setVoiceId(readCurrentVoiceId());
+    }
+  };
 
   useEffect(() => {
     const voiceChangeEvent =
       speechApi.VOICE_CHANGE_EVENT || "vietflow:voice-change";
-    const voiceStorageKey = speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice";
 
     const syncVoice = (event) => {
-      const next = event?.detail?.voice || speechApi.getSelectedVoice?.();
+      lastStoredVoiceRef.current = readRawStoredVoice();
+      const rawNext = event?.detail?.voice;
+      const next =
+        rawNext !== undefined && rawNext !== null && rawNext !== ""
+          ? resolveCanonicalVoiceId(rawNext)
+          : readCurrentVoiceId();
       if (next) setVoiceId(next);
     };
     const handleStorage = (event) => {
       if (!event?.key || event.key === voiceStorageKey) {
-        const next = speechApi.getSelectedVoice?.();
-        if (next) setVoiceId(next);
+        lastStoredVoiceRef.current = readRawStoredVoice();
+        setVoiceId(readCurrentVoiceId());
+      }
+    };
+    const handleFocus = () => {
+      syncIfStorageChanged();
+    };
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        syncIfStorageChanged();
       }
     };
 
     window.addEventListener(voiceChangeEvent, syncVoice);
     window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocus);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
     return () => {
       window.removeEventListener(voiceChangeEvent, syncVoice);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
       if (pulseTimerRef.current !== null) {
         clearTimeout(pulseTimerRef.current);
       }
     };
-  }, []);
+  }, [voiceStorageKey]);
+
+  useEffect(() => {
+    syncIfStorageChanged();
+  }, [activeView]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -170,16 +252,19 @@ export function Navbar({
     };
   }, [menuOpen]);
 
-  const isRandomMode = voiceId === randomOption.id;
+  const canonicalVoiceId = resolveCanonicalVoiceId(voiceId);
+  const isRandomMode = canonicalVoiceId === randomOption.id;
   const currentVoice = isRandomMode
     ? randomOption
-    : voices.find((v) => v.id === voiceId) ||
-      speechApi.getVoiceMeta?.(voiceId) ||
+    : voices.find((v) => v.id === canonicalVoiceId) ||
+      speechApi.getVoiceMeta?.(canonicalVoiceId) ||
       randomOption;
 
   const handleSelectVoice = (nextId) => {
     speechApi.stopSpeaking?.();
-    const updated = speechApi.setSelectedVoice?.(nextId) || nextId;
+    const rawUpdated = speechApi.setSelectedVoice?.(nextId) ?? nextId;
+    const updated = resolveCanonicalVoiceId(rawUpdated);
+    lastStoredVoiceRef.current = readRawStoredVoice();
     setVoiceId(updated);
     setMenuOpen(false);
     setVoiceJustChanged(true);
@@ -257,7 +342,10 @@ export function Navbar({
                   menuOpen ? "is-open" : ""
                 } ${voiceJustChanged ? "is-changed" : ""}`}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setMenuOpen((prev) => !prev)}
+                onClick={() => {
+                  syncIfStorageChanged();
+                  setMenuOpen((prev) => !prev);
+                }}
                 title={
                   isRandomMode
                     ? "Giọng đọc Miền Bắc: Ngẫu nhiên (Tự động xoay vòng 5 giọng Bắc)"

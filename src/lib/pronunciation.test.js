@@ -2,6 +2,7 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { Navbar } from "../components/layout/Navbar.jsx";
+import { FlashcardStage } from "../components/flashcards/FlashcardStage.jsx";
 import {
   TONE_ORDER,
   VIETNAMESE_TONES,
@@ -816,5 +817,105 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     });
     expect(triggerBtn.textContent).toContain("Ngẫu nhiên");
     expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
+  });
+
+  it("unmocked Navbar + FlashcardStage keep Ngẫu nhiên active by default, after Trúc Ly -> Ngẫu nhiên, and after same-tab localStorage reset", () => {
+    const sampleCards = [
+      {
+        id: "card-sync-1",
+        frontVi: "hài lòng",
+        pos: "tính từ",
+        definition: "cảm thấy vừa ý",
+        exampleVi: "Tôi rất hài lòng với món ăn này.",
+        masteryLevel: 0,
+      },
+    ];
+
+    render(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Navbar, {
+          activeView: "flashcards",
+          onNavigate: vi.fn(),
+          skillProgress: { xp: 100, streakDays: 2 },
+          user: null,
+          userProfile: null,
+          storageMode: "local",
+          isSupabaseConfigured: false,
+          onOpenAuth: vi.fn(),
+        }),
+        React.createElement(FlashcardStage, {
+          cards: sampleCards,
+          currentIndex: 0,
+        })
+      )
+    );
+
+    const triggerBtn = screen.getByTestId("navbar-voice-trigger");
+    const settingsBtn = screen.getByRole("button", { name: "Cài đặt thẻ flashcard" });
+
+    // 1. Default ('random') state on both Navbar and FlashcardStage
+    expect(getSelectedVoice()).toBe("random");
+    expect(triggerBtn.textContent).toContain("Ngẫu nhiên");
+    expect(triggerBtn.getAttribute("data-voice")).toBe("random");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
+
+    fireEvent.click(settingsBtn);
+    const getStageBtn = (id) =>
+      document.querySelector(`.fc-settings-popover [data-voice-option="${id}"]`);
+
+    expect(getStageBtn("random")?.getAttribute("aria-pressed")).toBe("true");
+    expect(getStageBtn("ngochuyen")?.getAttribute("aria-pressed")).toBe("false");
+
+    // 2. Switch Trúc Ly -> Ngẫu nhiên from Navbar and verify both stay synced
+    fireEvent.click(triggerBtn);
+    fireEvent.click(
+      document.querySelector('[data-testid="navbar-voice-menu"] [data-voice-option="trucly"]')
+    );
+    expect(window.localStorage.getItem(VOICE_STORAGE_KEY)).toBe("trucly");
+    expect(triggerBtn.textContent).toContain("Trúc Ly");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-voice']")).not.toBeNull();
+    expect(getStageBtn("trucly")?.getAttribute("aria-pressed")).toBe("true");
+    expect(getStageBtn("random")?.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(triggerBtn);
+    fireEvent.click(
+      document.querySelector('[data-testid="navbar-voice-menu"] [data-voice-option="random"]')
+    );
+    expect(window.localStorage.getItem(VOICE_STORAGE_KEY)).toBe("random");
+    expect(triggerBtn.textContent).toContain("Ngẫu nhiên");
+    expect(triggerBtn.getAttribute("data-voice")).toBe("random");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
+    expect(getStageBtn("random")?.getAttribute("aria-pressed")).toBe("true");
+    expect(getStageBtn("ngochuyen")?.getAttribute("aria-pressed")).toBe("false");
+
+    // 3. Switch Ngọc Huyền -> Ngẫu nhiên from FlashcardStage Settings and verify Navbar stays synced
+    fireEvent.click(getStageBtn("ngochuyen"));
+    expect(window.localStorage.getItem(VOICE_STORAGE_KEY)).toBe("ngochuyen");
+    expect(triggerBtn.textContent).toContain("Ngọc Huyền");
+    expect(getStageBtn("ngochuyen")?.getAttribute("aria-pressed")).toBe("true");
+    expect(getStageBtn("random")?.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(getStageBtn("random"));
+    expect(window.localStorage.getItem(VOICE_STORAGE_KEY)).toBe("random");
+    expect(triggerBtn.textContent).toContain("Ngẫu nhiên");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
+    expect(getStageBtn("random")?.getAttribute("aria-pressed")).toBe("true");
+    expect(getStageBtn("ngochuyen")?.getAttribute("aria-pressed")).toBe("false");
+
+    // 4. Same-tab direct localStorage reset (e.g. from legacy 'ngochuyen' -> removeItem) re-syncs both UIs
+    fireEvent.click(getStageBtn("ngochuyen"));
+    expect(triggerBtn.textContent).toContain("Ngọc Huyền");
+    expect(getStageBtn("ngochuyen")?.getAttribute("aria-pressed")).toBe("true");
+
+    window.localStorage.removeItem(VOICE_STORAGE_KEY);
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(triggerBtn.textContent).toContain("Ngẫu nhiên");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
+    expect(getStageBtn("random")?.getAttribute("aria-pressed")).toBe("true");
+    expect(getStageBtn("ngochuyen")?.getAttribute("aria-pressed")).toBe("false");
   });
 });
