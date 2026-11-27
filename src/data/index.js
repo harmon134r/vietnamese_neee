@@ -14,6 +14,12 @@ import {
   PRONUNCIATION_SENTENCES,
 } from "./pronunciationDrills.js";
 import { DIALOGUE_SCENARIOS } from "./dialogues.js";
+import {
+  CHASE_MODES,
+  CHASE_SCENES,
+  SYNONYM_ANTONYM_ITEMS,
+  getChaseItems,
+} from "./synonymAntonym.js";
 
 export {
   TOPICS,
@@ -24,6 +30,10 @@ export {
   TONE_MINIMAL_PAIRS,
   PRONUNCIATION_SENTENCES,
   DIALOGUE_SCENARIOS,
+  CHASE_MODES,
+  CHASE_SCENES,
+  SYNONYM_ANTONYM_ITEMS,
+  getChaseItems,
 };
 
 /**
@@ -52,6 +62,7 @@ export function getContentStats() {
       minimalPairs: TONE_MINIMAL_PAIRS.filter((x) => x.topicId === topic.id).length,
       pronunciationSentences: PRONUNCIATION_SENTENCES.filter((x) => x.topicId === topic.id).length,
       dialogueScenarios: DIALOGUE_SCENARIOS.filter((x) => x.topicId === topic.id).length,
+      synonymAntonymItems: SYNONYM_ANTONYM_ITEMS.filter((x) => x.topicId === topic.id).length,
     };
   }
 
@@ -66,6 +77,7 @@ export function getContentStats() {
     pronunciationSentences: PRONUNCIATION_SENTENCES.length,
     dialogueScenarios: DIALOGUE_SCENARIOS.length,
     dialogueTurns: DIALOGUE_SCENARIOS.reduce((sum, dlg) => sum + dlg.turns.length, 0),
+    synonymAntonymItems: SYNONYM_ANTONYM_ITEMS.length,
     byTopic,
   };
 }

@@ -81,6 +81,25 @@ export const APP_ART = Object.freeze({
     frames: 4,
     aspectRatio: "360 / 240",
   },
+  chaseThumb: {
+    src: "/images/chase/chase-thumb.webp",
+    alt: "Chú chó đuổi chú mèo trong sân vườn",
+    transparent: false,
+  },
+  chaseCatSheet: {
+    src: "/images/chase/cat-sheet.png",
+    alt: "Chú mèo chạy nhảy",
+    transparent: true,
+    frames: 4,
+    aspectRatio: "320 / 240",
+  },
+  chaseDogSheet: {
+    src: "/images/chase/dog-sheet.png",
+    alt: "Chú chó rượt đuổi",
+    transparent: true,
+    frames: 4,
+    aspectRatio: "340 / 240",
+  },
 });
 
 export const TOPIC_ILLUSTRATIONS = Object.freeze({
@@ -97,4 +116,5 @@ export const GAME_ILLUSTRATIONS = Object.freeze({
   pronunciation: APP_ART.banhChung,
   dialogue: APP_ART.xeBanhMi,
   reading: APP_ART.goiCuon,
+  chase: APP_ART.chaseThumb,
 });

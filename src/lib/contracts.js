@@ -199,6 +199,7 @@ export const GAME_TYPES = Object.freeze({
   SHADOW_SPEAK: "shadow_speak",
   PRONUNCIATION_LAB: "pronunciation_lab",
   FLASHCARD_REVIEW: "flashcard_review",
+  SYNONYM_ANTONYM_CHASE: "synonym-antonym-chase",
 });
 
 /**

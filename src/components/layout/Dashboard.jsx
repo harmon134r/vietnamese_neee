@@ -6,6 +6,7 @@ import {
   Headphones,
   MessageCircle,
   Mic,
+  PawPrint,
 } from "lucide-react";
 import { GAME_TYPES, MASTERY_LEVELS, SKILL_META, TOPIC_META } from "../../lib/contracts";
 import { resolveStudentDisplayName } from "../../lib/supabase";
@@ -47,6 +48,13 @@ const QUICK_SHORTCUTS = [
     title: "Đọc hiểu & ghép câu",
     sub: "Đoạn văn A2–B1 có tra từ ngay trong bài",
   },
+  {
+    id: "chase",
+    gameId: "chase",
+    icon: PawPrint,
+    title: "Đuổi bắt đồng · trái nghĩa",
+    sub: "Chó đuổi mèo 2 làn chạy/nhảy · 4 bối cảnh & nhạc chill",
+  },
 ];
 
 const GAME_LABELS = {
@@ -56,11 +64,13 @@ const GAME_LABELS = {
   [GAME_TYPES.DIALOGUE_BUILDER]: "Đối thoại nhập vai",
   [GAME_TYPES.SHADOW_SPEAK]: "Đọc theo câu mẫu",
   [GAME_TYPES.READING_COMPREHENSION]: "Đọc hiểu & ghép câu",
+  [GAME_TYPES.SYNONYM_ANTONYM_CHASE]: "Đuổi bắt đồng · trái nghĩa",
   [GAME_TYPES.FLASHCARD_REVIEW]: "Ôn tập flashcard",
   listening: "Nghe hiểu hội thoại",
   pronunciation: "Luyện phát âm",
   dialogue: "Đối thoại nhập vai",
   reading: "Đọc hiểu & ghép câu",
+  chase: "Đuổi bắt đồng · trái nghĩa",
 };
 
 function formatRelativeTime(isoString) {

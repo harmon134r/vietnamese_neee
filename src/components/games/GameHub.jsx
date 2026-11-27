@@ -7,6 +7,7 @@ import {
   Headphones,
   Layers,
   MessageSquare,
+  PawPrint,
   Volume2,
 } from "lucide-react";
 import { TOPICS, getTopicById } from "../../data";
@@ -17,6 +18,7 @@ import { ListeningGame } from "./ListeningGame";
 import { PronunciationLab } from "./PronunciationLab";
 import { DialogueRoleplay } from "./DialogueRoleplay";
 import { ReadingVocabGame } from "./ReadingVocabGame";
+import { SynonymAntonymChase } from "./SynonymAntonymChase";
 import "./games.css";
 
 function normalizeInitialGame(raw) {
@@ -52,6 +54,15 @@ function normalizeInitialGame(raw) {
     val === GAME_TYPES.READING_COMPREHENSION
   ) {
     return { view: "reading", subMode: "reading" };
+  }
+  if (
+    val === "chase" ||
+    val === "synonym" ||
+    val === "antonym" ||
+    val === "synonym-antonym" ||
+    val === GAME_TYPES.SYNONYM_ANTONYM_CHASE
+  ) {
+    return { view: "chase", subMode: null };
   }
   return { view: "hub", subMode: null };
 }
@@ -109,6 +120,17 @@ const GAME_MODES = [
     primarySkill: "reading",
     durationLabel: "4–6 phút",
     Icon: BookOpen,
+  },
+  {
+    id: "chase",
+    index: "05",
+    titleVi: "Đuổi Bắt Đồng Nghĩa – Trái Nghĩa",
+    subtitleVi:
+      "Chó đuổi mèo 2 làn nhảy/chạy luyện từ đồng nghĩa & trái nghĩa cùng nhạc nền chilling và 4 bối cảnh thay đổi.",
+    skills: ["reading", "listening"],
+    primarySkill: "reading",
+    durationLabel: "3–5 phút",
+    Icon: PawPrint,
   },
 ];
 
@@ -232,6 +254,13 @@ export function GameHub({
           <ReadingVocabGame
             activeTopicId={selectedTopic}
             initialSubMode={subModeHint || "reading"}
+            onCompleteSession={onCompleteSession}
+            onBack={handleBackToHub}
+          />
+        )}
+        {activeView === "chase" && (
+          <SynonymAntonymChase
+            activeTopicId={selectedTopic}
             onCompleteSession={onCompleteSession}
             onBack={handleBackToHub}
           />

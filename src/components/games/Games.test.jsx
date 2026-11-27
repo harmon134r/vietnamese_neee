@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 const mockSpeak = vi.fn(() => Promise.resolve({ source: "api" }));
@@ -82,6 +82,7 @@ import { ListeningGame } from "./ListeningGame";
 import { PronunciationLab } from "./PronunciationLab";
 import { DialogueRoleplay } from "./DialogueRoleplay";
 import { ReadingVocabGame } from "./ReadingVocabGame";
+import { SynonymAntonymChase } from "./SynonymAntonymChase";
 import { Navbar } from "../layout/Navbar";
 import { TopicOverview } from "../layout/TopicOverview";
 import { GAME_TYPES } from "../../lib/contracts";
@@ -96,6 +97,7 @@ import {
   PRONUNCIATION_SENTENCES,
   READING_PASSAGES,
   SENTENCE_BUILDERS,
+  SYNONYM_ANTONYM_ITEMS,
   TOPICS,
 } from "../../data";
 
@@ -116,7 +118,7 @@ afterEach(() => {
 });
 
 describe("GameHub", () => {
-  it("renders all 4 game modes and all 6 topic filters plus All", () => {
+  it("renders all 5 game modes including SynonymAntonymChase and all 6 topic filters plus All", () => {
     render(
       <GameHub
         activeTopicId="all"
@@ -134,6 +136,10 @@ describe("GameHub", () => {
     expect(screen.getByTestId("game-mode-card-pronunciation")).toBeInTheDocument();
     expect(screen.getByTestId("game-mode-card-dialogue")).toBeInTheDocument();
     expect(screen.getByTestId("game-mode-card-reading")).toBeInTheDocument();
+    expect(screen.getByTestId("game-mode-card-chase")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Đuổi Bắt Đồng Nghĩa – Trái Nghĩa/i)
+    ).toBeInTheDocument();
 
     expect(screen.getByTestId("topic-pill-all")).toBeInTheDocument();
     for (const topic of TOPICS) {
@@ -170,6 +176,16 @@ describe("GameHub", () => {
   it("respects initialGame prop for direct deep-linking from Dashboard", () => {
     render(<GameHub activeTopicId="weather" initialGame="dialogue" />);
     expect(screen.getByTestId("dialogue-picker")).toBeInTheDocument();
+  });
+
+  it("deep-links cleanly into SynonymAntonymChase via 'chase' or GAME_TYPES.SYNONYM_ANTONYM_CHASE", () => {
+    render(
+      <GameHub
+        activeTopicId="all"
+        initialGame={GAME_TYPES.SYNONYM_ANTONYM_CHASE}
+      />
+    );
+    expect(screen.getByTestId("synonym-antonym-chase")).toBeInTheDocument();
   });
 });
 
@@ -559,5 +575,88 @@ describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
       foodTopic.keyPhrases.slice(0, 3).map((p) => p.vi),
       { voice: "random" }
     );
+  });
+});
+
+describe("SynonymAntonymChase", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders Chơi/BXH tabs, pre-game mode selector, all 4 scenes, and BXH empty state", async () => {
+    window.localStorage?.clear?.();
+    render(<SynonymAntonymChase activeTopicId="all" />);
+
+    expect(screen.getByTestId("chase-tab-play")).toBeInTheDocument();
+    expect(screen.getByTestId("chase-tab-leaderboard")).toBeInTheDocument();
+
+    const setup = screen.getByTestId("chase-setup-overlay");
+    expect(within(setup).getByText("Đồng nghĩa")).toBeInTheDocument();
+    expect(within(setup).getByText("Trái nghĩa")).toBeInTheDocument();
+    expect(within(setup).getByText("Hỗn hợp")).toBeInTheDocument();
+    expect(within(setup).getByText("Sân vườn mùa thu")).toBeInTheDocument();
+    expect(within(setup).getByText("Trong nhà ấm cúng")).toBeInTheDocument();
+    expect(within(setup).getByText("Bãi biển hoàng hôn")).toBeInTheDocument();
+    expect(within(setup).getByText("Phố cổ chiều thu")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("chase-tab-leaderboard"));
+    expect(await screen.findByTestId("chase-leaderboard")).toBeInTheDocument();
+    expect(await screen.findByTestId("chase-bxh-empty")).toBeInTheDocument();
+  });
+
+  it("enters 2-lane live stage on Trái nghĩa, updates score on click, and supports ArrowUp/ArrowDown keyboard input", () => {
+    vi.useFakeTimers();
+    render(<SynonymAntonymChase activeTopicId="all" />);
+
+    // Select Trái nghĩa and start the chase
+    fireEvent.click(screen.getByTestId("chase-mode-antonym"));
+    fireEvent.click(screen.getByTestId("chase-start-btn"));
+
+    expect(screen.getByTestId("chase-lanes")).toBeInTheDocument();
+    expect(screen.getByTestId("chase-lane-top")).toHaveTextContent("NHẢY");
+    expect(screen.getByTestId("chase-lane-bottom")).toHaveTextContent("CHẠY THẲNG");
+    expect(screen.getByTestId("chase-prompt-pill")).toHaveTextContent(
+      "CHỌN TỪ TRÁI NGHĨA VỚI:"
+    );
+    expect(screen.getByTestId("chase-score-pill")).toHaveTextContent("Điểm: 0");
+
+    // Look up the exact correct answer for Question 1 and click its lane
+    const q1Prompt = screen.getByTestId("chase-prompt-word").textContent;
+    const q1Item = SYNONYM_ANTONYM_ITEMS.find(
+      (item) => item.mode === "antonym" && item.promptWord === q1Prompt
+    );
+    expect(q1Item).toBeDefined();
+
+    const topBtn = screen.getByTestId("chase-lane-top");
+    const bottomBtn = screen.getByTestId("chase-lane-bottom");
+    const q1CorrectLane = topBtn.textContent.includes(q1Item.correctAnswer)
+      ? "top"
+      : "bottom";
+
+    fireEvent.click(q1CorrectLane === "top" ? topBtn : bottomBtn);
+    expect(screen.getByTestId("chase-score-pill")).toHaveTextContent("Điểm: 10");
+    expect(screen.getByTestId("chase-feedback")).toBeInTheDocument();
+
+    // Advance past feedback timer to Question 2
+    act(() => {
+      vi.advanceTimersByTime(1300);
+    });
+    expect(screen.queryByTestId("chase-feedback")).not.toBeInTheDocument();
+
+    // Answer Question 2 using keyboard ArrowUp / ArrowDown
+    const q2Prompt = screen.getByTestId("chase-prompt-word").textContent;
+    const q2Item = SYNONYM_ANTONYM_ITEMS.find(
+      (item) => item.mode === "antonym" && item.promptWord === q2Prompt
+    );
+    expect(q2Item).toBeDefined();
+
+    const q2TopBtn = screen.getByTestId("chase-lane-top");
+    const q2Key = q2TopBtn.textContent.includes(q2Item.correctAnswer)
+      ? "ArrowUp"
+      : "ArrowDown";
+
+    fireEvent.keyDown(window, { key: q2Key, code: q2Key });
+    expect(screen.getByTestId("chase-score-pill")).toHaveTextContent("Điểm: 20");
+    expect(screen.getByTestId("chase-feedback")).toBeInTheDocument();
   });
 });
