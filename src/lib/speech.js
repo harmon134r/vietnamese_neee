@@ -25,7 +25,7 @@ const MAX_CACHE_ENTRIES = 160;
 const MAX_PREFETCH_CONCURRENCY = 2;
 const MAX_PREFETCH_QUEUE_SIZE = 40;
 const MAX_TTS_TEXT_LENGTH = 1000;
-const SUPABASE_CDN_TIMEOUT_MS = 1600;
+const SUPABASE_CDN_TIMEOUT_MS = 4500;
 const PIPELINE_LOOKAHEAD = 2;
 
 export { pickRandomVoiceForText, splitVietnameseSentences };
@@ -317,9 +317,11 @@ async function openTtsBrowserCache() {
 }
 
 /**
- * Direct Browser -> Supabase Storage Public CDN fast-path (`~60-150ms`),
+ * Direct Browser -> Supabase Storage Public CDN fast-path,
  * bypassing Vercel Serverless `/api/tts` whenever a clip is already cached in `tts-cache`.
- * Returns `null` on miss (`404`), timeout (`1600ms`), or network error so caller falls
+ * Uses a `4500ms` timeout for initial headers (TTFB) and clears it as soon as `response`
+ * headers arrive so an accepted `200 OK` WAV transfer is never aborted mid-download.
+ * Returns `null` on miss (`404`), header timeout, or network error so caller falls
  * through seamlessly to `/api/tts`.
  *
  * @param {string} sentenceText
@@ -344,7 +346,7 @@ async function fetchCachedFromSupabase(sentenceText, effectiveVoice, signal) {
 
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   let timedOut = false;
-  const timerId = controller
+  let timerId = controller
     ? setTimeout(() => {
         timedOut = true;
         controller.abort();
@@ -369,6 +371,13 @@ async function fetchCachedFromSupabase(sentenceText, effectiveVoice, signal) {
       ...(controller ? { signal: controller.signal } : {}),
     });
 
+    // Clear TTFB header timeout immediately once response headers arrive so valid
+    // 200 OK WAV body streams are never prematurely aborted mid-download.
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
+
     if (!response || !response.ok) {
       return null;
     }
@@ -385,7 +394,10 @@ async function fetchCachedFromSupabase(sentenceText, effectiveVoice, signal) {
     }
     return null;
   } finally {
-    if (timerId !== null) clearTimeout(timerId);
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
     signal?.removeEventListener?.("abort", onOuterAbort);
   }
 }
@@ -463,11 +475,32 @@ async function resolveAudioForUnit(sentenceText, resolvedVoice, { signal } = {})
       throw new Error("Fetch API unavailable");
     }
 
-    // 4. Direct Browser -> Supabase Storage Public CDN (~60-150ms, skips Vercel Serverless)
-    let response = await fetchCachedFromSupabase(cleanText, effectiveVoice, signal);
+    // 4. Direct Browser -> Supabase Storage Public CDN (skips Vercel Serverless)
+    let blob = null;
+    let responseForCache = null;
+
+    const cdnResponse = await fetchCachedFromSupabase(cleanText, effectiveVoice, signal);
+    if (cdnResponse) {
+      try {
+        const cdnClone =
+          browserCache && typeof cdnResponse.clone === "function"
+            ? cdnResponse.clone()
+            : null;
+        const cdnBlob = await cdnResponse.blob();
+        if (cdnBlob && cdnBlob.size > 0) {
+          blob = cdnBlob;
+          responseForCache = cdnClone;
+        }
+      } catch (err) {
+        if (signal?.aborted) {
+          throw err;
+        }
+        // Transient CDN body stream error -> fall through cleanly to /api/tts
+      }
+    }
 
     // 5. Fallback to Vercel Serverless `/api/tts` (generates via VieNeu-TTS HF & persists to Supabase)
-    if (!response) {
+    if (!blob) {
       if (signal?.aborted) {
         const abortErr = new Error("TTS request aborted");
         abortErr.name = "AbortError";
@@ -475,7 +508,7 @@ async function resolveAudioForUnit(sentenceText, resolvedVoice, { signal } = {})
       }
 
       const fetchInit = signal ? { method: "GET", signal } : { method: "GET" };
-      response = await fetch(endpoint, fetchInit);
+      const response = await fetch(endpoint, fetchInit);
       if (!response || !response.ok) {
         throw new Error(`TTS API failed with HTTP ${response?.status ?? "unknown"}`);
       }
@@ -484,14 +517,14 @@ async function resolveAudioForUnit(sentenceText, resolvedVoice, { signal } = {})
       if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) {
         throw new Error(`Unexpected TTS content-type: ${contentType}`);
       }
-    }
 
-    const responseForCache =
-      browserCache && typeof response.clone === "function" ? response.clone() : null;
+      responseForCache =
+        browserCache && typeof response.clone === "function" ? response.clone() : null;
 
-    const blob = await response.blob();
-    if (!blob || blob.size === 0) {
-      throw new Error("TTS API returned empty audio blob");
+      blob = await response.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error("TTS API returned empty audio blob");
+      }
     }
 
     if (browserCache && responseForCache) {
