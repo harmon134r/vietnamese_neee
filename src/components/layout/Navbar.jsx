@@ -301,9 +301,9 @@ export function Navbar({
               className="vf-brand"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onNavigate("dashboard")}
-              aria-label="ViệtFlow — Về trang tổng quan"
+              aria-label="munnn01 — Về trang tổng quan"
             >
-              <span className="vf-brand-name">ViệtFlow</span>
+              <span className="vf-brand-name">munnn01</span>
               <span className="vf-brand-level">A2–B1</span>
             </button>
 

@@ -1034,7 +1034,7 @@ export async function syncLocalToCloud() {
 }
 
 /**
- * Clear all locally stored ViệtFlow data (useful for tests or learner reset).
+ * Clear all locally stored munnn01 data (useful for tests or learner reset).
  * @returns {void}
  */
 export function clearLocalStorageData() {

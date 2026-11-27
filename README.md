@@ -1,6 +1,6 @@
-# ViệtFlow — Nền tảng Luyện 4 Kỹ Năng Tiếng Việt (A2–B1) & Flashcard Studio
+# munnn01 — Nền tảng Luyện 4 Kỹ Năng Tiếng Việt (A2–B1) & Flashcard Studio
 
-**ViệtFlow** là ứng dụng web dành cho **người lớn học tiếng Việt trình độ Pre-Intermediate (A2–B1)**, kết hợp 4 trò chơi tương tác rèn luyện toàn diện **Nghe · Nói · Đọc · Phát âm** trên 6 chủ đề đời sống thực tế cùng **Flashcard Studio** hỗ trợ tạo thẻ thông minh, phát âm chuẩn và chấm điểm giọng nói trực tiếp.
+**munnn01** là ứng dụng web dành cho **người lớn học tiếng Việt trình độ Pre-Intermediate (A2–B1)**, kết hợp 4 trò chơi tương tác rèn luyện toàn diện **Nghe · Nói · Đọc · Phát âm** trên 6 chủ đề đời sống thực tế cùng **Flashcard Studio** hỗ trợ tạo thẻ thông minh, phát âm chuẩn và chấm điểm giọng nói trực tiếp.
 
 ---
 
@@ -103,7 +103,7 @@ vietnamese_neee/
 │       └── 001_initial_schema.sql      # Schema PostgreSQL + RLS + triggers
 ├── src/
 │   ├── App.jsx                         # Điều hướng chính, trạng thái & CRUD lưu trữ
-│   ├── styles.css                      # Hệ thống giao diện dark-navy ViệtFlow
+│   ├── styles.css                      # Hệ thống giao diện dark-navy munnn01
 │   ├── data/                           # 6 chủ đề A2–B1, starter decks, bài nghe/đọc/đối thoại
 │   ├── hooks/
 │   │   └── useVietnameseSpeech.js      # React hook TTS + STT + ghi âm

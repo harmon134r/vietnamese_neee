@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "ViệtFlow — Web app luyện 4 kỹ năng tiếng Việt (A2-B1) & Flashcard Studio",
+  "description": "munnn01 — Web app luyện 4 kỹ năng tiếng Việt (A2-B1) & Flashcard Studio",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

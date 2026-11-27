@@ -446,6 +446,11 @@ describe("AuthModal, Navbar, and Dashboard student-name UI", () => {
         onOpenAuth: vi.fn(),
       })
     );
+    expect(screen.getByText("munnn01")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "munnn01 — Về trang tổng quan" })
+    ).toBeInTheDocument();
+    expect(navContainer1.textContent).not.toContain("ViệtFlow");
     expect(screen.getByText("Nguyễn Anh Thư")).toBeInTheDocument();
     expect(navContainer1.textContent).not.toContain("@students.vietflow.app");
     unmountNav1();

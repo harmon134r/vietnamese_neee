@@ -1,5 +1,5 @@
 /**
- * Unified Curriculum & Content Entry Point for ViệtFlow (Adult Pre-Intermediate A2-B1 Vietnamese).
+ * Unified Curriculum & Content Entry Point for munnn01 (Adult Pre-Intermediate A2-B1 Vietnamese).
  */
 
 import { TOPICS } from "./topics.js";

@@ -1,5 +1,5 @@
 /**
- * Shared constants, normalizers, and JSDoc domain contracts for ViệtFlow.
+ * Shared constants, normalizers, and JSDoc domain contracts for munnn01.
  * Consumed across curriculum data, games, Flashcard Studio, speech engine, and storage.
  */
 

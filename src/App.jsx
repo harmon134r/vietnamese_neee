@@ -117,7 +117,7 @@ export function App() {
       setGameHistory(loadedHistory);
       setStorageMode(mode);
     } catch (err) {
-      console.error("Failed to load ViệtFlow data:", err);
+      console.error("Failed to load munnn01 data:", err);
       notify("Không thể tải đầy đủ dữ liệu. Đã dùng bộ khởi tạo mặc định.", "error");
     } finally {
       setIsLoading(false);
