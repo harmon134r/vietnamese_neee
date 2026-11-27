@@ -187,12 +187,16 @@ a:hover {
    ========================================================================== */
 
 .vf-app {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
 .vf-main {
+  position: relative;
+  z-index: 1;
   flex: 1;
   width: 100%;
   max-width: 1120px;
@@ -216,8 +220,148 @@ a:hover {
   letter-spacing: 0.01em;
   color: var(--text-muted);
   opacity: 0.72;
+  text-shadow: 0 1px 6px rgba(31, 30, 29, 0.95);
   pointer-events: none;
   user-select: none;
+}
+
+/* ==========================================================================
+   Ambient Swaying Watercolor Bamboo Groves (Left & Right Empty Margins)
+   ========================================================================== */
+
+.vf-bamboo-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.vf-bamboo-side {
+  position: absolute;
+  bottom: 0;
+  width: clamp(150px, 14vw, 240px);
+  height: min(74vh, 680px);
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.vf-bamboo-side--left {
+  left: 0;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 76%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 76%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+}
+
+.vf-bamboo-side--right {
+  right: 0;
+  -webkit-mask-image: linear-gradient(
+    to left,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 76%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  mask-image: linear-gradient(
+    to left,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 76%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+}
+
+.vf-bamboo-stalk {
+  position: absolute;
+  bottom: -8px;
+  height: auto;
+  max-height: 100%;
+  display: block;
+  will-change: transform;
+}
+
+.vf-bamboo-stalk--left-front {
+  left: -12px;
+  width: 100%;
+  transform-origin: 20% 100%;
+  animation: vfBambooSwayLeft 9.5s ease-in-out infinite;
+}
+
+.vf-bamboo-stalk--left-back {
+  left: -24px;
+  bottom: -10px;
+  width: 112%;
+  opacity: 0.56;
+  transform-origin: 18% 100%;
+  transform: scaleX(-1);
+  animation: vfBambooSwayLeftBack 13.5s ease-in-out -3.8s infinite;
+}
+
+.vf-bamboo-stalk--right-front {
+  right: -12px;
+  width: 100%;
+  transform-origin: 80% 100%;
+  animation: vfBambooSwayRight 10.8s ease-in-out -1.4s infinite;
+}
+
+.vf-bamboo-stalk--right-back {
+  right: -22px;
+  bottom: -10px;
+  width: 112%;
+  opacity: 0.52;
+  transform-origin: 82% 100%;
+  transform: scaleX(-1);
+  animation: vfBambooSwayRightBack 14.5s ease-in-out -5.2s infinite;
+}
+
+/* ==========================================================================
+   Always-Visible Bottom Patrolling Trio (Duckling, Puppy & Kid)
+   ========================================================================== */
+
+.vf-runner-stage {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  height: 58px;
+  z-index: 15;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.vf-runner-track {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: max-content;
+  will-change: transform;
+  animation: vfRunnerPatrolDesktop 26s linear infinite;
+}
+
+.vf-runner-flip {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  animation: vfRunnerFlip 26s linear infinite;
+}
+
+.vf-runner-sprite {
+  display: block;
+  height: 48px;
+  width: auto;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+  will-change: transform;
+  animation: vfRunnerHop 0.52s ease-in-out infinite;
 }
 
 /* ==========================================================================
@@ -367,7 +511,7 @@ a:hover {
 .vf-navbar {
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 50;
   height: var(--nav-height);
   background: rgba(31, 30, 29, 0.94);
   backdrop-filter: blur(10px);
@@ -2172,9 +2316,150 @@ a:hover {
   }
 }
 
+@keyframes vfBambooSwayLeft {
+  0%,
+  100% {
+    transform: rotate(-1.6deg) skewX(-0.5deg);
+  }
+  28% {
+    transform: rotate(1.3deg) skewX(0.45deg);
+  }
+  54% {
+    transform: rotate(2.2deg) skewX(0.7deg);
+  }
+  78% {
+    transform: rotate(-0.5deg) skewX(-0.18deg);
+  }
+}
+
+@keyframes vfBambooSwayLeftBack {
+  0%,
+  100% {
+    transform: scaleX(-1) rotate(-1.3deg) skewX(-0.4deg);
+  }
+  34% {
+    transform: scaleX(-1) rotate(1.5deg) skewX(0.5deg);
+  }
+  66% {
+    transform: scaleX(-1) rotate(0.4deg) skewX(0.15deg);
+  }
+}
+
+@keyframes vfBambooSwayRight {
+  0%,
+  100% {
+    transform: rotate(1.7deg) skewX(0.5deg);
+  }
+  30% {
+    transform: rotate(-1.2deg) skewX(-0.4deg);
+  }
+  56% {
+    transform: rotate(-2.0deg) skewX(-0.65deg);
+  }
+  80% {
+    transform: rotate(0.6deg) skewX(0.2deg);
+  }
+}
+
+@keyframes vfBambooSwayRightBack {
+  0%,
+  100% {
+    transform: scaleX(-1) rotate(1.4deg) skewX(0.45deg);
+  }
+  38% {
+    transform: scaleX(-1) rotate(-1.5deg) skewX(-0.45deg);
+  }
+  70% {
+    transform: scaleX(-1) rotate(-0.3deg) skewX(-0.1deg);
+  }
+}
+
+@keyframes vfRunnerPatrolDesktop {
+  0% {
+    transform: translate3d(16px, 0, 0);
+  }
+  48.5%,
+  50% {
+    transform: translate3d(calc(100vw - 135px), 0, 0);
+  }
+  98.5%,
+  100% {
+    transform: translate3d(16px, 0, 0);
+  }
+}
+
+@keyframes vfRunnerPatrolMobile {
+  0% {
+    transform: translate3d(12px, 0, 0);
+  }
+  48.5%,
+  50% {
+    transform: translate3d(calc(100vw - 95px), 0, 0);
+  }
+  98.5%,
+  100% {
+    transform: translate3d(12px, 0, 0);
+  }
+}
+
+@keyframes vfRunnerFlip {
+  0%,
+  48.8% {
+    transform: scaleX(1);
+  }
+  49.6%,
+  98.8% {
+    transform: scaleX(-1);
+  }
+  99.6%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes vfRunnerHop {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.2deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(1.4deg);
+  }
+}
+
 /* ==========================================================================
    Responsive Breakpoints
    ========================================================================== */
+
+@media (max-width: 1399px) {
+  .vf-bamboo-side {
+    width: clamp(92px, 9.5vw, 138px);
+    height: min(62vh, 520px);
+    opacity: 0.34;
+  }
+
+  .vf-bamboo-stalk--left-front {
+    left: -16px;
+  }
+
+  .vf-bamboo-stalk--left-back {
+    left: -26px;
+  }
+
+  .vf-bamboo-stalk--right-front {
+    right: -16px;
+  }
+
+  .vf-bamboo-stalk--right-back {
+    right: -26px;
+  }
+}
+
+@media (max-width: 1119px) {
+  .vf-bamboo-frame {
+    display: none;
+  }
+}
 
 @media (max-width: 960px) {
   .vf-desk-grid {
@@ -2253,6 +2538,19 @@ a:hover {
   .vf-credit {
     right: 14px;
     bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .vf-runner-stage {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    height: 48px;
+  }
+
+  .vf-runner-track {
+    animation-name: vfRunnerPatrolMobile;
+  }
+
+  .vf-runner-sprite {
+    height: 38px;
   }
 
   .vf-toast-stack {
@@ -2369,5 +2667,21 @@ a:hover {
   .vf-practice-link:last-child {
     grid-column: auto;
     border-bottom: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vf-bamboo-stalk {
+    animation: none;
+  }
+
+  .vf-runner-track,
+  .vf-runner-flip,
+  .vf-runner-sprite {
+    animation: none;
+  }
+
+  .vf-runner-track {
+    transform: translate3d(16px, 0, 0);
   }
 }

@@ -49,6 +49,21 @@ export const APP_ART = Object.freeze({
     alt: "Gia đình nông dân mùa gặt",
     transparent: false,
   },
+  bambooLeft: {
+    src: "/images/bamboo-left.png",
+    alt: "Khóm tre xanh nghiêng bên trái",
+    transparent: true,
+  },
+  bambooRight: {
+    src: "/images/bamboo-right.png",
+    alt: "Rặng tre xanh nghiêng bên phải",
+    transparent: true,
+  },
+  runnerTrio: {
+    src: "/images/runner-trio.png",
+    alt: "Em bé, cún con và vịt vàng đang chạy",
+    transparent: true,
+  },
 });
 
 export const TOPIC_ILLUSTRATIONS = Object.freeze({

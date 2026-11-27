@@ -29,6 +29,8 @@ import {
 } from "./lib/supabase";
 import { stopSpeaking } from "./lib/speech";
 import Navbar from "./components/layout/Navbar";
+import BambooFrame from "./components/layout/BambooFrame";
+import BottomRunner from "./components/layout/BottomRunner";
 import Dashboard from "./components/layout/Dashboard";
 import TopicOverview from "./components/layout/TopicOverview";
 import AuthModal from "./components/layout/AuthModal";
@@ -452,6 +454,8 @@ export function App() {
 
   return (
     <div className="vf-app">
+      <BambooFrame />
+
       <Navbar
         activeView={activeView}
         onNavigate={handleNavigate}
@@ -539,6 +543,8 @@ export function App() {
           </>
         )}
       </main>
+
+      <BottomRunner />
 
       <div className="vf-credit">@thembanhkhoai</div>
 
