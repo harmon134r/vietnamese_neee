@@ -9,6 +9,7 @@ import {
   Volume2,
 } from "lucide-react";
 import * as speechApi from "../../lib/speech";
+import { APP_ART, TOPIC_ILLUSTRATIONS } from "../../data/illustrations";
 
 const TOPIC_SHORT_LABELS = {
   self: "Bản thân",
@@ -147,6 +148,8 @@ export function TopicOverview({
     ? activeTopic.keyPhrases
     : [];
   const grammar = activeTopic.grammarSpotlight || null;
+  const topicArt = TOPIC_ILLUSTRATIONS[activeTopic.id] || null;
+  const isFoodTopic = activeTopic.id === "food";
 
   const topicCardCount = decks.reduce((sum, deck) => {
     const matches = (deck.cards || []).filter(
@@ -225,17 +228,42 @@ export function TopicOverview({
         className="vf-chapter-hero"
         aria-label={`Chi tiết chủ đề ${activeTopic.titleVi}`}
       >
-        <div>
-          <div className="vf-chapter-kicker">
-            Chương {chapterCode} · {activeTopic.cefrFocus || activeTopic.cefrLevel || "A2–B1"}
-          </div>
-          <h1 className="vf-chapter-heading">{activeTopic.titleVi}</h1>
-          {activeTopic.titleEn && (
-            <p className="vf-chapter-en">{activeTopic.titleEn}</p>
+        <div className="vf-chapter-hero-main">
+          {topicArt && (
+            <div className="vf-chapter-art-group">
+              <div className="vf-art-frame vf-chapter-hero-art">
+                <img
+                  src={topicArt.src}
+                  alt={topicArt.alt}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              {isFoodTopic && (
+                <div className="vf-art-frame vf-chapter-hero-art-accent">
+                  <img
+                    src={APP_ART.goiCuon.src}
+                    alt={APP_ART.goiCuon.alt}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              )}
+            </div>
           )}
-          <p className="vf-chapter-summary">
-            {activeTopic.descriptionVi || activeTopic.summary || activeTopic.subtitleVi}
-          </p>
+
+          <div className="vf-chapter-hero-copy">
+            <div className="vf-chapter-kicker">
+              Chương {chapterCode} · {activeTopic.cefrFocus || activeTopic.cefrLevel || "A2–B1"}
+            </div>
+            <h1 className="vf-chapter-heading">{activeTopic.titleVi}</h1>
+            {activeTopic.titleEn && (
+              <p className="vf-chapter-en">{activeTopic.titleEn}</p>
+            )}
+            <p className="vf-chapter-summary">
+              {activeTopic.descriptionVi || activeTopic.summary || activeTopic.subtitleVi}
+            </p>
+          </div>
         </div>
 
         <div className="vf-chapter-side">

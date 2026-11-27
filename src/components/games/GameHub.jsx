@@ -10,6 +10,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { TOPICS, getTopicById } from "../../data";
+import { GAME_ILLUSTRATIONS } from "../../data/illustrations";
 import { GAME_TYPES, SKILL_META, TOPIC_META } from "../../lib/contracts";
 import { speakVietnamese, stopSpeaking } from "../../lib/speech";
 import { ListeningGame } from "./ListeningGame";
@@ -408,6 +409,7 @@ export function GameHub({
             .map((id) => SKILL_META[id]?.labelVi)
             .filter(Boolean)
             .join(" · ");
+          const gameArt = GAME_ILLUSTRATIONS[mode.id];
 
           return (
             <article
@@ -417,15 +419,28 @@ export function GameHub({
             >
               <div>
                 <div className="vf-g-mode-top">
-                  <div className="vf-g-mode-index-group">
-                    <span className="vf-g-mode-index">{mode.index}</span>
-                    <span className="vf-g-mode-icon" aria-hidden="true">
-                      <ModeIcon size={18} strokeWidth={1.75} />
+                  <div className="vf-g-mode-top-left">
+                    <div className="vf-g-mode-index-group">
+                      <span className="vf-g-mode-index">{mode.index}</span>
+                      <span className="vf-g-mode-icon" aria-hidden="true">
+                        <ModeIcon size={17} strokeWidth={1.75} />
+                      </span>
+                    </div>
+                    <span className="vf-g-mode-duration vf-g-mono">
+                      {mode.durationLabel}
                     </span>
                   </div>
-                  <span className="vf-g-mono" style={{ fontSize: "0.76rem", color: "var(--g-text-muted)" }}>
-                    {mode.durationLabel}
-                  </span>
+
+                  {gameArt && (
+                    <div className="vf-art-frame vf-g-mode-art">
+                      <img
+                        src={gameArt.src}
+                        alt={gameArt.alt}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <h2 className="vf-g-mode-title">{mode.titleVi}</h2>

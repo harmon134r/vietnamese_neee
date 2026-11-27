@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search, Shuffle } from "lucide-react";
 import { MASTERY_LEVELS, TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
+import { APP_ART } from "../../data/illustrations.js";
 import { FlashcardStage } from "./FlashcardStage.jsx";
 import { FlashcardCreator } from "./FlashcardCreator.jsx";
 import { FlashcardDeckManager } from "./FlashcardDeckManager.jsx";
@@ -167,7 +168,15 @@ export function FlashcardStudio({
     <section className="fc-studio" aria-label="Flashcard tiếng Việt">
       {/* Single Hairline Top Bar: Source Serif 4 Title + Minimal Underline Tabs */}
       <header className="fc-header">
-        <h2 className="fc-studio-title">Flashcard tiếng Việt</h2>
+        <h2 className="fc-studio-title">
+          <img
+            src={APP_ART.lotus.src}
+            alt={APP_ART.lotus.alt}
+            className="fc-studio-lotus"
+            decoding="async"
+          />
+          <span>Flashcard tiếng Việt</span>
+        </h2>
 
         <div className="fc-mode-switcher" role="tablist" aria-label="Chế độ Flashcard">
           <button

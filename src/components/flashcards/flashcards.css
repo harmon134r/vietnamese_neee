@@ -76,6 +76,9 @@
 
 .fc-studio-title {
   margin: 0 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   font-family: var(--fc-font-serif);
   font-size: clamp(1.3rem, 2.1vw, 1.56rem);
   font-weight: 500;
@@ -83,6 +86,14 @@
   line-height: 1.22;
   font-optical-sizing: auto;
   color: var(--fc-ink);
+}
+
+.fc-studio-lotus {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
 }
 
 .fc-mode-switcher {
@@ -1740,6 +1751,60 @@
   box-sizing: border-box;
 }
 
+/* Warm Editorial Artwork Accents in Creator & PDF Guide */
+.fc-guide-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  padding: 4px;
+  background: #f7f3ea;
+  border: 1px solid rgba(236, 235, 228, 0.16);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.fc-guide-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.fc-creator-tip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--fc-surface);
+  border: 1px solid var(--fc-border);
+}
+
+.fc-creator-tip-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fc-creator-tip-copy strong {
+  font-family: var(--fc-font-serif);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--fc-ink);
+}
+
+.fc-creator-tip-copy p {
+  margin: 0;
+  font-size: 0.77rem;
+  color: var(--fc-muted);
+  line-height: 1.48;
+}
+
 /* Bulk Format Guide & Editable Table */
 .fc-format-hints {
   display: grid;
@@ -2100,6 +2165,14 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.fc-pdf-guide-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 320px;
 }
 
 .fc-pdf-guide-title {

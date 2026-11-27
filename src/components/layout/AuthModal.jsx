@@ -19,6 +19,7 @@ import {
   signUp,
 } from "../../lib/supabase";
 import { syncLocalToCloud } from "../../lib/storage";
+import { APP_ART } from "../../data/illustrations";
 
 const ENV_SNIPPET = `VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY`;
@@ -194,23 +195,34 @@ export function AuthModal({
         aria-labelledby="vf-auth-modal-title"
       >
         <div className="vf-modal-header">
-          <div>
-            <h2 id="vf-auth-modal-title" className="vf-modal-title">
-              {!isSupabaseConfigured
-                ? "Lưu dữ liệu cục bộ"
-                : user
-                  ? "Tài khoản & đồng bộ"
-                  : mode === "signup"
-                    ? "Tạo tài khoản"
-                    : "Đăng nhập"}
-            </h2>
-            <p className="vf-modal-subtitle">
-              {!isSupabaseConfigured
-                ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
-                : user
-                  ? "Thẻ từ và lịch sử luyện tập đang đồng bộ qua Supabase."
-                  : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
-            </p>
+          <div className="vf-modal-header-main">
+            <div className="vf-art-frame vf-modal-mascot">
+              <img
+                src={APP_ART.mascot.src}
+                alt={APP_ART.mascot.alt}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+
+            <div className="vf-modal-header-copy">
+              <h2 id="vf-auth-modal-title" className="vf-modal-title">
+                {!isSupabaseConfigured
+                  ? "Lưu dữ liệu cục bộ"
+                  : user
+                    ? "Tài khoản & đồng bộ"
+                    : mode === "signup"
+                      ? "Tạo tài khoản"
+                      : "Đăng nhập"}
+              </h2>
+              <p className="vf-modal-subtitle">
+                {!isSupabaseConfigured
+                  ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
+                  : user
+                    ? "Thẻ từ và lịch sử luyện tập đang đồng bộ qua Supabase."
+                    : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
+              </p>
+            </div>
           </div>
 
           <button

@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
+import { APP_ART } from "../../data/illustrations.js";
 import * as speechApi from "../../lib/speech.js";
 import {
   PDF_FORMAT_EXAMPLES,
@@ -760,6 +761,21 @@ export function FlashcardCreator({
                 <div className="fc-preview-ex">“{form.exampleVi.trim()}”</div>
               )}
             </div>
+
+            <div className="fc-creator-tip">
+              <div className="vf-art-frame fc-guide-art">
+                <img
+                  src={APP_ART.mascot.src}
+                  alt={APP_ART.mascot.alt}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <div className="fc-creator-tip-copy">
+                <strong>Mẹo tạo thẻ dễ nhớ</strong>
+                <p>Thêm một câu ví dụ gần gũi và bấm Nghe thử để quen thanh điệu trước khi lưu.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1175,12 +1191,22 @@ export function FlashcardCreator({
           {/* Built-in PDF Format Guide Panel */}
           <div className="fc-pdf-guide" data-testid="fc-pdf-format-guide">
             <div className="fc-pdf-guide-head">
-              <div>
-                <h3 className="fc-pdf-guide-title">Cấu trúc file PDF gợi ý</h3>
-                <p className="fc-pdf-guide-sub">
-                  Soạn trong Word, Google Docs hoặc Canva theo 1 trong 3 mẫu bên dưới rồi xuất{" "}
-                  <strong>PDF (có lớp chữ)</strong> để tải lên.
-                </p>
+              <div className="fc-pdf-guide-intro">
+                <div className="vf-art-frame fc-guide-art">
+                  <img
+                    src={APP_ART.comHanoi.src}
+                    alt={APP_ART.comHanoi.alt}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+                <div>
+                  <h3 className="fc-pdf-guide-title">Cấu trúc file PDF gợi ý</h3>
+                  <p className="fc-pdf-guide-sub">
+                    Soạn trong Word, Google Docs hoặc Canva theo 1 trong 3 mẫu bên dưới rồi xuất{" "}
+                    <strong>PDF (có lớp chữ)</strong> để tải lên.
+                  </p>
+                </div>
               </div>
               {pdfFileMeta && (
                 <button

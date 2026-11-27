@@ -334,6 +334,33 @@ a:hover {
 }
 
 /* ==========================================================================
+   Warm Editorial Watercolor Artwork Frames (Giấy Dó Ivory #f7f3ea)
+   ========================================================================== */
+
+.vf-art-frame {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #f7f3ea;
+  border: 1px solid rgba(236, 235, 228, 0.16);
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.vf-art-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* ==========================================================================
    Flat 58px Top Navbar + Mobile Bottom Bar
    ========================================================================== */
 
@@ -369,12 +396,20 @@ a:hover {
 
 .vf-brand {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   padding: 4px 0;
   border: none;
   background: transparent;
   text-align: left;
+  flex-shrink: 0;
+}
+
+.vf-brand-emblem {
+  height: 22px;
+  width: auto;
+  object-fit: contain;
+  display: block;
   flex-shrink: 0;
 }
 
@@ -397,6 +432,7 @@ a:hover {
   font-weight: 400;
   color: var(--text-muted);
   letter-spacing: 0.02em;
+  margin-top: 2px;
 }
 
 .vf-nav-links {
@@ -694,8 +730,24 @@ a:hover {
   flex-wrap: wrap;
 }
 
+.vf-desk-greeting {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  flex: 1 1 420px;
+}
+
+.vf-desk-mascot {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  padding: 5px;
+}
+
 .vf-desk-intro {
   max-width: 60ch;
+  min-width: 0;
 }
 
 .vf-desk-title {
@@ -855,9 +907,10 @@ a:hover {
 
 .vf-chapter-row {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-columns: 28px 52px minmax(0, 1fr);
   gap: 14px;
-  padding: 19px 10px;
+  align-items: start;
+  padding: 18px 10px;
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color var(--transition-fast);
 }
@@ -872,6 +925,19 @@ a:hover {
   color: var(--text-muted);
   padding-top: 4px;
   font-variant-numeric: tabular-nums;
+}
+
+.vf-chapter-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  padding: 4px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.vf-chapter-row:hover .vf-chapter-thumb {
+  border-color: rgba(236, 235, 228, 0.28);
 }
 
 .vf-chapter-body {
@@ -1050,6 +1116,32 @@ a:hover {
 .vf-quick-card:hover {
   background: var(--bg-elevated);
   border-color: var(--border-strong);
+}
+
+.vf-quick-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.vf-quick-card-head-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.vf-quick-card-art {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.vf-quick-card:hover .vf-quick-card-art {
+  border-color: rgba(236, 235, 228, 0.28);
 }
 
 .vf-quick-card-top {
@@ -1243,11 +1335,45 @@ a:hover {
 /* Chapter Masthead */
 .vf-chapter-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.8fr);
+  grid-template-columns: minmax(0, 1.55fr) minmax(240px, 0.8fr);
   gap: 28px;
   align-items: end;
   padding-bottom: 28px;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.vf-chapter-hero-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  min-width: 0;
+}
+
+.vf-chapter-art-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.vf-chapter-hero-art {
+  width: 116px;
+  height: 92px;
+  border-radius: 14px;
+  padding: 6px;
+}
+
+.vf-chapter-hero-art-accent {
+  width: 68px;
+  height: 68px;
+  border-radius: 12px;
+  padding: 5px;
+}
+
+.vf-chapter-hero-copy {
+  min-width: 0;
+  flex: 1;
 }
 
 .vf-chapter-kicker {
@@ -1644,6 +1770,25 @@ a:hover {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.vf-modal-header-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.vf-modal-mascot {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  padding: 4px;
+  margin-top: 2px;
+}
+
+.vf-modal-header-copy {
+  min-width: 0;
+}
+
 .vf-modal-title {
   margin: 0;
   font-family: var(--font-serif);
@@ -1673,6 +1818,7 @@ a:hover {
   color: var(--text-muted);
   display: grid;
   place-items: center;
+  flex-shrink: 0;
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
@@ -2167,6 +2313,49 @@ a:hover {
   .vf-chapter-top {
     flex-direction: column;
     gap: 2px;
+  }
+
+  .vf-desk-greeting {
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .vf-desk-mascot {
+    width: 60px;
+    height: 60px;
+    border-radius: 13px;
+    padding: 4px;
+  }
+
+  .vf-chapter-row {
+    grid-template-columns: 24px 44px minmax(0, 1fr);
+    gap: 11px;
+    padding: 16px 6px;
+  }
+
+  .vf-chapter-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+
+  .vf-chapter-hero-main {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .vf-chapter-hero-art {
+    width: 96px;
+    height: 76px;
+    border-radius: 12px;
+    padding: 5px;
+  }
+
+  .vf-chapter-hero-art-accent {
+    width: 58px;
+    height: 58px;
+    border-radius: 11px;
+    padding: 4px;
   }
 
   .vf-practice-strip {

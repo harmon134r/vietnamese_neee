@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { GAME_TYPES, MASTERY_LEVELS, SKILL_META, TOPIC_META } from "../../lib/contracts";
 import { resolveStudentDisplayName } from "../../lib/supabase";
+import { APP_ART, TOPIC_ILLUSTRATIONS } from "../../data/illustrations";
 
 const SKILL_BAR_ITEMS = [
   { id: "listening", label: "Nghe", gameId: "listening" },
@@ -134,15 +135,26 @@ export function Dashboard({
       {/* Top Study Desk Header */}
       <section className="vf-desk-header" aria-label="Bàn học tiếng Việt">
         <div className="vf-desk-masthead">
-          <div className="vf-desk-intro">
-            <h1 className="vf-desk-title">
-              {displayName
-                ? `Chào ${displayName}, hôm nay luyện gì?`
-                : "Chào bạn, hôm nay luyện gì?"}
-            </h1>
-            <p className="vf-desk-subtitle">
-              Chọn một chủ đề giao tiếp hằng ngày để nghe, nói, đọc hoặc ôn lại bộ thẻ từ của riêng bạn.
-            </p>
+          <div className="vf-desk-greeting">
+            <div className="vf-art-frame vf-desk-mascot">
+              <img
+                src={APP_ART.mascot.src}
+                alt={APP_ART.mascot.alt}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+
+            <div className="vf-desk-intro">
+              <h1 className="vf-desk-title">
+                {displayName
+                  ? `Chào ${displayName}, hôm nay luyện gì?`
+                  : "Chào bạn, hôm nay luyện gì?"}
+              </h1>
+              <p className="vf-desk-subtitle">
+                Chọn một chủ đề giao tiếp hằng ngày để nghe, nói, đọc hoặc ôn lại bộ thẻ từ của riêng bạn.
+              </p>
+            </div>
           </div>
 
           <div className="vf-desk-actions">
@@ -214,12 +226,27 @@ export function Dashboard({
                 Number(skillProgress?.topicMastery?.[topic.id] || 0)
               );
               const cardCount = cardsByTopic[topic.id] || 0;
+              const topicArt = TOPIC_ILLUSTRATIONS[topic.id];
 
               return (
                 <article key={topic.id} className="vf-chapter-row">
                   <span className="vf-chapter-num" aria-hidden="true">
                     {chapterNum}
                   </span>
+
+                  {topicArt && (
+                    <div
+                      className="vf-art-frame vf-chapter-thumb"
+                      onClick={() => onOpenTopicOverview(topic.id)}
+                    >
+                      <img
+                        src={topicArt.src}
+                        alt={topicArt.alt}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                  )}
 
                   <div className="vf-chapter-body">
                     <div className="vf-chapter-top">
@@ -324,10 +351,20 @@ export function Dashboard({
               className="vf-quick-card"
               onClick={onCreateFlashcard}
             >
-              <span className="vf-quick-card-top">
-                <span className="vf-quick-card-title">Tạo flashcard nhanh</span>
-                <span className="vf-quick-card-stat">
-                  {masteredCards}/{totalCards} đã thuộc
+              <span className="vf-quick-card-head">
+                <span className="vf-quick-card-head-copy">
+                  <span className="vf-quick-card-title">Tạo flashcard nhanh</span>
+                  <span className="vf-quick-card-stat">
+                    {masteredCards}/{totalCards} đã thuộc
+                  </span>
+                </span>
+                <span className="vf-art-frame vf-quick-card-art">
+                  <img
+                    src={APP_ART.banhChung.src}
+                    alt={APP_ART.banhChung.alt}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </span>
               </span>
               <p className="vf-quick-card-desc">

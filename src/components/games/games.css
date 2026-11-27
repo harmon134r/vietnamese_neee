@@ -510,16 +510,55 @@
 
 .vf-g-mode-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.vf-g-mode-top-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
 }
 
 .vf-g-mode-index-group {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+
+.vf-g-mode-duration {
+  font-size: 0.76rem;
+  color: var(--g-text-muted);
+}
+
+.vf-g-mode-art {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  padding: 4px;
+  background: #f7f3ea;
+  border: 1px solid rgba(236, 235, 228, 0.16);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: border-color 0.18s ease;
+}
+
+.vf-g-mode-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.vf-g-mode-card:hover .vf-g-mode-art {
+  border-color: rgba(236, 235, 228, 0.28);
 }
 
 .vf-g-mode-index {

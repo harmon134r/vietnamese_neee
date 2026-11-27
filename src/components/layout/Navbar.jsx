@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { resolveStudentDisplayName } from "../../lib/supabase";
 import * as speechApi from "../../lib/speech";
+import { APP_ART } from "../../data/illustrations";
 
 const FALLBACK_RANDOM_VOICE = Object.freeze({
   id: "random",
@@ -303,6 +304,12 @@ export function Navbar({
               onClick={() => onNavigate("dashboard")}
               aria-label="munnn01 — Về trang tổng quan"
             >
+              <img
+                src={APP_ART.emblem.src}
+                alt={APP_ART.emblem.alt}
+                className="vf-brand-emblem"
+                decoding="async"
+              />
               <span className="vf-brand-name">munnn01</span>
               <span className="vf-brand-level">A2–B1</span>
             </button>
