@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   FileText,
   Lightbulb,
+  Loader2,
   Play,
   RotateCcw,
   Square,
@@ -69,7 +70,15 @@ export function ListeningGame({
   onCompleteSession,
   onBack,
 }) {
-  const { isSpeaking, rate, setRate, voice, speak, stopSpeak } = useVietnameseSpeech({
+  const {
+    isSpeaking,
+    isLoadingAudio = false,
+    rate,
+    setRate,
+    voice,
+    speak,
+    stopSpeak,
+  } = useVietnameseSpeech({
     defaultRate: 1,
   });
 
@@ -130,6 +139,25 @@ export function ListeningGame({
   }, [completed, currentAudioVi, nextAudio1Vi, nextAudio2Vi, voice]);
 
   useEffect(() => {
+    if (completed || typeof window === "undefined") return undefined;
+    if (typeof speechApi.prefetchVietnamese !== "function") return undefined;
+    const voiceChangeEvent =
+      speechApi.VOICE_CHANGE_EVENT || "vietflow:voice-change";
+
+    const handleVoiceChange = (event) => {
+      const nextVoice =
+        event?.detail?.voice || speechApi.getSelectedVoice?.() || "";
+      const texts = [currentAudioVi, nextAudio1Vi, nextAudio2Vi].filter(Boolean);
+      if (texts.length > 0) {
+        speechApi.prefetchVietnamese(texts, nextVoice ? { voice: nextVoice } : {});
+      }
+    };
+
+    window.addEventListener(voiceChangeEvent, handleVoiceChange);
+    return () => window.removeEventListener(voiceChangeEvent, handleVoiceChange);
+  }, [completed, currentAudioVi, nextAudio1Vi, nextAudio2Vi]);
+
+  useEffect(() => {
     return () => {
       stopSpeak();
       speechApi.stopSpeaking?.();
@@ -138,7 +166,7 @@ export function ListeningGame({
 
   const handlePlayAudio = () => {
     if (!currentExercise) return;
-    if (isSpeaking) {
+    if (isSpeaking || isLoadingAudio) {
       stopSpeak();
       return;
     }
@@ -423,9 +451,14 @@ export function ListeningGame({
               type="button"
               className="vf-g-btn vf-g-btn--primary"
               onClick={handlePlayAudio}
+              aria-busy={isLoadingAudio}
               data-testid="listening-play-btn"
             >
-              {isSpeaking ? (
+              {isLoadingAudio ? (
+                <>
+                  <Loader2 size={14} aria-hidden="true" /> Đang tải...
+                </>
+              ) : isSpeaking ? (
                 <>
                   <Square size={14} /> Dừng
                 </>
@@ -439,7 +472,7 @@ export function ListeningGame({
 
             <div
               className={`vf-g-soundwave ${
-                isSpeaking ? "vf-g-soundwave--playing" : ""
+                isSpeaking && !isLoadingAudio ? "vf-g-soundwave--playing" : ""
               }`}
               aria-hidden="true"
             >
@@ -448,7 +481,7 @@ export function ListeningGame({
                   key={i}
                   className="vf-g-wave-bar"
                   style={{
-                    height: isSpeaking ? undefined : `${h}px`,
+                    height: isSpeaking && !isLoadingAudio ? undefined : `${h}px`,
                     animationDelay: `${(i % 7) * 0.1}s`,
                   }}
                 />

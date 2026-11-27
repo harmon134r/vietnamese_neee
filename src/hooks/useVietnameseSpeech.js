@@ -7,6 +7,7 @@ import {
   createAudioRecorder,
   getSelectedVoice,
   getVoiceMeta,
+  isCachedInMemory,
   isSpeechRecognitionSupported,
   prefetchVietnamese,
   setSelectedVoice,
@@ -16,13 +17,14 @@ import {
 } from "../lib/speech.js";
 
 /**
- * React hook wrapping Vietnamese TTS (`/api/tts` + Web Speech fallback),
+ * React hook wrapping Vietnamese TTS (Direct Supabase CDN + `/api/tts` + Web Speech fallback),
  * Vietnamese STT (`vi-VN`), live microphone level metering, and self-playback recording.
  *
  * @param {{ defaultRate?: number }} [options={}]
  */
 export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [speakingText, setSpeakingText] = useState("");
   const [rate, setRateState] = useState(() => {
     const n = Number(defaultRate);
@@ -163,6 +165,7 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
     stopSpeaking();
     if (mountedRef.current) {
       setIsSpeaking(false);
+      setIsLoadingAudio(false);
       setSpeakingText("");
     }
   }, []);
@@ -172,29 +175,44 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
       const cleanText = String(text || "").trim();
       if (!cleanText) return { source: "none" };
 
+      const targetVoice = overrideOptions.voice ?? voice;
+      const alreadyCached = isCachedInMemory(cleanText, targetVoice);
+
       const reqId = ++speakRequestIdRef.current;
       if (mountedRef.current) {
         setSpeechError(null);
         setIsSpeaking(true);
+        setIsLoadingAudio(!alreadyCached);
         setSpeakingText(cleanText);
       }
 
       const result = await speakVietnamese(cleanText, {
         rate: overrideOptions.rate ?? rate,
-        voice: overrideOptions.voice ?? voice,
+        voice: targetVoice,
         voiceName: overrideOptions.voiceName || "",
+        onPlayStart(meta) {
+          if (mountedRef.current && speakRequestIdRef.current === reqId) {
+            setIsLoadingAudio(false);
+          }
+          overrideOptions.onPlayStart?.(meta);
+        },
         onStart(meta) {
+          if (mountedRef.current && speakRequestIdRef.current === reqId) {
+            setIsLoadingAudio(false);
+          }
           overrideOptions.onStart?.(meta);
         },
         onEnd(meta) {
           if (mountedRef.current && speakRequestIdRef.current === reqId) {
             setIsSpeaking(false);
+            setIsLoadingAudio(false);
             setSpeakingText("");
           }
           overrideOptions.onEnd?.(meta);
         },
         onError(err) {
           if (mountedRef.current && speakRequestIdRef.current === reqId) {
+            setIsLoadingAudio(false);
             setSpeechError(err?.message || "Không thể phát âm tiếng Việt.");
           }
           overrideOptions.onError?.(err);
@@ -203,6 +221,7 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
 
       if (mountedRef.current && speakRequestIdRef.current === reqId) {
         setIsSpeaking(false);
+        setIsLoadingAudio(false);
         setSpeakingText("");
       }
 
@@ -339,6 +358,7 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
 
   return {
     isSpeaking,
+    isLoadingAudio,
     speakingText,
     rate,
     setRate,

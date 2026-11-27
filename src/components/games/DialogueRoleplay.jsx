@@ -7,6 +7,7 @@ import {
   EyeOff,
   Lightbulb,
   List,
+  Loader2,
   MessageSquare,
   Mic,
   MicOff,
@@ -37,6 +38,8 @@ export function DialogueRoleplay({
   onBack,
 }) {
   const {
+    isLoadingAudio = false,
+    speakingText = "",
     voice,
     speak,
     stopSpeak,
@@ -138,6 +141,31 @@ export function DialogueRoleplay({
       speechApi.prefetchVietnamese(texts, voice ? { voice } : {});
     }
   }, [activeScenario, currentTurn, completed, nextTurnNpcTextVi, voice]);
+
+  useEffect(() => {
+    if (!activeScenario || !currentTurn || completed || typeof window === "undefined") {
+      return undefined;
+    }
+    if (typeof speechApi.prefetchVietnamese !== "function") return undefined;
+    const voiceChangeEvent =
+      speechApi.VOICE_CHANGE_EVENT || "vietflow:voice-change";
+
+    const handleVoiceChange = (event) => {
+      const nextVoice =
+        event?.detail?.voice || speechApi.getSelectedVoice?.() || "";
+      const texts = [
+        currentTurn.npcTextVi,
+        ...(currentTurn.expectedResponses || []).map((r) => r?.textVi),
+        nextTurnNpcTextVi,
+      ].filter(Boolean);
+      if (texts.length > 0) {
+        speechApi.prefetchVietnamese(texts, nextVoice ? { voice: nextVoice } : {});
+      }
+    };
+
+    window.addEventListener(voiceChangeEvent, handleVoiceChange);
+    return () => window.removeEventListener(voiceChangeEvent, handleVoiceChange);
+  }, [activeScenario, currentTurn, completed, nextTurnNpcTextVi]);
 
   useEffect(() => {
     return () => {
@@ -731,9 +759,14 @@ export function DialogueRoleplay({
                       className="vf-g-btn vf-g-btn--ghost vf-g-btn--sm"
                       style={{ padding: "3px 5px", flexShrink: 0 }}
                       onClick={() => speak(msg.textVi, { rate: 0.95 })}
+                      aria-busy={isLoadingAudio && speakingText === msg.textVi}
                       aria-label="Nghe lại câu này"
                     >
-                      <Volume2 size={14} />
+                      {isLoadingAudio && speakingText === msg.textVi ? (
+                        <Loader2 size={14} aria-hidden="true" />
+                      ) : (
+                        <Volume2 size={14} />
+                      )}
                     </button>
                   )}
                 </div>

@@ -33,9 +33,11 @@ import {
   resolveEffectiveVoice,
   setSelectedVoice,
   speakVietnamese,
+  splitVietnameseSentences,
   startVietnameseListening,
   stopSpeaking,
 } from "./speech.js";
+import { computeTtsCachePath } from "./ttsText.js";
 import { pickRandomVoiceForText as apiPickRandomVoiceForText } from "../../api/tts.js";
 import { LISTENING_EXERCISES, PRONUNCIATION_SENTENCES, TOPICS } from "../data/index.js";
 import { useVietnameseSpeech } from "../hooks/useVietnameseSpeech.js";
@@ -276,6 +278,7 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     stopSpeaking();
     clearTtsCache();
     window.localStorage.removeItem(VOICE_STORAGE_KEY);
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     delete window.caches;
     delete window.SpeechRecognition;
@@ -735,6 +738,7 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(result.current.voiceOptions).toEqual(VOICE_OPTIONS);
     expect(typeof result.current.prefetch).toBe("function");
     expect(result.current.isSpeaking).toBe(false);
+    expect(result.current.isLoadingAudio).toBe(false);
     expect(result.current.isListening).toBe(false);
     expect(result.current.sttSupported).toBe(false);
     expect(result.current.micLevel).toBe(0);
@@ -917,5 +921,264 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
     expect(getStageBtn("random")?.getAttribute("aria-pressed")).toBe("true");
     expect(getStageBtn("ngochuyen")?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("splitVietnameseSentences keeps short/single sentences intact and splits multi-sentence passages cleanly", () => {
+    expect(splitVietnameseSentences("   ")).toEqual([]);
+    expect(splitVietnameseSentences("Xin chào Hà Nội")).toEqual(["Xin chào Hà Nội"]);
+    expect(splitVietnameseSentences("Chào bạn! Tôi là Nam.")).toEqual(["Chào bạn! Tôi là Nam."]);
+
+    // Single sentence > 110 chars stays intact
+    const singleLongSentence =
+      "Nhìn bề ngoài mình có vẻ hơi hướng nội, nhưng làm việc chung một thời gian bạn sẽ thấy mình khá hòa đồng và thích lắng nghe.";
+    expect(splitVietnameseSentences(singleLongSentence)).toEqual([singleLongSentence]);
+
+    // Multi-sentence passage merges tiny leading fragment (< 18 chars) with neighbor
+    const dialogueOpening =
+      "Chào bạn! Mình là Châu, quản lý dự án ở nhóm kế bên. Nghe bảo bạn mới gia nhập công ty tuần này, trước đây bạn làm trong lĩnh vực nào vậy?";
+    const dialogueChunks = splitVietnameseSentences(dialogueOpening);
+    expect(dialogueChunks).toEqual([
+      "Chào bạn! Mình là Châu, quản lý dự án ở nhóm kế bên.",
+      "Nghe bảo bạn mới gia nhập công ty tuần này, trước đây bạn làm trong lĩnh vực nào vậy?",
+    ]);
+
+    // Oversized sentence (> 160 chars) in a multi-sentence passage splits softly at clause boundaries
+    const oversizedPassage =
+      "Sáng nay thời tiết ở Hà Nội rất đẹp. Tôi thức dậy sớm lúc sáu giờ, pha một tách cà phê phin đậm đà, đọc tin tức buổi sáng, rồi chuẩn bị bài thuyết trình quan trọng cho buổi họp nhóm với khách hàng vào lúc chín giờ tại phòng họp lớn.";
+    const oversizedChunks = splitVietnameseSentences(oversizedPassage);
+    expect(oversizedChunks.length).toBeGreaterThanOrEqual(3);
+    for (const chunk of oversizedChunks) {
+      expect(chunk.length).toBeLessThanOrEqual(160);
+    }
+    expect(oversizedChunks.join(" ")).toBe(oversizedPassage);
+
+    // Every built-in listening exercise splits without dropping any characters
+    for (const ex of LISTENING_EXERCISES) {
+      const units = splitVietnameseSentences(ex.audioTextVi);
+      expect(units.length).toBeGreaterThanOrEqual(1);
+      expect(units.join(" ")).toBe(ex.audioTextVi.normalize("NFC").replace(/\s+/g, " ").trim());
+      if (units.length > 1) {
+        for (const u of units) {
+          expect(u.length).toBeLessThanOrEqual(160);
+        }
+      }
+    }
+  });
+
+  it("uses Direct Supabase CDN fast-path on 200 (skipping /api/tts) and falls through to /api/tts on 404", async () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://demo-project.supabase.co");
+
+    const cacheStore = new Map();
+    window.caches = {
+      open: vi.fn(async () => ({
+        match: vi.fn(async (key) => cacheStore.get(key) || undefined),
+        put: vi.fn(async (key, resp) => {
+          cacheStore.set(key, resp);
+        }),
+      })),
+    };
+
+    const makeWavResp = (payload) => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "audio/wav" },
+      blob: async () => new Blob([payload], { type: "audio/wav" }),
+      clone: () => makeWavResp(payload),
+    });
+
+    const hitPath = await computeTtsCachePath("maianh", "Xin chào Hà Nội");
+    const missPath = await computeTtsCachePath("maianh", "Cà phê sữa đá");
+
+    const fetchMock = vi.fn(async (url) => {
+      if (String(url).endsWith(`/storage/v1/object/public/tts-cache/${hitPath}`)) {
+        return makeWavResp("RIFF-cdn-hit");
+      }
+      if (String(url).endsWith(`/storage/v1/object/public/tts-cache/${missPath}`)) {
+        return { ok: false, status: 404, headers: { get: () => "application/json" } };
+      }
+      if (String(url).startsWith("/api/tts?")) {
+        return makeWavResp("RIFF-api-fallback");
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let blobCounter = 0;
+    vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:cdn-${++blobCounter}`);
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    class MockAudio {
+      constructor(src) {
+        this.src = src;
+        this.playbackRate = 1;
+        this.currentTime = 0;
+      }
+      play() {
+        queueMicrotask(() => this.onended?.());
+        return Promise.resolve();
+      }
+      pause() {}
+    }
+    vi.stubGlobal("Audio", MockAudio);
+
+    // 1. Supabase CDN HIT -> skips /api/tts completely
+    const hitRes = await speakVietnamese("Xin chào Hà Nội", { voice: "maianh" });
+    expect(hitRes).toEqual({ source: "api" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `https://demo-project.supabase.co/storage/v1/object/public/tts-cache/${hitPath}`
+    );
+
+    // Clearing memory still hits Browser Cache API without hitting network
+    clearTtsCache();
+    await speakVietnamese("Xin chào Hà Nội", { voice: "maianh" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 2. Supabase CDN 404 MISS -> falls through to /api/tts
+    const missRes = await speakVietnamese("Cà phê sữa đá", { voice: "maianh" });
+    expect(missRes).toEqual({ source: "api" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      `https://demo-project.supabase.co/storage/v1/object/public/tts-cache/${missPath}`
+    );
+    expect(fetchMock.mock.calls[2][0]).toContain("/api/tts?");
+    expect(fetchMock.mock.calls[2][0]).toContain("voice=maianh");
+  });
+
+  it("pipelines multi-sentence playback as soon as sentence 1 resolves, tracks isLoadingAudio, and cancels cleanly on stopSpeaking()", async () => {
+    const passage =
+      "Chào mọi người, mình là Nam. Quê gốc mình ở Đà Nẵng nhưng mình ra Hà Nội học đại học rồi ở lại làm việc được gần năm năm rồi. Trước đây mình học chuyên ngành tài chính, nhưng hai năm gần đây mình chuyển hẳn sang phân tích dữ liệu.";
+    const sentences = splitVietnameseSentences(passage);
+    expect(sentences).toHaveLength(3);
+
+    const deferredByUrl = new Map();
+    const abortedUrls = [];
+    const fetchMock = vi.fn((url, init) => {
+      let resolveFetch;
+      let rejectFetch;
+      const promise = new Promise((resolve, reject) => {
+        resolveFetch = resolve;
+        rejectFetch = reject;
+      });
+      init?.signal?.addEventListener?.("abort", () => {
+        abortedUrls.push(url);
+        const err = new Error("Aborted");
+        err.name = "AbortError";
+        rejectFetch(err);
+      });
+      deferredByUrl.set(url, { resolve: resolveFetch, reject: rejectFetch });
+      return promise;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let blobCounter = 0;
+    vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:pipe-${++blobCounter}`);
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    const audioInstances = [];
+    class ControllableAudio {
+      constructor(src) {
+        this.src = src;
+        this.playbackRate = 1;
+        this.currentTime = 0;
+        this.paused = false;
+        audioInstances.push(this);
+      }
+      play() {
+        this.played = true;
+        return Promise.resolve();
+      }
+      pause() {
+        this.paused = true;
+      }
+    }
+    vi.stubGlobal("Audio", ControllableAudio);
+
+    const { result, unmount } = renderHook(() => useVietnameseSpeech());
+    const onPlayStart = vi.fn();
+
+    let speakPromise;
+    act(() => {
+      speakPromise = result.current.speak(passage, { voice: "maianh", onPlayStart });
+    });
+
+    // Immediately marks loading before sentence 0 resolves
+    expect(result.current.isLoadingAudio).toBe(true);
+    expect(result.current.isSpeaking).toBe(true);
+
+    // Fires sentence 0 + lookahead sentences 1 & 2 concurrently
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+    const [url0, url1, url2] = fetchMock.mock.calls.map((c) => c[0]);
+    expect(decodeURIComponent(url0)).toContain(sentences[0]);
+    expect(decodeURIComponent(url1)).toContain(sentences[1]);
+    expect(decodeURIComponent(url2)).toContain(sentences[2]);
+
+    // Resolve ONLY sentence 0 -> playback starts IMMEDIATELY while sentences 1 & 2 are still pending!
+    await act(async () => {
+      deferredByUrl.get(url0).resolve({
+        ok: true,
+        headers: { get: () => "audio/wav" },
+        blob: async () => new Blob(["RIFF-s0"], { type: "audio/wav" }),
+      });
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(audioInstances).toHaveLength(1);
+      expect(audioInstances[0].played).toBe(true);
+      expect(onPlayStart).toHaveBeenCalledTimes(1);
+      expect(result.current.isLoadingAudio).toBe(false);
+      expect(result.current.isSpeaking).toBe(true);
+    });
+
+    // Calling stopSpeak() halts sentence 0, aborts pending sentences 1 & 2, and never plays them
+    act(() => {
+      result.current.stopSpeak();
+    });
+
+    const stoppedResult = await speakPromise;
+    expect(stoppedResult).toEqual({ source: "api", stopped: true });
+    expect(audioInstances[0].paused).toBe(true);
+    expect(audioInstances).toHaveLength(1);
+    expect(abortedUrls).toEqual(expect.arrayContaining([url1, url2]));
+    expect(result.current.isLoadingAudio).toBe(false);
+    expect(result.current.isSpeaking).toBe(false);
+
+    // Now test seamless full 3-sentence playthrough when all sentences resolve
+    audioInstances.length = 0;
+    deferredByUrl.clear();
+    fetchMock.mockClear();
+
+    const fullPromise = speakVietnamese(passage, { voice: "maianh" });
+    await vi.waitFor(() => {
+      // sentence 0 is already cached in memory -> only sentences 1 & 2 need fetching, and sentence 0 plays immediately!
+      expect(audioInstances).toHaveLength(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+    const [nextUrl1, nextUrl2] = fetchMock.mock.calls.map((c) => c[0]);
+    deferredByUrl.get(nextUrl1).resolve({
+      ok: true,
+      headers: { get: () => "audio/wav" },
+      blob: async () => new Blob(["RIFF-s1"], { type: "audio/wav" }),
+    });
+    deferredByUrl.get(nextUrl2).resolve({
+      ok: true,
+      headers: { get: () => "audio/wav" },
+      blob: async () => new Blob(["RIFF-s2"], { type: "audio/wav" }),
+    });
+
+    // End sentence 0 -> sentence 1 plays -> end sentence 1 -> sentence 2 plays -> end sentence 2 -> resolves
+    audioInstances[0].onended();
+    await vi.waitFor(() => expect(audioInstances).toHaveLength(2));
+    audioInstances[1].onended();
+    await vi.waitFor(() => expect(audioInstances).toHaveLength(3));
+    audioInstances[2].onended();
+
+    const fullRes = await fullPromise;
+    expect(fullRes).toEqual({ source: "api" });
+    expect(audioInstances).toHaveLength(3);
+    unmount();
   });
 });

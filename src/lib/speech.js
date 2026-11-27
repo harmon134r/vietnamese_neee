@@ -1,17 +1,34 @@
 /**
  * Vietnamese Speech Synthesis (TTS) & Speech Recognition (STT) Engine.
- * - TTS prefers `/api/tts` (VieNeu-TTS-v3-Turbo Northern Vietnamese voices with
- *   3-tier caching: in-memory Blob URL -> Browser Cache API -> Supabase/HF/Edge),
- *   in-flight request deduplication, low-priority background pre-fetching, and
- *   automatic browser `window.speechSynthesis` (`vi-VN`) fallback.
+ * - TTS resolves audio in ultra-fast order:
+ *   1. In-memory Blob URL cache (`0ms`)
+ *   2. Browser Cache API (`vietflow-tts-v2`, `~2–5ms`)
+ *   3. In-flight request deduplication (`inFlightFetches`)
+ *   4. Direct Supabase Storage public CDN (`tts-cache`, `~60–150ms`, bypassing Vercel Serverless)
+ *   5. `/api/tts` serverless fallback (VieNeu-TTS-v3-Turbo HF + Supabase persist + Edge/Google fallback)
+ *   6. Automatic browser `window.speechSynthesis` (`vi-VN`) fallback
+ * - Multi-sentence passages are split via `splitVietnameseSentences` and played with
+ *   sentence-by-sentence pipelining (lookahead concurrency = 2) so sentence 1 starts ASAP.
  * - STT wraps `SpeechRecognition || webkitSpeechRecognition` with `lang = 'vi-VN'`.
  * - Optional `MediaRecorder` + Web Audio `AnalyserNode` helper for mic meter & self-playback.
  */
+
+import {
+  NORTHERN_VOICE_IDS,
+  computeTtsCachePath,
+  normalizeTtsText,
+  pickRandomVoiceForText,
+  splitVietnameseSentences,
+} from "./ttsText.js";
 
 const MAX_CACHE_ENTRIES = 160;
 const MAX_PREFETCH_CONCURRENCY = 2;
 const MAX_PREFETCH_QUEUE_SIZE = 40;
 const MAX_TTS_TEXT_LENGTH = 1000;
+const SUPABASE_CDN_TIMEOUT_MS = 1600;
+const PIPELINE_LOOKAHEAD = 2;
+
+export { pickRandomVoiceForText, splitVietnameseSentences };
 
 export const TTS_BROWSER_CACHE_NAME = "vietflow-tts-v2";
 export const VOICE_STORAGE_KEY = "vietflow_tts_voice";
@@ -86,7 +103,6 @@ export const VOICE_OPTIONS = Object.freeze([
   ...VIETNAMESE_VOICES,
 ]);
 
-const NORTHERN_VOICE_IDS = Object.freeze(VIETNAMESE_VOICES.map((v) => v.id));
 const VOICE_META_BY_ID = new Map(VOICE_OPTIONS.map((v) => [v.id, v]));
 
 const VOICE_ALIAS_MAP = Object.freeze({
@@ -121,32 +137,16 @@ let activeHighPriorityFetches = 0;
 let playbackSeq = 0;
 let activeAudio = null;
 let activeResolve = null;
+let activeFetchController = null;
 
 function cleanTtsText(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
+  return normalizeTtsText(text);
 }
 
-/**
- * Deterministically pick one of the 5 Northern Vietnamese voices from normalized text
- * using FNV-1a 32-bit hashing modulo 5.
- * Matches `pickRandomVoiceForText` in `api/tts.js` so `prefetchVietnamese`, `speakVietnamese`,
- * Browser Cache API, and Supabase Storage `tts-cache` share 100% identical audio cache keys.
- *
- * @param {string} text
- * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
- */
-export function pickRandomVoiceForText(text) {
-  const normalized = String(text || "")
-    .normalize("NFC")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!normalized) return NORTHERN_VOICE_IDS[0];
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash ^= normalized.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return NORTHERN_VOICE_IDS[hash % NORTHERN_VOICE_IDS.length];
+function getSupabasePublicUrl() {
+  return String(import.meta.env?.VITE_SUPABASE_URL || "")
+    .trim()
+    .replace(/\/+$/, "");
 }
 
 export function normalizeVoiceId(rawVoice) {
@@ -286,8 +286,8 @@ function setCachedBlobUrl(key, url) {
 }
 
 /**
- * Check synchronously whether an audio blob URL is already cached in memory
- * for instant 0ms playback.
+ * Check synchronously whether the audio blob URL (or first sentence of a passage)
+ * is already cached in memory for instant 0ms playback.
  * @param {string} text
  * @param {string} [voice]
  * @returns {boolean}
@@ -296,7 +296,9 @@ export function isCachedInMemory(text, voice) {
   const cleanText = cleanTtsText(text);
   if (!cleanText) return false;
   const effectiveVoice = resolveEffectiveVoice(voice ?? getSelectedVoice(), cleanText);
-  return audioBlobCache.has(getCacheKey(cleanText, effectiveVoice));
+  const units = splitVietnameseSentences(cleanText);
+  const firstUnit = units[0] || cleanText;
+  return audioBlobCache.has(getCacheKey(firstUnit, effectiveVoice));
 }
 
 async function openTtsBrowserCache() {
@@ -315,25 +317,104 @@ async function openTtsBrowserCache() {
 }
 
 /**
- * Fetch or retrieve a cached Blob URL for `(resolvedVoice, cleanText)` using:
- * 1. In-memory `audioBlobCache` (0ms)
- * 2. In-flight Promise deduplication (`inFlightFetches`)
- * 3. Persistent Browser Cache API (`vietflow-tts-v2`)
- * 4. Network `GET /api/tts?text=...&lang=vi&voice=...`
+ * Direct Browser -> Supabase Storage Public CDN fast-path (`~60-150ms`),
+ * bypassing Vercel Serverless `/api/tts` whenever a clip is already cached in `tts-cache`.
+ * Returns `null` on miss (`404`), timeout (`1600ms`), or network error so caller falls
+ * through seamlessly to `/api/tts`.
  *
- * @param {string} cleanText
+ * @param {string} sentenceText
+ * @param {string} effectiveVoice
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<Response | null>}
+ */
+async function fetchCachedFromSupabase(sentenceText, effectiveVoice, signal) {
+  const supabasePublicUrl = getSupabasePublicUrl();
+  if (!supabasePublicUrl || typeof fetch !== "function") {
+    return null;
+  }
+
+  const cachePath = await computeTtsCachePath(effectiveVoice, sentenceText);
+  const cdnUrl = `${supabasePublicUrl}/storage/v1/object/public/tts-cache/${cachePath}`;
+
+  if (signal?.aborted) {
+    const abortErr = new Error("TTS request aborted");
+    abortErr.name = "AbortError";
+    throw abortErr;
+  }
+
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  let timedOut = false;
+  const timerId = controller
+    ? setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, SUPABASE_CDN_TIMEOUT_MS)
+    : null;
+
+  const onOuterAbort = () => {
+    if (controller && !controller.signal.aborted) {
+      controller.abort();
+    }
+  };
+  if (signal) {
+    signal.addEventListener?.("abort", onOuterAbort, { once: true });
+  }
+
+  try {
+    const response = await fetch(cdnUrl, {
+      method: "GET",
+      headers: {
+        Accept: "audio/wav, audio/x-wav, audio/*;q=0.9, */*;q=0.5",
+      },
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+
+    if (!response || !response.ok) {
+      return null;
+    }
+
+    const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
+    if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) {
+      return null;
+    }
+
+    return response;
+  } catch (err) {
+    if (signal?.aborted && !timedOut) {
+      throw err;
+    }
+    return null;
+  } finally {
+    if (timerId !== null) clearTimeout(timerId);
+    signal?.removeEventListener?.("abort", onOuterAbort);
+  }
+}
+
+/**
+ * Fetch or retrieve a cached Blob URL for `(effectiveVoice, sentenceText)` in ultra-fast order:
+ * 1. In-memory `audioBlobCache` (0ms)
+ * 2. Browser Cache API (`vietflow-tts-v2`, ~2-5ms)
+ * 3. In-flight Promise deduplication (`inFlightFetches`)
+ * 4. Direct Supabase Storage Public CDN (`tts-cache`, ~60-150ms)
+ * 5. Network `GET /api/tts?text=...&lang=vi&voice=...`
+ *
+ * @param {string} sentenceText
  * @param {string} resolvedVoice
+ * @param {{ signal?: AbortSignal }} [options={}]
  * @returns {Promise<string>}
  */
-async function resolveAudioBlobUrl(cleanText, resolvedVoice) {
+async function resolveAudioForUnit(sentenceText, resolvedVoice, { signal } = {}) {
+  const cleanText = cleanTtsText(sentenceText);
   const effectiveVoice = resolveEffectiveVoice(resolvedVoice, cleanText);
   const cacheKey = getCacheKey(cleanText, effectiveVoice);
 
+  // 1. In-memory Blob URL cache (0ms)
   const memHit = audioBlobCache.get(cacheKey);
   if (memHit) {
     return memHit;
   }
 
+  // 3. Join existing in-flight fetch immediately (avoids duplicate Cache API or network work)
   const existingPromise = inFlightFetches.get(cacheKey);
   if (existingPromise) {
     return existingPromise;
@@ -355,7 +436,7 @@ async function resolveAudioBlobUrl(cleanText, resolvedVoice) {
         ? await openTtsBrowserCache()
         : null;
 
-    // Check persistent Browser Cache API first
+    // 2. Persistent Browser Cache API (~2-5ms)
     if (browserCache) {
       try {
         const cachedResponse = await browserCache.match(endpoint);
@@ -372,18 +453,37 @@ async function resolveAudioBlobUrl(cleanText, resolvedVoice) {
       }
     }
 
+    if (signal?.aborted) {
+      const abortErr = new Error("TTS request aborted");
+      abortErr.name = "AbortError";
+      throw abortErr;
+    }
+
     if (typeof fetch !== "function") {
       throw new Error("Fetch API unavailable");
     }
 
-    const response = await fetch(endpoint, { method: "GET" });
-    if (!response || !response.ok) {
-      throw new Error(`TTS API failed with HTTP ${response?.status ?? "unknown"}`);
-    }
+    // 4. Direct Browser -> Supabase Storage Public CDN (~60-150ms, skips Vercel Serverless)
+    let response = await fetchCachedFromSupabase(cleanText, effectiveVoice, signal);
 
-    const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
-    if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) {
-      throw new Error(`Unexpected TTS content-type: ${contentType}`);
+    // 5. Fallback to Vercel Serverless `/api/tts` (generates via VieNeu-TTS HF & persists to Supabase)
+    if (!response) {
+      if (signal?.aborted) {
+        const abortErr = new Error("TTS request aborted");
+        abortErr.name = "AbortError";
+        throw abortErr;
+      }
+
+      const fetchInit = signal ? { method: "GET", signal } : { method: "GET" };
+      response = await fetch(endpoint, fetchInit);
+      if (!response || !response.ok) {
+        throw new Error(`TTS API failed with HTTP ${response?.status ?? "unknown"}`);
+      }
+
+      const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
+      if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) {
+        throw new Error(`Unexpected TTS content-type: ${contentType}`);
+      }
     }
 
     const responseForCache =
@@ -435,7 +535,7 @@ function pumpPrefetchQueue() {
     }
 
     activePrefetchCount += 1;
-    resolveAudioBlobUrl(item.cleanText, item.voice)
+    resolveAudioForUnit(item.cleanText, item.voice)
       .catch(() => {
         // Background prefetch must fail silently
       })
@@ -449,8 +549,9 @@ function pumpPrefetchQueue() {
 /**
  * Quietly pre-fetch Vietnamese audio clips into Browser Cache API + memory
  * so clicking Speak plays instantaneously (`0ms`).
- * - Accepts a single string or an array of strings.
- * - Deduplicates & skips items already in memory, in-flight, or queued.
+ * - Expands multi-sentence passages with `splitVietnameseSentences` and prioritizes
+ *   the FIRST sentence of the first text ahead of later sentences.
+ * - Deduplicates & promotes already-queued items when they become current.
  * - Runs at low concurrency (`maxConcurrent = 2`) and yields while `speakVietnamese` fetches.
  *
  * @param {string | string[]} texts
@@ -470,33 +571,51 @@ export function prefetchVietnamese(texts, options = {}) {
 
   const requestedVoice = normalizeVoiceId(options?.voice ?? getSelectedVoice());
   const seenInBatch = new Set();
+  const batchItems = [];
 
   for (const entry of rawList) {
     if (typeof entry !== "string") continue;
-    const cleanText = cleanTtsText(entry);
-    if (!cleanText || cleanText.length > MAX_TTS_TEXT_LENGTH) continue;
+    const fullClean = cleanTtsText(entry);
+    if (!fullClean || fullClean.length > MAX_TTS_TEXT_LENGTH) continue;
 
-    const effectiveVoice = resolveEffectiveVoice(requestedVoice, cleanText);
-    const cacheKey = getCacheKey(cleanText, effectiveVoice);
-    if (
-      seenInBatch.has(cacheKey) ||
-      audioBlobCache.has(cacheKey) ||
-      inFlightFetches.has(cacheKey) ||
-      queuedPrefetchKeys.has(cacheKey)
-    ) {
-      continue;
+    const passageVoice = resolveEffectiveVoice(requestedVoice, fullClean);
+    const sentences = splitVietnameseSentences(fullClean);
+
+    for (const sentence of sentences) {
+      const cacheKey = getCacheKey(sentence, passageVoice);
+      if (
+        seenInBatch.has(cacheKey) ||
+        audioBlobCache.has(cacheKey) ||
+        inFlightFetches.has(cacheKey)
+      ) {
+        continue;
+      }
+
+      // Promote already-queued items so current screen's first sentence always runs first
+      if (queuedPrefetchKeys.has(cacheKey)) {
+        const existingIdx = prefetchQueue.findIndex((q) => q.cacheKey === cacheKey);
+        if (existingIdx >= 0) {
+          prefetchQueue.splice(existingIdx, 1);
+        }
+        queuedPrefetchKeys.delete(cacheKey);
+      }
+
+      seenInBatch.add(cacheKey);
+      batchItems.push({ cleanText: sentence, voice: passageVoice, cacheKey });
+    }
+  }
+
+  if (batchItems.length > 0) {
+    for (let i = batchItems.length - 1; i >= 0; i -= 1) {
+      const item = batchItems[i];
+      prefetchQueue.unshift(item);
+      queuedPrefetchKeys.add(item.cacheKey);
     }
 
-    seenInBatch.add(cacheKey);
-
-    // Keep queue focused on the most recent study screen if user navigates quickly
-    while (prefetchQueue.length >= MAX_PREFETCH_QUEUE_SIZE) {
-      const dropped = prefetchQueue.shift();
+    while (prefetchQueue.length > MAX_PREFETCH_QUEUE_SIZE) {
+      const dropped = prefetchQueue.pop();
       if (dropped) queuedPrefetchKeys.delete(dropped.cacheKey);
     }
-
-    prefetchQueue.push({ cleanText, voice: effectiveVoice, cacheKey });
-    queuedPrefetchKeys.add(cacheKey);
   }
 
   pumpPrefetchQueue();
@@ -524,10 +643,19 @@ export function clearTtsCache() {
 }
 
 /**
- * Stop any active Audio playback or browser SpeechSynthesis utterance immediately.
+ * Stop any active Audio playback, pending TTS fetches, or browser SpeechSynthesis utterance immediately.
  */
 export function stopSpeaking() {
   playbackSeq += 1;
+
+  if (activeFetchController) {
+    try {
+      activeFetchController.abort();
+    } catch {
+      // ignore
+    }
+    activeFetchController = null;
+  }
 
   if (activeAudio) {
     try {
@@ -593,53 +721,11 @@ export function getVietnameseVoices() {
 }
 
 /**
- * Play Vietnamese TTS via `/api/tts` with 2-layer client caching (memory + Cache API),
- * in-flight deduplication, and pitch-preserved client-side `playbackRate`.
- * @param {string} cleanText
- * @param {number} rate
- * @param {string} voice
- * @param {number} token
- * @param {{ onStart?: Function, onEnd?: Function }} callbacks
- * @returns {Promise<{ source: "api", stopped?: boolean }>}
+ * Play a single resolved audio Blob URL via HTMLAudioElement with pitch-preserved playbackRate.
  */
-async function speakViaApi(cleanText, rate, voice, token, { onStart, onEnd }) {
-  if (
-    typeof fetch !== "function" ||
-    typeof Audio === "undefined" ||
-    typeof URL === "undefined" ||
-    typeof URL.createObjectURL !== "function"
-  ) {
-    throw new Error("Audio/Fetch API unavailable");
-  }
-
-  const effectiveVoice = resolveEffectiveVoice(voice, cleanText);
-  const cacheKey = getCacheKey(cleanText, effectiveVoice);
-  let blobUrl = audioBlobCache.get(cacheKey);
-
-  if (!blobUrl) {
-    activeHighPriorityFetches += 1;
-    let cancelFetchWait = null;
-    const cancelPromise = new Promise((resolve) => {
-      cancelFetchWait = () => resolve(null);
-    });
-    activeResolve = cancelFetchWait;
-
-    try {
-      blobUrl = await Promise.race([
-        resolveAudioBlobUrl(cleanText, effectiveVoice),
-        cancelPromise,
-      ]);
-    } finally {
-      if (activeResolve === cancelFetchWait) {
-        activeResolve = null;
-      }
-      activeHighPriorityFetches = Math.max(0, activeHighPriorityFetches - 1);
-      pumpPrefetchQueue();
-    }
-  }
-
+function playAudioBlobUnit(blobUrl, rate, token, { isFirst, onPlayStart, onStart }) {
   if (token !== playbackSeq || !blobUrl) {
-    return { source: "api", stopped: true };
+    return Promise.resolve({ source: "api", stopped: true });
   }
 
   return new Promise((resolve, reject) => {
@@ -663,7 +749,6 @@ async function speakViaApi(cleanText, rate, voice, token, { onStart, onEnd }) {
       if (shouldReject) {
         reject(err);
       } else {
-        onEnd?.(result);
         resolve(result);
       }
     };
@@ -674,7 +759,10 @@ async function speakViaApi(cleanText, rate, voice, token, { onStart, onEnd }) {
     audio.onended = () => finish({ source: "api" });
     audio.onerror = () => finish(null, true, new Error("HTMLAudioElement playback failed"));
 
-    onStart?.({ source: "api" });
+    if (isFirst) {
+      onPlayStart?.({ source: "api" });
+      onStart?.({ source: "api" });
+    }
 
     const playPromise = audio.play();
     if (playPromise && typeof playPromise.catch === "function") {
@@ -690,16 +778,160 @@ async function speakViaApi(cleanText, rate, voice, token, { onStart, onEnd }) {
 }
 
 /**
+ * Play Vietnamese TTS via Direct Supabase CDN / `/api/tts` with sentence-by-sentence
+ * pipelining (max 2 sentences ahead) so playback starts as soon as sentence 1 resolves.
+ *
+ * @param {string[]} sentences
+ * @param {number} rate
+ * @param {string} passageVoice
+ * @param {number} token
+ * @param {{ onPlayStart?: Function, onStart?: Function, onEnd?: Function }} callbacks
+ * @returns {Promise<{ source: "api", stopped?: boolean }>}
+ */
+async function speakViaApi(sentences, rate, passageVoice, token, { onPlayStart, onStart, onEnd }) {
+  if (
+    typeof fetch !== "function" ||
+    typeof Audio === "undefined" ||
+    typeof URL === "undefined" ||
+    typeof URL.createObjectURL !== "function"
+  ) {
+    throw new Error("Audio/Fetch API unavailable");
+  }
+
+  const fetchController =
+    typeof AbortController === "function" ? new AbortController() : null;
+  activeFetchController = fetchController;
+
+  const unitPromises = new Array(sentences.length);
+  const ensureUnitFetch = (idx) => {
+    if (idx < 0 || idx >= sentences.length) return null;
+    if (!unitPromises[idx]) {
+      const p = resolveAudioForUnit(sentences[idx], passageVoice, {
+        signal: fetchController?.signal,
+      });
+      // Avoid unhandled rejection if playback stops while lookahead is still running
+      p.catch(() => {});
+      unitPromises[idx] = p;
+    }
+    return unitPromises[idx];
+  };
+
+  const raceWithStop = async (promise) => {
+    activeHighPriorityFetches += 1;
+    let cancelFetchWait = null;
+    const cancelPromise = new Promise((resolve) => {
+      cancelFetchWait = () => resolve(null);
+    });
+    activeResolve = cancelFetchWait;
+
+    try {
+      return await Promise.race([promise, cancelPromise]);
+    } finally {
+      if (activeResolve === cancelFetchWait) {
+        activeResolve = null;
+      }
+      activeHighPriorityFetches = Math.max(0, activeHighPriorityFetches - 1);
+      pumpPrefetchQueue();
+    }
+  };
+
+  let startedPlayback = false;
+  let currentIndex = 0;
+
+  try {
+    // Fire sentence[0] FIRST, then kick off lookahead sentences (max 2 ahead) concurrently
+    ensureUnitFetch(0);
+    for (let ahead = 1; ahead <= PIPELINE_LOOKAHEAD && ahead < sentences.length; ahead += 1) {
+      ensureUnitFetch(ahead);
+    }
+
+    for (currentIndex = 0; currentIndex < sentences.length; currentIndex += 1) {
+      if (token !== playbackSeq) {
+        const stoppedRes = { source: "api", stopped: true };
+        if (startedPlayback) onEnd?.(stoppedRes);
+        return stoppedRes;
+      }
+
+      const sentence = sentences[currentIndex];
+      const cacheKey = getCacheKey(sentence, passageVoice);
+      let blobUrl = audioBlobCache.get(cacheKey);
+
+      for (
+        let ahead = currentIndex + 1;
+        ahead <= currentIndex + PIPELINE_LOOKAHEAD && ahead < sentences.length;
+        ahead += 1
+      ) {
+        ensureUnitFetch(ahead);
+      }
+
+      if (!blobUrl) {
+        blobUrl = await raceWithStop(ensureUnitFetch(currentIndex));
+      }
+
+      if (token !== playbackSeq || !blobUrl) {
+        const stoppedRes = { source: "api", stopped: true };
+        if (startedPlayback) onEnd?.(stoppedRes);
+        return stoppedRes;
+      }
+
+      const playResult = await playAudioBlobUnit(blobUrl, rate, token, {
+        isFirst: !startedPlayback,
+        onPlayStart,
+        onStart,
+      });
+      startedPlayback = true;
+
+      if (playResult?.stopped || token !== playbackSeq) {
+        const stoppedRes = { source: "api", stopped: true };
+        onEnd?.(stoppedRes);
+        return stoppedRes;
+      }
+    }
+
+    const doneRes = { source: "api" };
+    onEnd?.(doneRes);
+    return doneRes;
+  } catch (err) {
+    if (fetchController && !fetchController.signal.aborted) {
+      try {
+        fetchController.abort();
+      } catch {
+        // ignore
+      }
+    }
+    if (token !== playbackSeq) {
+      const stoppedRes = { source: "api", stopped: true };
+      if (startedPlayback) onEnd?.(stoppedRes);
+      return stoppedRes;
+    }
+    err.startedPlayback = startedPlayback;
+    err.failedSentenceIndex = currentIndex;
+    throw err;
+  } finally {
+    if (activeFetchController === fetchController) {
+      activeFetchController = null;
+    }
+  }
+}
+
+/**
  * Play Vietnamese TTS via browser `window.speechSynthesis`.
  * @param {string} cleanText
  * @param {number} rate
  * @param {string} voiceName
  * @param {string} voice
  * @param {number} token
- * @param {{ onStart?: Function, onEnd?: Function }} callbacks
+ * @param {{ onPlayStart?: Function, onStart?: Function, onEnd?: Function }} callbacks
  * @returns {Promise<{ source: "webspeech", stopped?: boolean }>}
  */
-function speakViaWebSpeech(cleanText, rate, voiceName, voice, token, { onStart, onEnd }) {
+function speakViaWebSpeech(
+  cleanText,
+  rate,
+  voiceName,
+  voice,
+  token,
+  { onPlayStart, onStart, onEnd }
+) {
   return new Promise((resolve, reject) => {
     if (
       typeof window === "undefined" ||
@@ -759,6 +991,7 @@ function speakViaWebSpeech(cleanText, rate, voiceName, voice, token, { onStart, 
 
     utterance.onstart = () => {
       if (token === playbackSeq) {
+        onPlayStart?.({ source: "webspeech" });
         onStart?.({ source: "webspeech" });
       }
     };
@@ -783,15 +1016,16 @@ function speakViaWebSpeech(cleanText, rate, voiceName, voice, token, { onStart, 
 
 /**
  * Speak Vietnamese text aloud.
- * Tries `/api/tts` first (memory + Cache API + in-flight dedup), then falls back
- * to `window.speechSynthesis`. Cancels any currently playing audio before starting.
+ * Tries memory -> Browser Cache API -> Direct Supabase CDN -> `/api/tts` with
+ * sentence-by-sentence pipelining, then falls back to `window.speechSynthesis`.
+ * Cancels any currently playing audio and pending fetches before starting.
  *
  * @param {string} text
- * @param {{ rate?: number, voice?: string, voiceName?: string, onStart?: Function, onEnd?: Function, onError?: Function }} [options={}]
+ * @param {{ rate?: number, voice?: string, voiceName?: string, onPlayStart?: Function, onStart?: Function, onEnd?: Function, onError?: Function }} [options={}]
  * @returns {Promise<{ source: "api" | "webspeech" | "none", stopped?: boolean }>}
  */
 export async function speakVietnamese(text, options = {}) {
-  const { rate = 1, voice, voiceName = "", onStart, onEnd, onError } = options;
+  const { rate = 1, voice, voiceName = "", onPlayStart, onStart, onEnd, onError } = options;
   const cleanText = cleanTtsText(text);
 
   stopSpeaking();
@@ -804,11 +1038,16 @@ export async function speakVietnamese(text, options = {}) {
 
   const clampedRate = clampRate(rate);
   const effectiveVoice = resolveEffectiveVoice(voice ?? getSelectedVoice(), cleanText);
+  const sentences = splitVietnameseSentences(cleanText);
   const myToken = playbackSeq;
 
-  // 1. Primary path: /api/tts audio (WAV from VieNeu-TTS / cache or MP3 fallback)
+  let fallbackText = cleanText;
+  let alreadyStarted = false;
+
+  // 1. Primary path: direct Supabase CDN / `/api/tts` with sentence pipelining
   try {
-    const apiResult = await speakViaApi(cleanText, clampedRate, effectiveVoice, myToken, {
+    const apiResult = await speakViaApi(sentences, clampedRate, effectiveVoice, myToken, {
+      onPlayStart,
       onStart,
       onEnd,
     });
@@ -817,19 +1056,23 @@ export async function speakVietnamese(text, options = {}) {
     if (myToken !== playbackSeq) {
       return { source: "api", stopped: true };
     }
-    void apiErr;
+    if (apiErr?.startedPlayback && typeof apiErr.failedSentenceIndex === "number") {
+      alreadyStarted = true;
+      fallbackText = sentences.slice(apiErr.failedSentenceIndex).join(" ").trim() || cleanText;
+    }
   }
 
   // 2. Fallback path: Browser Web Speech API (preferring vi-VN voice matching gender)
   try {
     const webResult = await speakViaWebSpeech(
-      cleanText,
+      fallbackText,
       clampedRate,
       voiceName,
       effectiveVoice,
       myToken,
       {
-        onStart,
+        onPlayStart: alreadyStarted ? undefined : onPlayStart,
+        onStart: alreadyStarted ? undefined : onStart,
         onEnd,
       }
     );

@@ -14,6 +14,7 @@ const mockResetTranscript = vi.fn();
 
 const speechHookState = {
   isSpeaking: false,
+  isLoadingAudio: false,
   speakingText: "",
   rate: 1,
   setRate: mockSetRate,
@@ -62,6 +63,7 @@ vi.mock("../../lib/speech", () => {
     getSelectedVoice: vi.fn(() => "random"),
     setSelectedVoice: vi.fn((id) => id),
     getVoiceMeta: vi.fn((id) => ALL_VOICE_OPTIONS.find((v) => v.id === id) || RANDOM_VOICE),
+    isCachedInMemory: vi.fn(() => false),
     prefetchVietnamese: vi.fn(),
     speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
     stopSpeaking: vi.fn(),
@@ -102,6 +104,8 @@ beforeEach(() => {
   speechHookState.sttSupported = true;
   speechHookState.isListening = false;
   speechHookState.isSpeaking = false;
+  speechHookState.isLoadingAudio = false;
+  speechHookState.speakingText = "";
   speechHookState.finalTranscript = "";
   speechHookState.interimTranscript = "";
   speechHookState.speechError = null;
@@ -215,6 +219,39 @@ describe("ListeningGame", () => {
         maxScore: selfExercises.length,
         accuracy: 100,
       })
+    );
+  });
+
+  it("shows Đang tải... while audio is loading, switches to Dừng when playing, and prefetches immediately on voice-change", () => {
+    const selfExercises = LISTENING_EXERCISES.filter((e) => e.topicId === "self");
+
+    speechHookState.isSpeaking = true;
+    speechHookState.isLoadingAudio = true;
+
+    const { rerender } = render(<ListeningGame activeTopicId="self" />);
+    const playBtn = screen.getByTestId("listening-play-btn");
+    expect(playBtn).toHaveTextContent("Đang tải...");
+    expect(playBtn).toHaveAttribute("aria-busy", "true");
+
+    // Clicking while loading cancels immediately via stopSpeak
+    mockStopSpeak.mockClear();
+    fireEvent.click(playBtn);
+    expect(mockStopSpeak).toHaveBeenCalledTimes(1);
+
+    // Once audio starts playing, switches cleanly to Dừng
+    speechHookState.isLoadingAudio = false;
+    rerender(<ListeningGame activeTopicId="self" />);
+    expect(screen.getByTestId("listening-play-btn")).toHaveTextContent("Dừng");
+    expect(screen.getByTestId("listening-play-btn")).toHaveAttribute("aria-busy", "false");
+
+    // Switching voice in Navbar triggers immediate prefetch for the newly selected voice
+    prefetchVietnamese.mockClear();
+    window.dispatchEvent(
+      new CustomEvent("vietflow:voice-change", { detail: { voice: "maianh" } })
+    );
+    expect(prefetchVietnamese).toHaveBeenCalledWith(
+      selfExercises.slice(0, 3).map((e) => e.audioTextVi),
+      { voice: "maianh" }
     );
   });
 });

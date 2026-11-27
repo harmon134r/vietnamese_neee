@@ -20,6 +20,13 @@ import ttsHandler, {
 } from "../../api/tts.js";
 import { pickRandomVoiceForText as clientPickRandomVoiceForText } from "./speech.js";
 import {
+  NORTHERN_VOICE_IDS,
+  computeTtsCachePath,
+  normalizeTtsText,
+  sha256Hex,
+  sha256HexSync,
+} from "./ttsText.js";
+import {
   GAME_TYPES,
   MASTERY_LEVELS,
   SKILL_IDS,
@@ -209,13 +216,13 @@ describe("api/tts.js", () => {
     expect(pRandom.voice.id).toBe(randomVoiceForHello);
 
     // Adaptive max_new_frames thresholds
-    expect(adaptiveMaxFrames("Xin chào")).toBe(120); // <= 25
-    expect(adaptiveMaxFrames("a".repeat(25))).toBe(120);
-    expect(adaptiveMaxFrames("a".repeat(26))).toBe(200); // <= 80
-    expect(adaptiveMaxFrames("a".repeat(80))).toBe(200);
-    expect(adaptiveMaxFrames("a".repeat(81))).toBe(320); // <= 180
-    expect(adaptiveMaxFrames("a".repeat(180))).toBe(320);
-    expect(adaptiveMaxFrames("a".repeat(181))).toBe(480); // > 180
+    expect(adaptiveMaxFrames("Xin chào")).toBe(100); // <= 25
+    expect(adaptiveMaxFrames("a".repeat(25))).toBe(100);
+    expect(adaptiveMaxFrames("a".repeat(26))).toBe(170); // <= 75
+    expect(adaptiveMaxFrames("a".repeat(75))).toBe(170);
+    expect(adaptiveMaxFrames("a".repeat(76))).toBe(250); // <= 140
+    expect(adaptiveMaxFrames("a".repeat(140))).toBe(250);
+    expect(adaptiveMaxFrames("a".repeat(141))).toBe(340); // > 140
 
     // Safe ASCII header sanitization & Edge helpers
     expect(toSafeHeaderValue("Ngọc Huyền")).toBe("Ngoc Huyen");
@@ -269,7 +276,7 @@ describe("api/tts.js", () => {
       25,
       0.95,
       1.2,
-      120,
+      100,
       200,
       true,
     ]);
@@ -496,6 +503,38 @@ describe("api/tts.js", () => {
     });
     expect(resTimeout.statusCode).toBe(504);
     expect(resTimeout.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("matches computeTtsCachePath in src/lib/ttsText.js identically with api/tts.js computeCachePath across voices, NFC/NFD, and pure-JS SHA-256 fallback", async () => {
+    const samples = [
+      "Xin chào Hà Nội",
+      "  Tôi thích ăn   phở bò tái chín!  ",
+      "Chào mọi người, mình là Nam. Quê gốc mình ở Đà Nẵng.".normalize("NFD"),
+      "Nước dùng bún bò Huế rất đậm đà.",
+    ];
+
+    for (const sample of samples) {
+      for (const voiceId of [...NORTHERN_VOICE_IDS, "random"]) {
+        const apiComputed = computeCachePath(sample, voiceId);
+        const sharedPath = await computeTtsCachePath(voiceId, sample);
+        expect(sharedPath).toBe(apiComputed.cachePath);
+
+        const normalized = normalizeTtsText(sample);
+        const expectedHex = sha256HexSync(`${apiComputed.voice.id}::${normalized}`);
+        expect(expectedHex).toBe(apiComputed.hash);
+        expect(await sha256Hex(`${apiComputed.voice.id}::${normalized}`)).toBe(apiComputed.hash);
+      }
+    }
+
+    // Verify sha256Hex still matches when crypto.subtle is absent
+    const originalCrypto = globalThis.crypto;
+    vi.stubGlobal("crypto", {});
+    try {
+      const noSubtlePath = await computeTtsCachePath("maianh", "Xin chào Hà Nội");
+      expect(noSubtlePath).toBe(computeCachePath("Xin chào Hà Nội", "maianh").cachePath);
+    } finally {
+      vi.stubGlobal("crypto", originalCrypto);
+    }
   });
 });
 

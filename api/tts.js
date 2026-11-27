@@ -1,12 +1,18 @@
 import crypto from "node:crypto";
 import WebSocket from "ws";
+import {
+  NORTHERN_VOICE_IDS,
+  adaptiveMaxFrames,
+  normalizeTtsText,
+  pickRandomVoiceForText,
+} from "../src/lib/ttsText.js";
 
 const MAX_CHUNK_LENGTH = 200;
 const MAX_TOTAL_LENGTH = 1000;
 const MAX_CACHE_BYTES = 4 * 1024 * 1024; // 4 MiB bucket limit
 
 const SUPABASE_CACHE_READ_TIMEOUT_MS = 1800;
-const SUPABASE_CACHE_WRITE_TIMEOUT_MS = 1200;
+const SUPABASE_CACHE_WRITE_TIMEOUT_MS = 900;
 const HF_SPACE_BASE_URL = "https://nam194-vieneu-tts-v3-turbo.hf.space";
 const HF_SYNTHESIZE_CALL_URL = `${HF_SPACE_BASE_URL}/gradio_api/call/synthesize`;
 const HF_TOTAL_TIMEOUT_MS = 7200;
@@ -94,14 +100,6 @@ export const NORTHERN_VOICES = Object.freeze({
   }),
 });
 
-const NORTHERN_VOICE_IDS = Object.freeze([
-  "ngochuyen",
-  "trucly",
-  "maianh",
-  "haidang",
-  "thienminh",
-]);
-
 const RANDOM_VOICE_ALIASES = new Set(["random", "ngaunhien", "auto", "shuffle"]);
 
 const VOICE_ALIAS_MAP = Object.freeze({
@@ -168,28 +166,7 @@ export function normalizeLang(rawLang) {
   return lower;
 }
 
-/**
- * Deterministically pick one of the 5 Northern Vietnamese voices from normalized text
- * using FNV-1a 32-bit hashing modulo 5.
- * Matches `pickRandomVoiceForText` in `src/lib/speech.js` so `voice=random` resolves
- * to the exact same Northern voice & Supabase Storage cache key on client and server.
- *
- * @param {string} text
- * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
- */
-export function pickRandomVoiceForText(text) {
-  const normalized = String(text || "")
-    .normalize("NFC")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!normalized) return DEFAULT_NORTHERN_VOICE_ID;
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash ^= normalized.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return NORTHERN_VOICE_IDS[hash % NORTHERN_VOICE_IDS.length];
-}
+export { NORTHERN_VOICE_IDS, adaptiveMaxFrames, normalizeTtsText, pickRandomVoiceForText };
 
 /**
  * Normalize any voice ID (`random` or one of the 5 Northern IDs), legacy alias
@@ -279,7 +256,7 @@ export function resolveEdgeVoice(lang, rawVoice, text = "") {
  * @returns {{ voice: object, normalizedText: string, hash: string, cachePath: string }}
  */
 export function computeCachePath(text, rawVoice) {
-  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+  const normalizedText = normalizeTtsText(text);
   const voice = resolveNorthernVoice(rawVoice, normalizedText);
   const hash = crypto
     .createHash("sha256")
@@ -287,20 +264,6 @@ export function computeCachePath(text, rawVoice) {
     .digest("hex");
   const cachePath = `v1/${voice.id}/${hash}.wav`;
   return { voice, normalizedText, hash, cachePath };
-}
-
-/**
- * Choose adaptive `max_new_frames` for VieNeu-TTS-v3-Turbo based on text length
- * to minimize generation latency on short flashcards while avoiding cutoff on passages.
- * @param {string} text
- * @returns {number}
- */
-export function adaptiveMaxFrames(text) {
-  const len = String(text || "").replace(/\s+/g, " ").trim().length;
-  if (len <= 25) return 120;
-  if (len <= 80) return 200;
-  if (len <= 180) return 320;
-  return 480;
 }
 
 /**
@@ -644,7 +607,7 @@ async function readGradioSseAudioUrl(sseResponse) {
  */
 export async function fetchVieNeuAudio(text, rawVoice, options = {}) {
   const { timeoutMs = HF_TOTAL_TIMEOUT_MS, fetchImpl = fetch } = options;
-  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+  const normalizedText = normalizeTtsText(text);
   const voice =
     rawVoice && typeof rawVoice === "object" && rawVoice.hfVoice
       ? rawVoice
@@ -1147,7 +1110,7 @@ export default async function handler(req, res, deps = {}) {
   const rawVoice = Array.isArray(query.voice) ? query.voice[0] : query.voice;
   const rawSpeed = Array.isArray(query.speed) ? query.speed[0] : query.speed;
 
-  const text = typeof rawText === "string" ? rawText.replace(/\s+/g, " ").trim() : "";
+  const text = typeof rawText === "string" ? normalizeTtsText(rawText) : "";
 
   if (!text) {
     res.setHeader("Cache-Control", "no-store");

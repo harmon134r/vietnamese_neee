@@ -31,6 +31,7 @@ vi.mock("../../lib/speech.js", () => {
     getSelectedVoice: vi.fn(() => "random"),
     setSelectedVoice: vi.fn((id) => id),
     getVoiceMeta: vi.fn((id) => ALL_VOICE_OPTIONS.find((v) => v.id === id) || RANDOM_VOICE),
+    isCachedInMemory: vi.fn(() => false),
     prefetchVietnamese: vi.fn(),
     speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
     stopSpeaking: vi.fn(),

@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Lightbulb,
+  Loader2,
   Mic,
   MicOff,
   RotateCcw,
@@ -236,6 +237,7 @@ export function FlashcardStage({
   const [showTooltipHint, setShowTooltipHint] = useState(true);
 
   const [speakingTarget, setSpeakingTarget] = useState(null); // "word" | "example" | null
+  const [loadingTarget, setLoadingTarget] = useState(null); // "word" | "example" | null
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState("");
   const [pronResult, setPronResult] = useState(null);
@@ -322,6 +324,8 @@ export function FlashcardStage({
   const handleSelectVoice = useCallback(
     (voiceId) => {
       speechApi.stopSpeaking?.();
+      setLoadingTarget(null);
+      setSpeakingTarget(null);
       const rawUpdated = writeSelectedVoice(voiceId) ?? voiceId;
       const updated = resolveCanonicalVoiceId(rawUpdated);
       lastStoredVoiceRef.current = readRawStoredVoice();
@@ -410,20 +414,44 @@ export function FlashcardStage({
     (text, target = "word") => {
       if (!text) return;
       stopActiveListening();
+      let alreadyCached = false;
+      try {
+        alreadyCached =
+          typeof speechApi.isCachedInMemory === "function" &&
+          Boolean(speechApi.isCachedInMemory(text, selectedVoice));
+      } catch {
+        alreadyCached = false;
+      }
       setSpeakingTarget(target);
+      setLoadingTarget(alreadyCached ? null : target);
       Promise.resolve(
         speechApi.speakVietnamese?.(text, {
           rate,
           voice: selectedVoice,
-          onStart: () => setSpeakingTarget(target),
-          onEnd: () => setSpeakingTarget((curr) => (curr === target ? null : curr)),
-          onError: () => setSpeakingTarget((curr) => (curr === target ? null : curr)),
+          onPlayStart: () => {
+            setLoadingTarget((curr) => (curr === target ? null : curr));
+            setSpeakingTarget(target);
+          },
+          onStart: () => {
+            setLoadingTarget((curr) => (curr === target ? null : curr));
+            setSpeakingTarget(target);
+          },
+          onEnd: () => {
+            setLoadingTarget((curr) => (curr === target ? null : curr));
+            setSpeakingTarget((curr) => (curr === target ? null : curr));
+          },
+          onError: () => {
+            setLoadingTarget((curr) => (curr === target ? null : curr));
+            setSpeakingTarget((curr) => (curr === target ? null : curr));
+          },
         })
       )
         .then(() => {
+          setLoadingTarget((curr) => (curr === target ? null : curr));
           setSpeakingTarget((curr) => (curr === target ? null : curr));
         })
         .catch(() => {
+          setLoadingTarget((curr) => (curr === target ? null : curr));
           setSpeakingTarget((curr) => (curr === target ? null : curr));
         });
     },
@@ -508,6 +536,7 @@ export function FlashcardStage({
       }
 
       speechApi.stopSpeaking?.();
+      setLoadingTarget(null);
       setSpeakingTarget(null);
       setPronResult(null);
       setMicNotice("");
@@ -667,10 +696,15 @@ export function FlashcardStage({
           e.stopPropagation();
           handleSpeak(card.frontVi, "word");
         }}
+        aria-busy={loadingTarget === "word"}
         aria-label={`Nghe phát âm ${card.frontVi}`}
-        title="Nghe phát âm tiếng Việt"
+        title={loadingTarget === "word" ? "Đang tải giọng đọc..." : "Nghe phát âm tiếng Việt"}
       >
-        <Volume2 size={24} />
+        {loadingTarget === "word" ? (
+          <Loader2 size={22} aria-hidden="true" />
+        ) : (
+          <Volume2 size={24} />
+        )}
       </button>
     </div>
   );
@@ -1061,10 +1095,15 @@ export function FlashcardStage({
                       e.stopPropagation();
                       handleSpeak(card.exampleVi, "example");
                     }}
+                    aria-busy={loadingTarget === "example"}
                     aria-label="Nghe câu ví dụ tiếng Việt"
-                    title="Nghe câu ví dụ"
+                    title={loadingTarget === "example" ? "Đang tải câu ví dụ..." : "Nghe câu ví dụ"}
                   >
-                    <Volume2 size={18} />
+                    {loadingTarget === "example" ? (
+                      <Loader2 size={18} aria-hidden="true" />
+                    ) : (
+                      <Volume2 size={18} />
+                    )}
                   </button>
                 </div>
               )}
