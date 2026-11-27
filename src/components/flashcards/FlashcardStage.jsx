@@ -7,6 +7,7 @@ import {
   Mic,
   MicOff,
   RotateCcw,
+  Shuffle,
   SlidersHorizontal,
   Volume2,
   X,
@@ -16,6 +17,15 @@ import * as speechApi from "../../lib/speech.js";
 import { scoreVietnamesePronunciation } from "../../lib/pronunciation.js";
 
 const SPEED_OPTIONS = [0.75, 0.9, 1, 1.15];
+
+const FALLBACK_RANDOM_VOICE = Object.freeze({
+  id: "random",
+  label: "Ngẫu nhiên",
+  shortLabel: "Xoay vòng 5 giọng Bắc",
+  gender: "mixed",
+  region: "Bắc",
+  style: "Tự động chọn trong 5 giọng Miền Bắc",
+});
 
 const FALLBACK_VIETNAMESE_VOICES = Object.freeze([
   Object.freeze({
@@ -37,10 +47,10 @@ const FALLBACK_VIETNAMESE_VOICES = Object.freeze([
   Object.freeze({
     id: "maianh",
     label: "Mai Anh",
-    shortLabel: "Nữ · Bắc · Tin tức",
+    shortLabel: "Nữ · Bắc · Tin tức rõ chữ",
     gender: "female",
     region: "Bắc",
-    style: "Phong cách tin tức",
+    style: "Phong cách tin tức rõ chữ",
   }),
   Object.freeze({
     id: "haidang",
@@ -60,6 +70,10 @@ const FALLBACK_VIETNAMESE_VOICES = Object.freeze([
   }),
 ]);
 
+function getRandomVoiceOption() {
+  return speechApi.RANDOM_VOICE_OPTION || FALLBACK_RANDOM_VOICE;
+}
+
 function getAvailableVoices() {
   if (Array.isArray(speechApi.VIETNAMESE_VOICES) && speechApi.VIETNAMESE_VOICES.length > 0) {
     return speechApi.VIETNAMESE_VOICES;
@@ -77,11 +91,12 @@ function formatVoiceSublabel(voice) {
 }
 
 function readSelectedVoice() {
+  const defaultVoiceId = speechApi.RANDOM_VOICE_ID || "random";
   if (typeof speechApi.getSelectedVoice === "function") {
     try {
-      return speechApi.getSelectedVoice() || "ngochuyen";
+      return speechApi.getSelectedVoice() || defaultVoiceId;
     } catch {
-      return "ngochuyen";
+      return defaultVoiceId;
     }
   }
   if (typeof window !== "undefined" && window.localStorage) {
@@ -89,6 +104,7 @@ function readSelectedVoice() {
       const saved = window.localStorage.getItem(
         speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice"
       );
+      if (saved === defaultVoiceId) return defaultVoiceId;
       if (saved === "hoaimy") return "ngochuyen";
       if (saved === "namminh") return "haidang";
       const validIds = new Set(getAvailableVoices().map((v) => v.id));
@@ -97,7 +113,7 @@ function readSelectedVoice() {
       // ignore
     }
   }
-  return "ngochuyen";
+  return defaultVoiceId;
 }
 
 function writeSelectedVoice(voiceId) {
@@ -215,6 +231,7 @@ export function FlashcardStage({
 
   const safeIndex = cards.length > 0 ? Math.min(Math.max(0, currentIndex), cards.length - 1) : 0;
   const card = cards[safeIndex] || null;
+  const randomVoice = useMemo(() => getRandomVoiceOption(), []);
   const availableVoices = useMemo(() => getAvailableVoices(), []);
   const sttSupported = useMemo(() => {
     try {
@@ -655,6 +672,38 @@ export function FlashcardStage({
               role="group"
               aria-label="Giọng đọc tiếng Việt (Miền Bắc)"
             >
+              <button
+                type="button"
+                aria-pressed={selectedVoice === randomVoice.id}
+                className={`fc-voice-option ${selectedVoice === randomVoice.id ? "is-active" : ""}`}
+                onClick={() => handleSelectVoice(randomVoice.id)}
+                data-voice-option={randomVoice.id}
+              >
+                <span className="fc-voice-option-name">
+                  <Shuffle
+                    size={13}
+                    aria-hidden="true"
+                    className="fc-voice-option-icon"
+                  />
+                  <span>{randomVoice.label}</span>
+                </span>
+                <span className="fc-voice-option-meta">
+                  <span className="fc-voice-option-sub">
+                    {randomVoice.shortLabel || "Xoay vòng 5 giọng Bắc"}
+                  </span>
+                  {selectedVoice === randomVoice.id && (
+                    <Check
+                      size={14}
+                      strokeWidth={2.2}
+                      className="fc-voice-option-check"
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
+              </button>
+
+              <div className="fc-voice-divider" aria-hidden="true" />
+
               {availableVoices.map((voiceOpt) => {
                 const isActive = selectedVoice === voiceOpt.id;
                 const sublabel = formatVoiceSublabel(voiceOpt);

@@ -16,6 +16,8 @@ const MAX_TTS_TEXT_LENGTH = 1000;
 export const TTS_BROWSER_CACHE_NAME = "vietflow-tts-v2";
 export const VOICE_STORAGE_KEY = "vietflow_tts_voice";
 export const VOICE_CHANGE_EVENT = "vietflow:voice-change";
+export const RANDOM_VOICE_ID = "random";
+export const DEFAULT_VOICE_ID = RANDOM_VOICE_ID;
 
 export const VIETNAMESE_VOICES = Object.freeze([
   Object.freeze({
@@ -41,10 +43,10 @@ export const VIETNAMESE_VOICES = Object.freeze([
   Object.freeze({
     id: "maianh",
     label: "Mai Anh",
-    shortLabel: "Nữ · Bắc · Tin tức",
+    shortLabel: "Nữ · Bắc · Tin tức rõ chữ",
     gender: "female",
     region: "Bắc",
-    style: "Phong cách tin tức",
+    style: "Phong cách tin tức rõ chữ",
     hfVoice: "Mai Anh",
     fallbackEdgeVoice: "vi-VN-HoaiMyNeural",
   }),
@@ -70,10 +72,28 @@ export const VIETNAMESE_VOICES = Object.freeze([
   }),
 ]);
 
-const DEFAULT_VOICE_ID = "ngochuyen";
-const VOICE_META_BY_ID = new Map(VIETNAMESE_VOICES.map((v) => [v.id, v]));
+export const RANDOM_VOICE_OPTION = Object.freeze({
+  id: RANDOM_VOICE_ID,
+  label: "Ngẫu nhiên",
+  shortLabel: "Xoay vòng 5 giọng Bắc",
+  gender: "mixed",
+  region: "Bắc",
+  style: "Tự động chọn trong 5 giọng Miền Bắc",
+});
+
+export const VOICE_OPTIONS = Object.freeze([
+  RANDOM_VOICE_OPTION,
+  ...VIETNAMESE_VOICES,
+]);
+
+const NORTHERN_VOICE_IDS = Object.freeze(VIETNAMESE_VOICES.map((v) => v.id));
+const VOICE_META_BY_ID = new Map(VOICE_OPTIONS.map((v) => [v.id, v]));
 
 const VOICE_ALIAS_MAP = Object.freeze({
+  random: RANDOM_VOICE_ID,
+  ngaunhien: RANDOM_VOICE_ID,
+  auto: RANDOM_VOICE_ID,
+  shuffle: RANDOM_VOICE_ID,
   ngochuyen: "ngochuyen",
   trucly: "trucly",
   maianh: "maianh",
@@ -102,6 +122,33 @@ let playbackSeq = 0;
 let activeAudio = null;
 let activeResolve = null;
 
+function cleanTtsText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Deterministically pick one of the 5 Northern Vietnamese voices from normalized text
+ * using FNV-1a 32-bit hashing modulo 5.
+ * Matches `pickRandomVoiceForText` in `api/tts.js` so `prefetchVietnamese`, `speakVietnamese`,
+ * Browser Cache API, and Supabase Storage `tts-cache` share 100% identical audio cache keys.
+ *
+ * @param {string} text
+ * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
+ */
+export function pickRandomVoiceForText(text) {
+  const normalized = String(text || "")
+    .normalize("NFC")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return NORTHERN_VOICE_IDS[0];
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return NORTHERN_VOICE_IDS[hash % NORTHERN_VOICE_IDS.length];
+}
+
 function normalizeVoiceId(rawVoice) {
   if (typeof rawVoice !== "string") return DEFAULT_VOICE_ID;
   const canonical = rawVoice
@@ -121,19 +168,36 @@ function normalizeVoiceId(rawVoice) {
 }
 
 /**
- * Return metadata for a Northern Vietnamese voice ID (defaults to current selected voice).
+ * Resolve a requested voice ID (`'random'` or one of the 5 Northern voices) into
+ * a concrete Northern Vietnamese voice ID for caching and `/api/tts` calls.
+ *
+ * @param {string} [rawVoice]
+ * @param {string} [text=""]
+ * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
+ */
+export function resolveEffectiveVoice(rawVoice, text = "") {
+  const normalized = normalizeVoiceId(rawVoice ?? getSelectedVoice());
+  if (normalized === RANDOM_VOICE_ID) {
+    return pickRandomVoiceForText(text);
+  }
+  return normalized;
+}
+
+/**
+ * Return metadata for a voice ID (`'random'` or one of the 5 Northern voices;
+ * defaults to the currently selected voice).
  * @param {string} [voiceId]
  */
 export function getVoiceMeta(voiceId) {
   const resolved = voiceId === undefined ? getSelectedVoice() : normalizeVoiceId(voiceId);
-  return VOICE_META_BY_ID.get(resolved) || VIETNAMESE_VOICES[0];
+  return VOICE_META_BY_ID.get(resolved) || RANDOM_VOICE_OPTION;
 }
 
 /**
- * Return the currently selected Northern Vietnamese TTS voice ID.
+ * Return the currently selected TTS voice preference (`'random'` or one of the 5 Northern IDs).
  * Reads `localStorage` key `'vietflow_tts_voice'` safely, migrating legacy
- * `'hoaimy'` -> `'ngochuyen'` and `'namminh'` -> `'haidang'`, defaulting to `'ngochuyen'`.
- * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
+ * `'hoaimy'` -> `'ngochuyen'` and `'namminh'` -> `'haidang'`, defaulting to `'random'`.
+ * @returns {"random" | "ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
  */
 export function getSelectedVoice() {
   if (typeof window === "undefined" || !window.localStorage) {
@@ -156,10 +220,10 @@ export function getSelectedVoice() {
 }
 
 /**
- * Persist the selected Northern Vietnamese TTS voice ID and notify mounted components
- * via the custom `window` event `'vietflow:voice-change'`.
+ * Persist the selected TTS voice preference (`'random'` or one of the 5 Northern IDs)
+ * and notify mounted components via the custom `window` event `'vietflow:voice-change'`.
  * @param {string} voiceId
- * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
+ * @returns {"random" | "ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
  */
 export function setSelectedVoice(voiceId) {
   const normalized = normalizeVoiceId(voiceId);
@@ -191,12 +255,10 @@ function clampRate(rate) {
   return Math.min(1.5, Math.max(0.5, num));
 }
 
-function cleanTtsText(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
-}
-
 function getCacheKey(text, voice) {
-  return `${normalizeVoiceId(voice)}::${cleanTtsText(text)}`;
+  const cleanText = cleanTtsText(text);
+  const effectiveVoice = resolveEffectiveVoice(voice, cleanText);
+  return `${effectiveVoice}::${cleanText}`;
 }
 
 function buildTtsEndpoint(cleanText, resolvedVoice) {
@@ -232,8 +294,8 @@ function setCachedBlobUrl(key, url) {
 export function isCachedInMemory(text, voice) {
   const cleanText = cleanTtsText(text);
   if (!cleanText) return false;
-  const resolvedVoice = normalizeVoiceId(voice ?? getSelectedVoice());
-  return audioBlobCache.has(getCacheKey(cleanText, resolvedVoice));
+  const effectiveVoice = resolveEffectiveVoice(voice ?? getSelectedVoice(), cleanText);
+  return audioBlobCache.has(getCacheKey(cleanText, effectiveVoice));
 }
 
 async function openTtsBrowserCache() {
@@ -263,7 +325,8 @@ async function openTtsBrowserCache() {
  * @returns {Promise<string>}
  */
 async function resolveAudioBlobUrl(cleanText, resolvedVoice) {
-  const cacheKey = getCacheKey(cleanText, resolvedVoice);
+  const effectiveVoice = resolveEffectiveVoice(resolvedVoice, cleanText);
+  const cacheKey = getCacheKey(cleanText, effectiveVoice);
 
   const memHit = audioBlobCache.get(cacheKey);
   if (memHit) {
@@ -283,7 +346,7 @@ async function resolveAudioBlobUrl(cleanText, resolvedVoice) {
       throw new Error("Object URL API unavailable");
     }
 
-    const endpoint = buildTtsEndpoint(cleanText, resolvedVoice);
+    const endpoint = buildTtsEndpoint(cleanText, effectiveVoice);
     const browserCache =
       typeof window !== "undefined" &&
       window.caches &&
@@ -404,7 +467,7 @@ export function prefetchVietnamese(texts, options = {}) {
   const rawList = Array.isArray(texts) ? texts : [texts];
   if (rawList.length === 0) return;
 
-  const resolvedVoice = normalizeVoiceId(options?.voice ?? getSelectedVoice());
+  const requestedVoice = normalizeVoiceId(options?.voice ?? getSelectedVoice());
   const seenInBatch = new Set();
 
   for (const entry of rawList) {
@@ -412,7 +475,8 @@ export function prefetchVietnamese(texts, options = {}) {
     const cleanText = cleanTtsText(entry);
     if (!cleanText || cleanText.length > MAX_TTS_TEXT_LENGTH) continue;
 
-    const cacheKey = getCacheKey(cleanText, resolvedVoice);
+    const effectiveVoice = resolveEffectiveVoice(requestedVoice, cleanText);
+    const cacheKey = getCacheKey(cleanText, effectiveVoice);
     if (
       seenInBatch.has(cacheKey) ||
       audioBlobCache.has(cacheKey) ||
@@ -430,7 +494,7 @@ export function prefetchVietnamese(texts, options = {}) {
       if (dropped) queuedPrefetchKeys.delete(dropped.cacheKey);
     }
 
-    prefetchQueue.push({ cleanText, voice: resolvedVoice, cacheKey });
+    prefetchQueue.push({ cleanText, voice: effectiveVoice, cacheKey });
     queuedPrefetchKeys.add(cacheKey);
   }
 
@@ -547,8 +611,8 @@ async function speakViaApi(cleanText, rate, voice, token, { onStart, onEnd }) {
     throw new Error("Audio/Fetch API unavailable");
   }
 
-  const resolvedVoice = normalizeVoiceId(voice);
-  const cacheKey = getCacheKey(cleanText, resolvedVoice);
+  const effectiveVoice = resolveEffectiveVoice(voice, cleanText);
+  const cacheKey = getCacheKey(cleanText, effectiveVoice);
   let blobUrl = audioBlobCache.get(cacheKey);
 
   if (!blobUrl) {
@@ -561,7 +625,7 @@ async function speakViaApi(cleanText, rate, voice, token, { onStart, onEnd }) {
 
     try {
       blobUrl = await Promise.race([
-        resolveAudioBlobUrl(cleanText, resolvedVoice),
+        resolveAudioBlobUrl(cleanText, effectiveVoice),
         cancelPromise,
       ]);
     } finally {
@@ -655,7 +719,8 @@ function speakViaWebSpeech(cleanText, rate, voiceName, voice, token, { onStart, 
     utterance.rate = rate;
 
     const viVoices = getVietnameseVoices();
-    const voiceMeta = getVoiceMeta(voice);
+    const effectiveVoice = resolveEffectiveVoice(voice, cleanText);
+    const voiceMeta = getVoiceMeta(effectiveVoice);
     let chosenVoice = voiceName
       ? viVoices.find((v) => v.name === voiceName)
       : null;
@@ -737,12 +802,12 @@ export async function speakVietnamese(text, options = {}) {
   }
 
   const clampedRate = clampRate(rate);
-  const resolvedVoice = normalizeVoiceId(voice ?? getSelectedVoice());
+  const effectiveVoice = resolveEffectiveVoice(voice ?? getSelectedVoice(), cleanText);
   const myToken = playbackSeq;
 
   // 1. Primary path: /api/tts audio (WAV from VieNeu-TTS / cache or MP3 fallback)
   try {
-    const apiResult = await speakViaApi(cleanText, clampedRate, resolvedVoice, myToken, {
+    const apiResult = await speakViaApi(cleanText, clampedRate, effectiveVoice, myToken, {
       onStart,
       onEnd,
     });
@@ -760,7 +825,7 @@ export async function speakVietnamese(text, options = {}) {
       cleanText,
       clampedRate,
       voiceName,
-      resolvedVoice,
+      effectiveVoice,
       myToken,
       {
         onStart,

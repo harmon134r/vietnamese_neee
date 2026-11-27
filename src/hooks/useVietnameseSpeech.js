@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   VIETNAMESE_VOICES,
   VOICE_CHANGE_EVENT,
+  VOICE_OPTIONS,
   VOICE_STORAGE_KEY,
   createAudioRecorder,
   getSelectedVoice,
@@ -325,6 +326,7 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
     voice,
     voiceMeta,
     voices: VIETNAMESE_VOICES,
+    voiceOptions: VOICE_OPTIONS,
     setVoice,
     prefetch,
     speak,

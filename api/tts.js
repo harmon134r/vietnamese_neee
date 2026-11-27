@@ -29,6 +29,7 @@ const GOOGLE_USER_AGENT =
 
 const LANG_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/;
 
+export const RANDOM_VOICE_ID = "random";
 export const DEFAULT_NORTHERN_VOICE_ID = "ngochuyen";
 
 /**
@@ -65,7 +66,7 @@ export const NORTHERN_VOICES = Object.freeze({
     headerVoice: "Mai Anh",
     gender: "female",
     region: "Bắc",
-    style: "Phong cách tin tức",
+    style: "Phong cách tin tức rõ chữ",
     fallbackEdgeVoice: "vi-VN-HoaiMyNeural",
     locale: "vi-VN",
   }),
@@ -92,6 +93,16 @@ export const NORTHERN_VOICES = Object.freeze({
     locale: "vi-VN",
   }),
 });
+
+const NORTHERN_VOICE_IDS = Object.freeze([
+  "ngochuyen",
+  "trucly",
+  "maianh",
+  "haidang",
+  "thienminh",
+]);
+
+const RANDOM_VOICE_ALIASES = new Set(["random", "ngaunhien", "auto", "shuffle"]);
 
 const VOICE_ALIAS_MAP = Object.freeze({
   ngochuyen: "ngochuyen",
@@ -158,12 +169,38 @@ export function normalizeLang(rawLang) {
 }
 
 /**
- * Normalize any voice ID, legacy alias (`hoaimy`/`namminh`), or full Vietnamese
- * display name (`Ngọc Huyền`, `Hải Đăng`, ...) into one of the 5 Northern voice IDs.
- * @param {string | undefined} rawVoice
+ * Deterministically pick one of the 5 Northern Vietnamese voices from normalized text
+ * using FNV-1a 32-bit hashing modulo 5.
+ * Matches `pickRandomVoiceForText` in `src/lib/speech.js` so `voice=random` resolves
+ * to the exact same Northern voice & Supabase Storage cache key on client and server.
+ *
+ * @param {string} text
  * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
  */
-export function normalizeVoice(rawVoice) {
+export function pickRandomVoiceForText(text) {
+  const normalized = String(text || "")
+    .normalize("NFC")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return DEFAULT_NORTHERN_VOICE_ID;
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return NORTHERN_VOICE_IDS[hash % NORTHERN_VOICE_IDS.length];
+}
+
+/**
+ * Normalize any voice ID (`random` or one of the 5 Northern IDs), legacy alias
+ * (`hoaimy`/`namminh`), or full Vietnamese display name (`Ngọc Huyền`, `Hải Đăng`, ...)
+ * into one of the 5 concrete Northern voice IDs.
+ * When `rawVoice` is `'random'`, deterministically picks a Northern voice from `text`.
+ * @param {string | undefined} rawVoice
+ * @param {string} [text=""]
+ * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
+ */
+export function normalizeVoice(rawVoice, text = "") {
   if (!rawVoice || typeof rawVoice !== "string") {
     return DEFAULT_NORTHERN_VOICE_ID;
   }
@@ -175,6 +212,9 @@ export function normalizeVoice(rawVoice) {
     .toLowerCase()
     .replace(/[\s_-]+/g, "");
 
+  if (RANDOM_VOICE_ALIASES.has(canonical)) {
+    return pickRandomVoiceForText(text);
+  }
   if (VOICE_ALIAS_MAP[canonical]) {
     return VOICE_ALIAS_MAP[canonical];
   }
@@ -184,11 +224,22 @@ export function normalizeVoice(rawVoice) {
 }
 
 /**
+ * Resolve `'random'` or any Northern voice ID into a concrete Northern voice ID for `text`.
+ * @param {string | undefined} rawVoice
+ * @param {string} [text=""]
+ * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
+ */
+export function resolveEffectiveVoice(rawVoice, text = "") {
+  return normalizeVoice(rawVoice, text);
+}
+
+/**
  * Resolve full Northern Vietnamese voice metadata from a raw voice string.
  * @param {string | undefined} rawVoice
+ * @param {string} [text=""]
  */
-export function resolveNorthernVoice(rawVoice) {
-  const voiceId = normalizeVoice(rawVoice);
+export function resolveNorthernVoice(rawVoice, text = "") {
+  const voiceId = normalizeVoice(rawVoice, text);
   return NORTHERN_VOICES[voiceId] || NORTHERN_VOICES[DEFAULT_NORTHERN_VOICE_ID];
 }
 
@@ -198,10 +249,11 @@ export function resolveNorthernVoice(rawVoice) {
  * to `vi-VN-NamMinhNeural`.
  * @param {string} lang
  * @param {string | undefined} rawVoice
+ * @param {string} [text=""]
  * @returns {{ id: string, edgeName: string, locale: string } | null}
  */
-export function resolveEdgeVoice(lang, rawVoice) {
-  const northern = resolveNorthernVoice(rawVoice);
+export function resolveEdgeVoice(lang, rawVoice, text = "") {
+  const northern = resolveNorthernVoice(rawVoice, text);
   if (lang === "vi") {
     return {
       id: northern.id,
@@ -227,8 +279,8 @@ export function resolveEdgeVoice(lang, rawVoice) {
  * @returns {{ voice: object, normalizedText: string, hash: string, cachePath: string }}
  */
 export function computeCachePath(text, rawVoice) {
-  const voice = resolveNorthernVoice(rawVoice);
   const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+  const voice = resolveNorthernVoice(rawVoice, normalizedText);
   const hash = crypto
     .createHash("sha256")
     .update(`${voice.id}::${normalizedText}`)
@@ -592,11 +644,11 @@ async function readGradioSseAudioUrl(sseResponse) {
  */
 export async function fetchVieNeuAudio(text, rawVoice, options = {}) {
   const { timeoutMs = HF_TOTAL_TIMEOUT_MS, fetchImpl = fetch } = options;
+  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
   const voice =
     rawVoice && typeof rawVoice === "object" && rawVoice.hfVoice
       ? rawVoice
-      : resolveNorthernVoice(rawVoice);
-  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+      : resolveNorthernVoice(rawVoice, normalizedText);
   const maxNewFrames = adaptiveMaxFrames(normalizedText);
 
   const controller = new AbortController();
@@ -1063,7 +1115,7 @@ function getQueryParams(req) {
 
 /**
  * Vercel Serverless Function:
- * GET /api/tts?text=...&lang=vi&voice=ngochuyen|trucly|maianh|haidang|thienminh&speed=1
+ * GET /api/tts?text=...&lang=vi&voice=random|ngochuyen|trucly|maianh|haidang|thienminh&speed=1
  *
  * 3-Tier Speed-Optimized Vietnamese TTS Architecture:
  * - Tier 1: Public Supabase Storage shared WAV cache (`tts-cache` bucket, ~80ms hit)

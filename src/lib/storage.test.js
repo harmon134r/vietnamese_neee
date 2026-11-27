@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ttsHandler, {
   NORTHERN_VOICES,
+  RANDOM_VOICE_ID,
   adaptiveMaxFrames,
   buildEdgeSsml,
   computeCachePath,
@@ -9,12 +10,15 @@ import ttsHandler, {
   normalizeLang,
   normalizeSpeed,
   normalizeVoice,
+  pickRandomVoiceForText,
   resolveEdgeVoice,
+  resolveEffectiveVoice,
   resolveNorthernVoice,
   speedToEdgeRate,
   splitTextIntoChunks,
   toSafeHeaderValue,
 } from "../../api/tts.js";
+import { pickRandomVoiceForText as clientPickRandomVoiceForText } from "./speech.js";
 import {
   GAME_TYPES,
   MASTERY_LEVELS,
@@ -191,6 +195,19 @@ describe("api/tts.js", () => {
     expect(p1.cachePath).toMatch(/^v1\/ngochuyen\/[a-f0-9]{64}\.wav$/);
     expect(p3.cachePath).toMatch(/^v1\/haidang\/[a-f0-9]{64}\.wav$/);
 
+    // Random voice mode resolves deterministically & matches client FNV-1a hash
+    expect(RANDOM_VOICE_ID).toBe("random");
+    expect(NORTHERN_VOICES.maianh.style).toBe("Phong cách tin tức rõ chữ");
+    const randomVoiceForHello = pickRandomVoiceForText("Xin chào Hà Nội");
+    expect(randomVoiceForHello).toBe(clientPickRandomVoiceForText("Xin chào Hà Nội"));
+    expect(normalizeVoice("random", "Xin chào Hà Nội")).toBe(randomVoiceForHello);
+    expect(resolveEffectiveVoice("random", "Xin chào Hà Nội")).toBe(randomVoiceForHello);
+    expect(resolveNorthernVoice("random", "Xin chào Hà Nội").id).toBe(randomVoiceForHello);
+    const pRandom = computeCachePath("  Xin   chào Hà Nội  ", "random");
+    const pDirect = computeCachePath("Xin chào Hà Nội", randomVoiceForHello);
+    expect(pRandom.cachePath).toBe(pDirect.cachePath);
+    expect(pRandom.voice.id).toBe(randomVoiceForHello);
+
     // Adaptive max_new_frames thresholds
     expect(adaptiveMaxFrames("Xin chào")).toBe(120); // <= 25
     expect(adaptiveMaxFrames("a".repeat(25))).toBe(120);
@@ -325,6 +342,28 @@ describe("api/tts.js", () => {
     expect(resCache.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
     expect(fetchVieNeuSpy).not.toHaveBeenCalled();
     expect(synthesizeEdgeSpy).not.toHaveBeenCalled();
+
+    // Direct API call with voice=random resolves deterministically to a concrete Northern voice & cache path
+    const expectedRandomVoiceId = pickRandomVoiceForText("Phở bò Hà Nội");
+    const expectedRandomMeta = NORTHERN_VOICES[expectedRandomVoiceId];
+    const fetchCacheRandom = vi.fn().mockResolvedValue(fakeWav);
+    const resRandom = createMockRes();
+    await ttsHandler(
+      { method: "GET", query: { text: "Phở bò Hà Nội", lang: "vi", voice: "random" } },
+      resRandom,
+      {
+        fetchCache: fetchCacheRandom,
+        fetchVieNeu: fetchVieNeuSpy,
+        synthesizeEdge: synthesizeEdgeSpy,
+      }
+    );
+    expect(resRandom.statusCode).toBe(200);
+    expect(resRandom.headers["x-tts-provider"]).toBe("vieneu-cache");
+    expect(resRandom.headers["x-tts-voice-id"]).toBe(expectedRandomVoiceId);
+    expect(resRandom.headers["x-tts-voice"]).toBe(expectedRandomMeta.headerVoice);
+    expect(fetchCacheRandom).toHaveBeenCalledWith(
+      computeCachePath("Phở bò Hà Nội", expectedRandomVoiceId).cachePath
+    );
 
     // Tier 2: Supabase Cache MISS -> HF VieNeu-TTS HIT -> persists to Supabase (swallows write errors cleanly)
     const fetchCacheMiss = vi.fn().mockResolvedValue(null);

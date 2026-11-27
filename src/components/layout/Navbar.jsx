@@ -6,10 +6,20 @@ import {
   Compass,
   Gamepad2,
   Layers,
+  Shuffle,
   Volume2,
 } from "lucide-react";
 import { resolveStudentDisplayName } from "../../lib/supabase";
 import * as speechApi from "../../lib/speech";
+
+const FALLBACK_RANDOM_VOICE = Object.freeze({
+  id: "random",
+  label: "Ngẫu nhiên",
+  shortLabel: "Xoay vòng 5 giọng Bắc",
+  gender: "mixed",
+  region: "Bắc",
+  style: "Tự động chọn trong 5 giọng Miền Bắc",
+});
 
 const FALLBACK_NORTHERN_VOICES = Object.freeze([
   Object.freeze({
@@ -31,10 +41,10 @@ const FALLBACK_NORTHERN_VOICES = Object.freeze([
   Object.freeze({
     id: "maianh",
     label: "Mai Anh",
-    shortLabel: "Nữ · Bắc · Tin tức",
+    shortLabel: "Nữ · Bắc · Tin tức rõ chữ",
     gender: "female",
     region: "Bắc",
-    style: "Phong cách tin tức",
+    style: "Phong cách tin tức rõ chữ",
   }),
   Object.freeze({
     id: "haidang",
@@ -53,6 +63,10 @@ const FALLBACK_NORTHERN_VOICES = Object.freeze([
     style: "Phong cách kể chuyện",
   }),
 ]);
+
+function getRandomVoiceOption() {
+  return speechApi.RANDOM_VOICE_OPTION || FALLBACK_RANDOM_VOICE;
+}
 
 function getNorthernVoices() {
   if (
@@ -90,9 +104,10 @@ export function Navbar({
   isSupabaseConfigured,
   onOpenAuth,
 }) {
+  const randomOption = getRandomVoiceOption();
   const voices = getNorthernVoices();
   const [voiceId, setVoiceId] = useState(
-    () => speechApi.getSelectedVoice?.() || voices[0]?.id || "ngochuyen"
+    () => speechApi.getSelectedVoice?.() || randomOption.id
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [voiceJustChanged, setVoiceJustChanged] = useState(false);
@@ -155,10 +170,12 @@ export function Navbar({
     };
   }, [menuOpen]);
 
-  const currentVoice =
-    voices.find((v) => v.id === voiceId) ||
-    speechApi.getVoiceMeta?.(voiceId) ||
-    voices[0];
+  const isRandomMode = voiceId === randomOption.id;
+  const currentVoice = isRandomMode
+    ? randomOption
+    : voices.find((v) => v.id === voiceId) ||
+      speechApi.getVoiceMeta?.(voiceId) ||
+      randomOption;
 
   const handleSelectVoice = (nextId) => {
     speechApi.stopSpeaking?.();
@@ -241,18 +258,32 @@ export function Navbar({
                 } ${voiceJustChanged ? "is-changed" : ""}`}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setMenuOpen((prev) => !prev)}
-                title={`Giọng đọc Miền Bắc: ${currentVoice.label} (${formatVoiceSublabel(currentVoice)})`}
+                title={
+                  isRandomMode
+                    ? "Giọng đọc Miền Bắc: Ngẫu nhiên (Tự động xoay vòng 5 giọng Bắc)"
+                    : `Giọng đọc Miền Bắc: ${currentVoice.label} (${formatVoiceSublabel(currentVoice)})`
+                }
                 aria-label={`Chọn giọng đọc Miền Bắc, hiện tại ${currentVoice.label}`}
                 aria-haspopup="listbox"
                 aria-expanded={menuOpen}
                 data-voice={currentVoice.id}
                 data-testid="navbar-voice-trigger"
               >
-                <Volume2
-                  size={14}
-                  aria-hidden="true"
-                  className="vf-voice-icon"
-                />
+                {isRandomMode ? (
+                  <Shuffle
+                    size={14}
+                    aria-hidden="true"
+                    className="vf-voice-icon"
+                    data-testid="navbar-voice-icon-random"
+                  />
+                ) : (
+                  <Volume2
+                    size={14}
+                    aria-hidden="true"
+                    className="vf-voice-icon"
+                    data-testid="navbar-voice-icon-voice"
+                  />
+                )}
                 <span className="vf-voice-trigger-label">
                   {currentVoice.label}
                 </span>
@@ -274,6 +305,45 @@ export function Navbar({
                     Giọng đọc Miền Bắc · VieNeu-TTS
                   </div>
                   <div className="vf-voice-list">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={isRandomMode}
+                      className={`vf-voice-option ${
+                        isRandomMode ? "is-selected" : ""
+                      }`}
+                      onClick={() => handleSelectVoice(randomOption.id)}
+                      data-voice-option={randomOption.id}
+                    >
+                      <span className="vf-voice-option-copy">
+                        <span className="vf-voice-option-name">
+                          <Shuffle
+                            size={13}
+                            aria-hidden="true"
+                            className="vf-voice-option-icon"
+                          />
+                          <span>{randomOption.label}</span>
+                        </span>
+                        <span className="vf-voice-option-sub">
+                          Tự động xoay vòng 5 giọng Bắc
+                        </span>
+                      </span>
+                      {isRandomMode && (
+                        <span
+                          className="vf-voice-check"
+                          aria-hidden="true"
+                        >
+                          <Check size={15} strokeWidth={2.2} />
+                        </span>
+                      )}
+                    </button>
+
+                    <div
+                      className="vf-voice-divider"
+                      role="separator"
+                      aria-hidden="true"
+                    />
+
                     {voices.map((voiceOpt) => {
                       const isSelected = voiceOpt.id === currentVoice.id;
                       return (

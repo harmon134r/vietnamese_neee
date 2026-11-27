@@ -4,20 +4,33 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("../../lib/speech.js", () => {
+  const RANDOM_VOICE = {
+    id: "random",
+    label: "Ngẫu nhiên",
+    shortLabel: "Xoay vòng 5 giọng Bắc",
+    gender: "mixed",
+    region: "Bắc",
+    style: "Tự động chọn trong 5 giọng Miền Bắc",
+  };
   const NORTHERN_VOICES = [
     { id: "ngochuyen", label: "Ngọc Huyền", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Giọng đọc tự nhiên" },
     { id: "trucly", label: "Trúc Ly", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Phong cách tự nhiên" },
-    { id: "maianh", label: "Mai Anh", shortLabel: "Nữ · Bắc · Tin tức", gender: "female", region: "Bắc", style: "Phong cách tin tức" },
+    { id: "maianh", label: "Mai Anh", shortLabel: "Nữ · Bắc · Tin tức rõ chữ", gender: "female", region: "Bắc", style: "Phong cách tin tức rõ chữ" },
     { id: "haidang", label: "Hải Đăng", shortLabel: "Nam · Bắc · Tự nhiên", gender: "male", region: "Bắc", style: "Phong cách tự nhiên" },
     { id: "thienminh", label: "Thiện Minh", shortLabel: "Nam · Bắc · Kể chuyện", gender: "male", region: "Bắc", style: "Phong cách kể chuyện" },
   ];
+  const ALL_VOICE_OPTIONS = [RANDOM_VOICE, ...NORTHERN_VOICES];
   return {
+    RANDOM_VOICE_ID: "random",
+    DEFAULT_VOICE_ID: "random",
+    RANDOM_VOICE_OPTION: RANDOM_VOICE,
     VIETNAMESE_VOICES: NORTHERN_VOICES,
+    VOICE_OPTIONS: ALL_VOICE_OPTIONS,
     VOICE_STORAGE_KEY: "vietflow_tts_voice",
     VOICE_CHANGE_EVENT: "vietflow:voice-change",
-    getSelectedVoice: vi.fn(() => "ngochuyen"),
+    getSelectedVoice: vi.fn(() => "random"),
     setSelectedVoice: vi.fn((id) => id),
-    getVoiceMeta: vi.fn((id) => NORTHERN_VOICES.find((v) => v.id === id) || NORTHERN_VOICES[0]),
+    getVoiceMeta: vi.fn((id) => ALL_VOICE_OPTIONS.find((v) => v.id === id) || RANDOM_VOICE),
     prefetchVietnamese: vi.fn(),
     speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
     stopSpeaking: vi.fn(),
@@ -219,13 +232,18 @@ describe("FlashcardStudio", () => {
       );
     });
 
-    // Settings popover has all 5 Northern Vietnamese voices
+    // Settings popover has Random mode (selected by default) + all 5 Northern Vietnamese voices
     const voiceGroup = within(settingsDialog).getByRole("group", {
       name: "Giọng đọc tiếng Việt (Miền Bắc)",
     });
+    const randomBtn = within(voiceGroup).getByText("Ngẫu nhiên").closest("button");
+    expect(randomBtn).not.toBeNull();
+    expect(randomBtn).toHaveAttribute("aria-pressed", "true");
+    expect(within(voiceGroup).getByText("Xoay vòng 5 giọng Bắc")).toBeInTheDocument();
     expect(within(voiceGroup).getByText("Ngọc Huyền")).toBeInTheDocument();
     expect(within(voiceGroup).getByText("Trúc Ly")).toBeInTheDocument();
     expect(within(voiceGroup).getByText("Mai Anh")).toBeInTheDocument();
+    expect(within(voiceGroup).getByText("Nữ · Tin tức rõ chữ")).toBeInTheDocument();
     expect(within(voiceGroup).getByText("Thiện Minh")).toBeInTheDocument();
     const haiDangBtn = within(voiceGroup).getByText("Hải Đăng").closest("button");
     expect(haiDangBtn).not.toBeNull();
@@ -239,6 +257,10 @@ describe("FlashcardStudio", () => {
         { voice: "haidang" }
       );
     });
+
+    // Can switch back to Random mode
+    fireEvent.click(randomBtn);
+    expect(setSelectedVoice).toHaveBeenCalledWith("random");
 
     // Settings popover has no IPA toggle, only POS visibility
     expect(within(settingsDialog).queryByText(/phiên âm|IPA/i)).not.toBeInTheDocument();

@@ -17,7 +17,7 @@ const speechHookState = {
   speakingText: "",
   rate: 1,
   setRate: mockSetRate,
-  voice: "ngochuyen",
+  voice: "random",
   setVoice: mockSetVoice,
   prefetch: mockPrefetch,
   speak: mockSpeak,
@@ -35,20 +35,33 @@ const speechHookState = {
 };
 
 vi.mock("../../lib/speech", () => {
+  const RANDOM_VOICE = {
+    id: "random",
+    label: "Ngẫu nhiên",
+    shortLabel: "Xoay vòng 5 giọng Bắc",
+    gender: "mixed",
+    region: "Bắc",
+    style: "Tự động chọn trong 5 giọng Miền Bắc",
+  };
   const NORTHERN_VOICES = [
     { id: "ngochuyen", label: "Ngọc Huyền", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Giọng đọc tự nhiên" },
     { id: "trucly", label: "Trúc Ly", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Phong cách tự nhiên" },
-    { id: "maianh", label: "Mai Anh", shortLabel: "Nữ · Bắc · Tin tức", gender: "female", region: "Bắc", style: "Phong cách tin tức" },
+    { id: "maianh", label: "Mai Anh", shortLabel: "Nữ · Bắc · Tin tức rõ chữ", gender: "female", region: "Bắc", style: "Phong cách tin tức rõ chữ" },
     { id: "haidang", label: "Hải Đăng", shortLabel: "Nam · Bắc · Tự nhiên", gender: "male", region: "Bắc", style: "Phong cách tự nhiên" },
     { id: "thienminh", label: "Thiện Minh", shortLabel: "Nam · Bắc · Kể chuyện", gender: "male", region: "Bắc", style: "Phong cách kể chuyện" },
   ];
+  const ALL_VOICE_OPTIONS = [RANDOM_VOICE, ...NORTHERN_VOICES];
   return {
+    RANDOM_VOICE_ID: "random",
+    DEFAULT_VOICE_ID: "random",
+    RANDOM_VOICE_OPTION: RANDOM_VOICE,
     VIETNAMESE_VOICES: NORTHERN_VOICES,
+    VOICE_OPTIONS: ALL_VOICE_OPTIONS,
     VOICE_STORAGE_KEY: "vietflow_tts_voice",
     VOICE_CHANGE_EVENT: "vietflow:voice-change",
-    getSelectedVoice: vi.fn(() => "ngochuyen"),
+    getSelectedVoice: vi.fn(() => "random"),
     setSelectedVoice: vi.fn((id) => id),
-    getVoiceMeta: vi.fn((id) => NORTHERN_VOICES.find((v) => v.id === id) || NORTHERN_VOICES[0]),
+    getVoiceMeta: vi.fn((id) => ALL_VOICE_OPTIONS.find((v) => v.id === id) || RANDOM_VOICE),
     prefetchVietnamese: vi.fn(),
     speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
     stopSpeaking: vi.fn(),
@@ -171,7 +184,7 @@ describe("ListeningGame", () => {
     // Prefetches current + next 2 exercises on mount
     expect(prefetchVietnamese).toHaveBeenCalledWith(
       selfExercises.slice(0, 3).map((e) => e.audioTextVi),
-      { voice: "ngochuyen" }
+      { voice: "random" }
     );
 
     // Play audio and verify replay count increments
@@ -225,7 +238,7 @@ describe("PronunciationLab", () => {
     expect(screen.getByText(/Biểu đồ 6 Thanh Điệu Tiếng Việt/i)).toBeInTheDocument();
     expect(prefetchVietnamese).toHaveBeenCalledWith(
       expect.any(Array),
-      { voice: "ngochuyen" }
+      { voice: "random" }
     );
 
     // Switch to Sentence Shadowing tab
@@ -234,7 +247,7 @@ describe("PronunciationLab", () => {
     expect(screen.getByTestId("pronunciation-shadowing-view")).toBeInTheDocument();
     expect(prefetchVietnamese).toHaveBeenCalledWith(
       expect.arrayContaining([firstSelfSentence.textVi]),
-      { voice: "ngochuyen" }
+      { voice: "random" }
     );
 
     // Submit simulated Vietnamese sentence through fallback input
@@ -302,7 +315,7 @@ describe("DialogueRoleplay", () => {
         ...turn0.expectedResponses.map((r) => r.textVi),
         ...(turn1 ? [turn1.npcTextVi] : []),
       ],
-      { voice: "ngochuyen" }
+      { voice: "random" }
     );
 
     // Turn 1: respond via Speak/Typed intent matching pipeline
@@ -400,7 +413,7 @@ describe("ReadingVocabGame", () => {
     expect(screen.getByTestId("sentence-builder-view")).toBeInTheDocument();
     expect(prefetchVietnamese).toHaveBeenCalledWith(
       selfBuilders.slice(0, 2).map((b) => b.targetSentenceVi),
-      { voice: "ngochuyen" }
+      { voice: "random" }
     );
 
     for (const item of selfBuilders) {
@@ -433,7 +446,7 @@ describe("ReadingVocabGame", () => {
 });
 
 describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
-  it("opens 5-voice Northern popover, closes on Escape/outside click, and selects a voice cleanly", () => {
+  it("defaults to Ngẫu nhiên with Shuffle icon, opens Random + 5 Northern voices popover, closes on Escape/outside click, and switches cleanly", () => {
     render(
       <Navbar
         activeView="dashboard"
@@ -447,19 +460,22 @@ describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
     );
 
     const trigger = screen.getByTestId("navbar-voice-trigger");
-    expect(trigger).toHaveTextContent("Ngọc Huyền");
+    expect(trigger).toHaveTextContent("Ngẫu nhiên");
+    expect(within(trigger).getByTestId("navbar-voice-icon-random")).toBeInTheDocument();
     expect(screen.queryByTestId("navbar-voice-menu")).not.toBeInTheDocument();
 
-    // Open popover and verify header + all 5 Northern voices & sublabels
+    // Open popover and verify header + Random option + all 5 Northern voices & sublabels
     fireEvent.click(trigger);
     const menu = screen.getByTestId("navbar-voice-menu");
     expect(menu).toHaveTextContent("Giọng đọc Miền Bắc · VieNeu-TTS");
+    expect(within(menu).getByText("Ngẫu nhiên")).toBeInTheDocument();
+    expect(within(menu).getByText("Tự động xoay vòng 5 giọng Bắc")).toBeInTheDocument();
     expect(within(menu).getByText("Ngọc Huyền")).toBeInTheDocument();
     expect(within(menu).getByText("Trúc Ly")).toBeInTheDocument();
     expect(within(menu).getByText("Mai Anh")).toBeInTheDocument();
     expect(within(menu).getByText("Hải Đăng")).toBeInTheDocument();
     expect(within(menu).getByText("Thiện Minh")).toBeInTheDocument();
-    expect(within(menu).getByText("Nữ · Tin tức")).toBeInTheDocument();
+    expect(within(menu).getByText("Nữ · Tin tức rõ chữ")).toBeInTheDocument();
     expect(within(menu).getByText("Nam · Kể chuyện")).toBeInTheDocument();
 
     // Close on Escape
@@ -472,12 +488,20 @@ describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
     fireEvent.mouseDown(document.body);
     expect(screen.queryByTestId("navbar-voice-menu")).not.toBeInTheDocument();
 
-    // Re-open and select Thiện Minh
+    // Re-open and select Thiện Minh -> switches icon from Shuffle to Volume2
     fireEvent.click(trigger);
     fireEvent.click(within(screen.getByTestId("navbar-voice-menu")).getByText("Thiện Minh"));
     expect(setSelectedVoice).toHaveBeenCalledWith("thienminh");
     expect(screen.queryByTestId("navbar-voice-menu")).not.toBeInTheDocument();
     expect(trigger).toHaveTextContent("Thiện Minh");
+    expect(within(trigger).getByTestId("navbar-voice-icon-voice")).toBeInTheDocument();
+
+    // Re-open and select Ngẫu nhiên -> switches icon back to Shuffle
+    fireEvent.click(trigger);
+    fireEvent.click(within(screen.getByTestId("navbar-voice-menu")).getByText("Ngẫu nhiên"));
+    expect(setSelectedVoice).toHaveBeenCalledWith("random");
+    expect(trigger).toHaveTextContent("Ngẫu nhiên");
+    expect(within(trigger).getByTestId("navbar-voice-icon-random")).toBeInTheDocument();
   });
 
   it("prefetches the first 3 keyPhrases of the selected topic in TopicOverview", () => {
@@ -496,7 +520,7 @@ describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
 
     expect(prefetchVietnamese).toHaveBeenCalledWith(
       foodTopic.keyPhrases.slice(0, 3).map((p) => p.vi),
-      { voice: "ngochuyen" }
+      { voice: "random" }
     );
   });
 });

@@ -13,9 +13,13 @@ import {
   stripVietnameseTones,
 } from "./pronunciation.js";
 import {
+  DEFAULT_VOICE_ID,
+  RANDOM_VOICE_ID,
+  RANDOM_VOICE_OPTION,
   TTS_BROWSER_CACHE_NAME,
   VIETNAMESE_VOICES,
   VOICE_CHANGE_EVENT,
+  VOICE_OPTIONS,
   VOICE_STORAGE_KEY,
   clearTtsCache,
   getSelectedVoice,
@@ -23,12 +27,16 @@ import {
   getVoiceMeta,
   isCachedInMemory,
   isSpeechRecognitionSupported,
+  pickRandomVoiceForText,
   prefetchVietnamese,
+  resolveEffectiveVoice,
   setSelectedVoice,
   speakVietnamese,
   startVietnameseListening,
   stopSpeaking,
 } from "./speech.js";
+import { pickRandomVoiceForText as apiPickRandomVoiceForText } from "../../api/tts.js";
+import { LISTENING_EXERCISES, PRONUNCIATION_SENTENCES, TOPICS } from "../data/index.js";
 import { useVietnameseSpeech } from "../hooks/useVietnameseSpeech.js";
 
 describe("VIETNAMESE_TONES & extractVietnameseTone", () => {
@@ -275,7 +283,17 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     delete window.SpeechSynthesisUtterance;
   });
 
-  it("exposes all 5 Northern Vietnamese voices, migrates legacy hoaimy/namminh IDs, and dispatches voice-change events", () => {
+  it("defaults to random mode across 5 Northern voices, migrates legacy hoaimy/namminh IDs, and dispatches voice-change events", () => {
+    expect(RANDOM_VOICE_ID).toBe("random");
+    expect(DEFAULT_VOICE_ID).toBe("random");
+    expect(RANDOM_VOICE_OPTION).toEqual({
+      id: "random",
+      label: "Ngẫu nhiên",
+      shortLabel: "Xoay vòng 5 giọng Bắc",
+      gender: "mixed",
+      region: "Bắc",
+      style: "Tự động chọn trong 5 giọng Miền Bắc",
+    });
     expect(VIETNAMESE_VOICES).toEqual([
       {
         id: "ngochuyen",
@@ -300,10 +318,10 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
       {
         id: "maianh",
         label: "Mai Anh",
-        shortLabel: "Nữ · Bắc · Tin tức",
+        shortLabel: "Nữ · Bắc · Tin tức rõ chữ",
         gender: "female",
         region: "Bắc",
-        style: "Phong cách tin tức",
+        style: "Phong cách tin tức rõ chữ",
         hfVoice: "Mai Anh",
         fallbackEdgeVoice: "vi-VN-HoaiMyNeural",
       },
@@ -328,9 +346,12 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
         fallbackEdgeVoice: "vi-VN-NamMinhNeural",
       },
     ]);
+    expect(VOICE_OPTIONS).toEqual([RANDOM_VOICE_OPTION, ...VIETNAMESE_VOICES]);
 
-    expect(getSelectedVoice()).toBe("ngochuyen");
-    expect(getVoiceMeta().id).toBe("ngochuyen");
+    // Default voice is 'random'
+    expect(getSelectedVoice()).toBe("random");
+    expect(getVoiceMeta()).toEqual(RANDOM_VOICE_OPTION);
+    expect(getVoiceMeta("random")).toEqual(RANDOM_VOICE_OPTION);
     expect(getVoiceMeta("thienminh")).toMatchObject({
       id: "thienminh",
       hfVoice: "Thiện Minh",
@@ -356,16 +377,63 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener.mock.calls[0][0].detail).toEqual({ voice: "haidang" });
 
-    // Full Vietnamese name & legacy alias via setSelectedVoice
+    // Full Vietnamese name, 'Ngẫu nhiên' & legacy alias via setSelectedVoice
     expect(setSelectedVoice("Thiện Minh")).toBe("thienminh");
+    expect(setSelectedVoice("Ngẫu nhiên")).toBe("random");
+    expect(getSelectedVoice()).toBe("random");
     expect(setSelectedVoice("hoaimy")).toBe("ngochuyen");
     expect(setSelectedVoice("namminh")).toBe("haidang");
 
-    // Unknown voice safely normalizes to default 'ngochuyen'
-    expect(setSelectedVoice("unknown-voice")).toBe("ngochuyen");
-    expect(getSelectedVoice()).toBe("ngochuyen");
+    // Unknown voice safely normalizes to default 'random'
+    expect(setSelectedVoice("unknown-voice")).toBe("random");
+    expect(getSelectedVoice()).toBe("random");
 
     window.removeEventListener(VOICE_CHANGE_EVENT, listener);
+  });
+
+  it("pickRandomVoiceForText distributes deterministically across all 5 Northern voices and matches api/tts.js", () => {
+    const realisticPhrases = [
+      "Xin chào Hà Nội",
+      "Cảm ơn bạn rất nhiều",
+      "Tôi thích ăn phở bò tái chín",
+      "Hôm nay thời tiết se lạnh và có nắng nhẹ",
+      "Cuối tuần tôi thường đi uống cà phê sữa đá với bạn bè",
+      "Bún chả Hà Nội có nước chấm rất đậm đà",
+      "Em ơi cho anh thanh toán với ạ",
+      "Bạn có hay đi dạo quanh hồ Hoàn Kiếm không",
+      "Tôi đang luyện phát âm sáu thanh điệu tiếng Việt",
+      "Sáng nay tôi thức dậy sớm và tập thể dục",
+      "Món nem rán này giòn rụm và thơm phức",
+      "Theo tôi, học ngoại ngữ cần kiên trì mỗi ngày",
+      "Xin lỗi, bạn có thể nói chậm hơn một chút được không",
+      "Chúc bạn một ngày làm việc thật hiệu quả",
+      "Hẹn gặp lại bạn vào tối thứ bảy nhé",
+      ...TOPICS.flatMap((t) => (t.keyPhrases || []).map((p) => p.vi)),
+      ...LISTENING_EXERCISES.map((e) => e.audioTextVi),
+      ...PRONUNCIATION_SENTENCES.map((s) => s.textVi),
+    ].filter(Boolean);
+
+    const counts = new Map();
+    const allowedIds = new Set(VIETNAMESE_VOICES.map((v) => v.id));
+
+    for (const phrase of realisticPhrases) {
+      const picked1 = pickRandomVoiceForText(phrase);
+      const picked2 = pickRandomVoiceForText(`  ${phrase.replace(/ /g, "   ")}  `.normalize("NFD"));
+      const apiPicked = apiPickRandomVoiceForText(phrase);
+
+      expect(allowedIds.has(picked1)).toBe(true);
+      expect(picked1).toBe(picked2);
+      expect(picked1).toBe(apiPicked);
+      expect(resolveEffectiveVoice("random", phrase)).toBe(picked1);
+      expect(resolveEffectiveVoice("maianh", phrase)).toBe("maianh");
+      counts.set(picked1, (counts.get(picked1) || 0) + 1);
+    }
+
+    // All 5 Northern voices must appear across realistic study phrases
+    expect(new Set(counts.keys())).toEqual(allowedIds);
+    for (const id of allowedIds) {
+      expect(counts.get(id)).toBeGreaterThanOrEqual(5);
+    }
   });
 
   it("handles missing Web Speech APIs safely without throwing", async () => {
@@ -427,36 +495,56 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     }
     vi.stubGlobal("Audio", MockAudio);
 
-    expect(isCachedInMemory("Xin chào", "ngochuyen")).toBe(false);
+    const randomVoiceForHello = pickRandomVoiceForText("Xin chào");
+    const alternateVoice = randomVoiceForHello === "haidang" ? "ngochuyen" : "haidang";
+
+    expect(isCachedInMemory("Xin chào")).toBe(false);
+    expect(isCachedInMemory("Xin chào", "random")).toBe(false);
+    expect(isCachedInMemory("Xin chào", randomVoiceForHello)).toBe(false);
 
     const first = await speakVietnamese("Xin chào", { rate: 0.9 });
     const second = await speakVietnamese("Xin chào", { rate: 1.15 });
-    const thirdMale = await speakVietnamese("Xin chào", { rate: 1, voice: "haidang" });
+    const thirdExplicitSame = await speakVietnamese("Xin chào", {
+      rate: 1,
+      voice: randomVoiceForHello,
+    });
+    const fourthAlternate = await speakVietnamese("Xin chào", {
+      rate: 1,
+      voice: alternateVoice,
+    });
 
     expect(first).toEqual({ source: "api" });
     expect(second).toEqual({ source: "api" });
-    expect(thirdMale).toEqual({ source: "api" });
-    expect(isCachedInMemory("Xin chào", "ngochuyen")).toBe(true);
-    expect(isCachedInMemory("Xin chào", "haidang")).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2); // ngochuyen cached on 2nd call; haidang fetches fresh audio
-    expect(fetchMock.mock.calls[0][0]).toContain("voice=ngochuyen");
+    expect(thirdExplicitSame).toEqual({ source: "api" });
+    expect(fourthAlternate).toEqual({ source: "api" });
+    expect(isCachedInMemory("Xin chào")).toBe(true);
+    expect(isCachedInMemory("Xin chào", "random")).toBe(true);
+    expect(isCachedInMemory("Xin chào", randomVoiceForHello)).toBe(true);
+    expect(isCachedInMemory("Xin chào", alternateVoice)).toBe(true);
+    // Random mode & explicit resolved Northern voice share the EXACT same cache entry (1 fetch);
+    // alternateVoice fetches fresh audio (total = 2)
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain(`voice=${randomVoiceForHello}`);
+    expect(fetchMock.mock.calls[0][0]).not.toContain("voice=random");
     expect(fetchMock.mock.calls[0][0]).not.toContain("speed=");
-    expect(fetchMock.mock.calls[1][0]).toContain("voice=haidang");
+    expect(fetchMock.mock.calls[1][0]).toContain(`voice=${alternateVoice}`);
     expect(fetchMock.mock.calls[1][0]).not.toContain("speed=");
-    expect(playedRates).toEqual([0.9, 1.15, 1]);
+    expect(playedRates).toEqual([0.9, 1.15, 1, 1]);
     expect(playedSrcs[0]).toBe(playedSrcs[1]);
-    expect(playedSrcs[2]).not.toBe(playedSrcs[0]);
+    expect(playedSrcs[0]).toBe(playedSrcs[2]);
+    expect(playedSrcs[3]).not.toBe(playedSrcs[0]);
 
     // Clear in-memory cache -> next speak hits persistent Browser Cache API with zero extra network fetches!
     clearTtsCache();
-    expect(isCachedInMemory("Xin chào", "ngochuyen")).toBe(false);
+    expect(isCachedInMemory("Xin chào", "random")).toBe(false);
     const fromBrowserCache = await speakVietnamese("Xin chào", { rate: 0.75 });
     expect(fromBrowserCache).toEqual({ source: "api" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(isCachedInMemory("Xin chào", "ngochuyen")).toBe(true);
+    expect(isCachedInMemory("Xin chào", "random")).toBe(true);
+    expect(isCachedInMemory("Xin chào", randomVoiceForHello)).toBe(true);
   });
 
-  it("deduplicates in-flight fetches between prefetchVietnamese and speakVietnamese and respects concurrency limit", async () => {
+  it("deduplicates in-flight fetches between prefetchVietnamese and speakVietnamese in default random mode and respects concurrency limit", async () => {
     const deferredByUrl = new Map();
     const fetchMock = vi.fn((url) => {
       let resolveFetch;
@@ -486,7 +574,10 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     }
     vi.stubGlobal("Audio", MockAudio);
 
-    // Queue 3 unique phrases (plus duplicate + empty) -> maxConcurrent = 2 starts first 2 immediately
+    const expectedVoice1 = pickRandomVoiceForText("Xin chào Hà Nội");
+    const expectedVoice3 = pickRandomVoiceForText("Tạm biệt nhé");
+
+    // Queue 3 unique phrases (plus duplicate + empty) under default 'random' mode -> maxConcurrent = 2 starts first 2 immediately
     prefetchVietnamese(["Xin chào Hà Nội", "   ", "Xin chào Hà Nội", "Cảm ơn bạn", "Tạm biệt nhé"]);
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -494,9 +585,10 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
 
     const firstUrl = fetchMock.mock.calls[0][0];
     const secondUrl = fetchMock.mock.calls[1][0];
-    expect(firstUrl).toContain("voice=ngochuyen");
+    expect(firstUrl).toContain(`voice=${expectedVoice1}`);
+    expect(firstUrl).not.toContain("voice=random");
 
-    // Clicking Speak on an already in-flight prefetched phrase awaits the SAME Promise (zero duplicate fetch!)
+    // Clicking Speak on an already in-flight prefetched phrase awaits the SAME Promise (1 fetch instead of 2!)
     const speakPromise = speakVietnamese("Xin chào Hà Nội");
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
@@ -509,7 +601,8 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
 
     const speakRes = await speakPromise;
     expect(speakRes).toEqual({ source: "api" });
-    expect(isCachedInMemory("Xin chào Hà Nội", "ngochuyen")).toBe(true);
+    expect(isCachedInMemory("Xin chào Hà Nội")).toBe(true);
+    expect(isCachedInMemory("Xin chào Hà Nội", expectedVoice1)).toBe(true);
 
     // Resolve second fetch -> 3rd queued item starts and completes cleanly
     deferredByUrl.get(secondUrl).resolve({
@@ -522,6 +615,7 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
     const thirdUrl = fetchMock.mock.calls[2][0];
+    expect(thirdUrl).toContain(`voice=${expectedVoice3}`);
     deferredByUrl.get(thirdUrl).resolve({
       ok: true,
       headers: { get: () => "audio/wav" },
@@ -529,11 +623,13 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     });
 
     await vi.waitFor(() => {
-      expect(isCachedInMemory("Tạm biệt nhé", "ngochuyen")).toBe(true);
+      expect(isCachedInMemory("Tạm biệt nhé")).toBe(true);
+      expect(isCachedInMemory("Tạm biệt nhé", expectedVoice3)).toBe(true);
     });
 
-    // Re-prefetching an already-cached single string triggers zero network requests
+    // Re-prefetching & speaking an already-cached phrase triggers zero extra network requests
     prefetchVietnamese("Xin chào Hà Nội");
+    await speakVietnamese("Tạm biệt nhé");
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -566,11 +662,18 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
       }),
     };
 
+    const resolvedForThanks = getVoiceMeta(pickRandomVoiceForText("Cảm ơn bạn rất nhiều"));
     const result = await speakVietnamese("Cảm ơn bạn rất nhiều", { rate: 0.85 });
     expect(result).toEqual({ source: "webspeech" });
     expect(spokenUtterance.lang).toBe("vi-VN");
-    expect(spokenUtterance.voice?.name).toBe("Microsoft HoaiMy");
+    expect(spokenUtterance.voice?.name).toBe(
+      resolvedForThanks.gender === "male" ? "Microsoft NamMinh" : "Microsoft HoaiMy"
+    );
     expect(spokenUtterance.rate).toBe(0.85);
+
+    const femaleResult = await speakVietnamese("Xin chào", { voice: "ngochuyen" });
+    expect(femaleResult).toEqual({ source: "webspeech" });
+    expect(spokenUtterance.voice?.name).toBe("Microsoft HoaiMy");
 
     const maleResult = await speakVietnamese("Xin chào", { voice: "haidang" });
     expect(maleResult).toEqual({ source: "webspeech" });
@@ -622,12 +725,13 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(onError).toHaveBeenCalledWith(expect.stringContaining("quyền sử dụng micro"), "not-allowed");
   });
 
-  it("useVietnameseSpeech hook exposes Northern voices, voiceMeta, prefetch, and voice sync", () => {
+  it("useVietnameseSpeech hook defaults to random mode and exposes voiceOptions, Northern voices, voiceMeta, prefetch, and voice sync", () => {
     const { result, unmount } = renderHook(() => useVietnameseSpeech({ defaultRate: 0.9 }));
     expect(result.current.rate).toBe(0.9);
-    expect(result.current.voice).toBe("ngochuyen");
-    expect(result.current.voiceMeta.id).toBe("ngochuyen");
+    expect(result.current.voice).toBe("random");
+    expect(result.current.voiceMeta).toEqual(RANDOM_VOICE_OPTION);
     expect(result.current.voices).toEqual(VIETNAMESE_VOICES);
+    expect(result.current.voiceOptions).toEqual(VOICE_OPTIONS);
     expect(typeof result.current.prefetch).toBe("function");
     expect(result.current.isSpeaking).toBe(false);
     expect(result.current.isListening).toBe(false);
@@ -655,13 +759,19 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     expect(result.current.voiceMeta.label).toBe("Mai Anh");
 
     act(() => {
+      setSelectedVoice("random");
+    });
+    expect(result.current.voice).toBe("random");
+    expect(result.current.voiceMeta).toEqual(RANDOM_VOICE_OPTION);
+
+    act(() => {
       result.current.resetTranscript();
     });
     expect(result.current.finalTranscript).toBe("");
     unmount();
   });
 
-  it("Navbar Northern voice picker opens all 5 voices, selects voice, and stays synced with voice-change events", () => {
+  it("Navbar Northern voice picker defaults to Ngẫu nhiên, opens Random + all 5 voices, selects voice, and stays synced with voice-change events", () => {
     render(
       React.createElement(Navbar, {
         activeView: "dashboard",
@@ -676,18 +786,23 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
     );
 
     const triggerBtn = screen.getByTestId("navbar-voice-trigger");
-    expect(triggerBtn.textContent).toContain("Ngọc Huyền");
+    expect(triggerBtn.textContent).toContain("Ngẫu nhiên");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
 
     fireEvent.click(triggerBtn);
     const menu = screen.getByTestId("navbar-voice-menu");
     expect(menu.textContent).toContain("Giọng đọc Miền Bắc · VieNeu-TTS");
+    expect(menu.textContent).toContain("Ngẫu nhiên");
+    expect(menu.textContent).toContain("Tự động xoay vòng 5 giọng Bắc");
     for (const v of VIETNAMESE_VOICES) {
       expect(menu.textContent).toContain(v.label);
     }
+    expect(menu.textContent).toContain("Nữ · Tin tức rõ chữ");
 
     const haiDangOption = screen.getByRole("option", { name: /Hải Đăng/i });
     fireEvent.click(haiDangOption);
     expect(triggerBtn.textContent).toContain("Hải Đăng");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-voice']")).not.toBeNull();
     expect(getSelectedVoice()).toBe("haidang");
     expect(screen.queryByTestId("navbar-voice-menu")).toBeNull();
 
@@ -695,5 +810,11 @@ describe("speech.js & useVietnameseSpeech integration checks", () => {
       setSelectedVoice("trucly");
     });
     expect(triggerBtn.textContent).toContain("Trúc Ly");
+
+    act(() => {
+      setSelectedVoice("random");
+    });
+    expect(triggerBtn.textContent).toContain("Ngẫu nhiên");
+    expect(triggerBtn.querySelector("[data-testid='navbar-voice-icon-random']")).not.toBeNull();
   });
 });

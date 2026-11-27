@@ -36,7 +36,7 @@ export function TopicOverview({
   const [speechRate, setSpeechRate] = useState(1);
   const [playingKey, setPlayingKey] = useState(null);
   const [voiceId, setVoiceId] = useState(
-    () => speechApi.getSelectedVoice?.() || "ngochuyen"
+    () => speechApi.getSelectedVoice?.() || speechApi.RANDOM_VOICE_ID || "random"
   );
 
   const activeIndex = Math.max(
