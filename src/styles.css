@@ -330,8 +330,8 @@ a:hover {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 2px;
-  height: 58px;
+  bottom: 4px;
+  height: 60px;
   z-index: 15;
   overflow: hidden;
   pointer-events: none;
@@ -341,27 +341,75 @@ a:hover {
 .vf-runner-track {
   position: absolute;
   left: 0;
-  bottom: 0;
+  bottom: 2px;
   width: max-content;
   will-change: transform;
-  animation: vfRunnerPatrolDesktop 26s linear infinite;
+  animation: vfRunnerPatrolDesktop 54s linear infinite;
 }
 
 .vf-runner-flip {
+  position: relative;
   display: inline-block;
   transform-origin: 50% 100%;
   will-change: transform;
-  animation: vfRunnerFlip 26s linear infinite;
+  animation: vfRunnerFlip 54s linear infinite;
 }
 
-.vf-runner-sprite {
+.vf-runner-viewport {
+  position: relative;
+  height: 54px;
+  aspect-ratio: 360 / 240;
+  overflow: hidden;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.32));
+}
+
+.vf-runner-sheet {
+  width: 400%;
+  height: 100%;
+  max-width: none;
   display: block;
-  height: 48px;
-  width: auto;
-  transform-origin: 50% 100%;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
   will-change: transform;
-  animation: vfRunnerHop 0.52s ease-in-out infinite;
+  animation: vf-runner-stride 0.72s steps(4, end) infinite;
+}
+
+.vf-runner-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 78%;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.32);
+  filter: blur(3px);
+  transform: translateX(-50%);
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  animation: vf-runner-shadow-pulse 0.72s ease-in-out infinite;
+}
+
+.vf-runner-dust {
+  position: absolute;
+  border-radius: 50%;
+  background: #ecebe4;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.vf-runner-dust--1 {
+  left: 6px;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  animation: vf-runner-dust-drift 0.72s ease-out infinite;
+}
+
+.vf-runner-dust--2 {
+  left: 18px;
+  bottom: 2px;
+  width: 3px;
+  height: 3px;
+  animation: vf-runner-dust-drift 0.72s ease-out -0.36s infinite;
 }
 
 /* ==========================================================================
@@ -2380,7 +2428,7 @@ a:hover {
   }
   48.5%,
   50% {
-    transform: translate3d(calc(100vw - 135px), 0, 0);
+    transform: translate3d(calc(100vw - 120px), 0, 0);
   }
   98.5%,
   100% {
@@ -2390,40 +2438,74 @@ a:hover {
 
 @keyframes vfRunnerPatrolMobile {
   0% {
-    transform: translate3d(12px, 0, 0);
+    transform: translate3d(16px, 0, 0);
   }
   48.5%,
   50% {
-    transform: translate3d(calc(100vw - 95px), 0, 0);
+    transform: translate3d(calc(100vw - 88px), 0, 0);
   }
   98.5%,
   100% {
-    transform: translate3d(12px, 0, 0);
+    transform: translate3d(16px, 0, 0);
   }
 }
 
 @keyframes vfRunnerFlip {
   0%,
-  48.8% {
+  49.2% {
     transform: scaleX(1);
   }
-  49.6%,
-  98.8% {
+  49.3%,
+  99.2% {
     transform: scaleX(-1);
   }
-  99.6%,
+  99.3%,
   100% {
     transform: scaleX(1);
   }
 }
 
-@keyframes vfRunnerHop {
+@keyframes vf-runner-stride {
+  from {
+    transform: translate3d(0%, 0, 0);
+  }
+  to {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+@keyframes vf-runner-shadow-pulse {
   0%,
   100% {
-    transform: translateY(0) rotate(-1.2deg);
+    transform: translateX(-50%) scaleX(0.94);
+    opacity: 0.85;
   }
-  50% {
-    transform: translateY(-4px) rotate(1.4deg);
+  32% {
+    transform: translateX(-50%) scaleX(1.04);
+    opacity: 1;
+  }
+  62% {
+    transform: translateX(-50%) scaleX(0.82);
+    opacity: 0.62;
+  }
+  86% {
+    transform: translateX(-50%) scaleX(1.02);
+    opacity: 0.96;
+  }
+}
+
+@keyframes vf-runner-dust-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.7);
+    opacity: 0;
+  }
+  20% {
+    transform: translate3d(-3px, -1px, 0) scale(1);
+    opacity: 0.24;
+  }
+  100% {
+    transform: translate3d(-13px, -5px, 0) scale(1.25);
+    opacity: 0;
   }
 }
 
@@ -2542,15 +2624,15 @@ a:hover {
 
   .vf-runner-stage {
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-    height: 48px;
+    height: 46px;
   }
 
   .vf-runner-track {
     animation-name: vfRunnerPatrolMobile;
   }
 
-  .vf-runner-sprite {
-    height: 38px;
+  .vf-runner-viewport {
+    height: 40px;
   }
 
   .vf-toast-stack {
@@ -2677,11 +2759,17 @@ a:hover {
 
   .vf-runner-track,
   .vf-runner-flip,
-  .vf-runner-sprite {
+  .vf-runner-sheet,
+  .vf-runner-shadow,
+  .vf-runner-dust {
     animation: none;
   }
 
   .vf-runner-track {
     transform: translate3d(16px, 0, 0);
+  }
+
+  .vf-runner-dust {
+    display: none;
   }
 }

@@ -64,6 +64,13 @@ export const APP_ART = Object.freeze({
     alt: "Em bé, cún con và vịt vàng đang chạy",
     transparent: true,
   },
+  runnerTrioSheet: {
+    src: "/images/runner-trio-sheet.png",
+    alt: "Em bé, cún con và vịt vàng đang chạy",
+    transparent: true,
+    frames: 4,
+    aspectRatio: "360 / 240",
+  },
 });
 
 export const TOPIC_ILLUSTRATIONS = Object.freeze({
