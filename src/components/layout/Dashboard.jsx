@@ -8,6 +8,7 @@ import {
   Mic,
 } from "lucide-react";
 import { GAME_TYPES, MASTERY_LEVELS, SKILL_META, TOPIC_META } from "../../lib/contracts";
+import { resolveStudentDisplayName } from "../../lib/supabase";
 
 const SKILL_BAR_ITEMS = [
   { id: "listening", label: "Nghe", gameId: "listening" },
@@ -122,10 +123,9 @@ export function Dashboard({
     return acc;
   }, {});
 
-  const displayName =
-    userProfile?.displayName ||
-    user?.user_metadata?.display_name ||
-    (user?.email ? user.email.split("@")[0] : "");
+  const displayName = user
+    ? resolveStudentDisplayName(userProfile, user, "")
+    : "";
 
   const recentHistory = gameHistory.slice(0, 5);
 

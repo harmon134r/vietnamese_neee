@@ -1,5 +1,6 @@
 import React from "react";
 import { BookOpen, Compass, Gamepad2, Layers } from "lucide-react";
+import { resolveStudentDisplayName } from "../../lib/supabase";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Tổng quan", icon: BookOpen },
@@ -22,13 +23,12 @@ export function Navbar({
   const streakDays = Math.round(Number(skillProgress?.streakDays || 0));
   const isCloud = storageMode === "supabase" && Boolean(user);
 
-  const userDisplayName =
-    userProfile?.displayName ||
-    user?.user_metadata?.display_name ||
-    (user?.email ? user.email.split("@")[0] : "");
+  const userDisplayName = user
+    ? resolveStudentDisplayName(userProfile, user, "Học sinh")
+    : "";
 
   const authButtonLabel = isCloud
-    ? userDisplayName || "Tài khoản"
+    ? userDisplayName || "Học sinh"
     : isSupabaseConfigured
       ? "Đăng nhập"
       : "Lưu cục bộ";

@@ -10,11 +10,26 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import { isSupabaseConfigured, signIn, signOut, signUp } from "../../lib/supabase";
+import {
+  isSupabaseConfigured,
+  normalizeStudentName,
+  resolveStudentDisplayName,
+  signIn,
+  signOut,
+  signUp,
+} from "../../lib/supabase";
 import { syncLocalToCloud } from "../../lib/storage";
 
 const ENV_SNIPPET = `VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY`;
+
+function getStudentInitials(name) {
+  const parts = normalizeStudentName(name).split(" ").filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return (parts[0] || "HS").slice(0, 2).toUpperCase();
+}
 
 export function AuthModal({
   isOpen,
@@ -26,8 +41,7 @@ export function AuthModal({
   onNotify,
 }) {
   const [mode, setMode] = useState("signin");
-  const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
+  const [studentName, setStudentName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -65,12 +79,16 @@ export function AuthModal({
     setErrorMsg("");
     setInfoMsg("");
 
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !password) {
-      setErrorMsg("Vui lòng nhập đầy đủ email và mật khẩu.");
+    const cleanName = normalizeStudentName(studentName);
+    if (!cleanName || !password) {
+      setErrorMsg("Vui lòng nhập đầy đủ tên học sinh và mật khẩu.");
       return;
     }
-    if (mode === "signup" && password.length < 6) {
+    if (cleanName.length < 2) {
+      setErrorMsg("Vui lòng nhập tên học sinh tối thiểu 2 ký tự.");
+      return;
+    }
+    if (password.length < 6) {
       setErrorMsg("Mật khẩu cần tối thiểu 6 ký tự.");
       return;
     }
@@ -78,25 +96,34 @@ export function AuthModal({
     setBusy(true);
     try {
       if (mode === "signin") {
-        const result = await signIn({ email: cleanEmail, password });
+        const result = await signIn({ studentName: cleanName, password });
+        const displayName = resolveStudentDisplayName(
+          result.profile,
+          result.user,
+          cleanName
+        );
         onAuthSuccess?.(result.user, result.profile);
-        onNotify?.("Đã đăng nhập và bắt đầu đồng bộ dữ liệu.", "success");
+        onNotify?.(`Chào ${displayName}! Đã đăng nhập và bắt đầu đồng bộ dữ liệu.`, "success");
         setPassword("");
         onClose();
       } else {
         const result = await signUp({
-          email: cleanEmail,
+          studentName: cleanName,
           password,
-          displayName: displayName.trim(),
+          displayName: cleanName,
         });
         if (result.needsEmailConfirmation) {
-          setInfoMsg(
-            "Đã tạo tài khoản. Vui lòng kiểm tra hộp thư email để xác nhận trước khi đăng nhập."
+          setErrorMsg(
+            "Tài khoản chưa được kích hoạt xác thực. Vui lòng tắt 'Confirm email' trong Supabase Auth."
           );
-          setMode("signin");
         } else {
+          const displayName = resolveStudentDisplayName(
+            result.profile,
+            result.user,
+            cleanName
+          );
           onAuthSuccess?.(result.user, result.profile);
-          onNotify?.("Đã tạo tài khoản và đăng nhập.", "success");
+          onNotify?.(`Chào mừng ${displayName}! Đã tạo tài khoản và đăng nhập.`, "success");
           onClose();
         }
         setPassword("");
@@ -149,11 +176,8 @@ export function AuthModal({
     }
   };
 
-  const resolvedName =
-    userProfile?.displayName ||
-    user?.user_metadata?.display_name ||
-    (user?.email ? user.email.split("@")[0] : "Học viên");
-  const initials = resolvedName.trim().slice(0, 2).toUpperCase() || "VF";
+  const resolvedName = resolveStudentDisplayName(userProfile, user, "Học sinh");
+  const initials = getStudentInitials(resolvedName);
 
   return (
     <div
@@ -176,14 +200,16 @@ export function AuthModal({
                 ? "Lưu dữ liệu cục bộ"
                 : user
                   ? "Tài khoản & đồng bộ"
-                  : "Đăng nhập"}
+                  : mode === "signup"
+                    ? "Tạo tài khoản"
+                    : "Đăng nhập"}
             </h2>
             <p className="vf-modal-subtitle">
               {!isSupabaseConfigured
                 ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
                 : user
                   ? "Thẻ từ và lịch sử luyện tập đang đồng bộ qua Supabase."
-                  : "Giữ bộ flashcard và tiến độ học đồng nhất trên mọi thiết bị."}
+                  : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
             </p>
           </div>
 
@@ -211,7 +237,7 @@ export function AuthModal({
 
               <div>
                 <p style={{ margin: "0 0 6px", fontSize: "0.85rem", fontWeight: 500 }}>
-                  Bật đồng bộ tài khoản với Supabase
+                  Bật đồng bộ tài khoản học sinh với Supabase
                 </p>
                 <p style={{ margin: "0 0 10px", fontSize: "0.82rem", color: "var(--text-muted)" }}>
                   Thêm 2 biến môi trường sau vào <code>.env.local</code> hoặc cấu hình deploy:
@@ -232,15 +258,18 @@ export function AuthModal({
 
               <ol className="vf-steps-list">
                 <li>
-                  Tạo project trên Supabase và chạy file{" "}
-                  <code>supabase/migrations/001_initial_schema.sql</code> trong SQL Editor.
+                  Tạo project trên Supabase, chạy file{" "}
+                  <code>supabase/migrations/001_initial_schema.sql</code> trong SQL Editor và tắt{" "}
+                  <strong>Confirm email</strong> trong phần cài đặt Supabase Auth để học sinh đăng
+                  ký trực tiếp bằng tên và mật khẩu.
                 </li>
                 <li>
                   Vào <strong>Project Settings → API</strong> để lấy Project URL và{" "}
                   <code>anon public</code> key.
                 </li>
                 <li>
-                  Cập nhật 2 biến trên và deploy lại để bật mục đăng nhập và đồng bộ đám mây.
+                  Cập nhật 2 biến trên và deploy lại để bật mục đăng nhập bằng tên học sinh và đồng
+                  bộ đám mây.
                 </li>
               </ol>
 
@@ -259,7 +288,7 @@ export function AuthModal({
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <p className="vf-profile-name">{resolvedName}</p>
-                  <p className="vf-profile-email">{user.email}</p>
+                  <p className="vf-profile-email">Tài khoản học sinh · Đang đồng bộ Supabase</p>
                   <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                     <span className="vf-tag vf-tag--good">Đang đồng bộ</span>
                     <span className="vf-tag">{userProfile?.cefrLevel || "A2–B1"}</span>
@@ -356,31 +385,16 @@ export function AuthModal({
               )}
 
               <form className="vf-form" onSubmit={handleSubmit}>
-                {mode === "signup" && (
-                  <div className="vf-field">
-                    <label htmlFor="vf-auth-name">Tên hiển thị</label>
-                    <input
-                      id="vf-auth-name"
-                      type="text"
-                      className="vf-input"
-                      placeholder="Ví dụ: Minh Anh"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      autoComplete="name"
-                    />
-                  </div>
-                )}
-
                 <div className="vf-field">
-                  <label htmlFor="vf-auth-email">Email</label>
+                  <label htmlFor="vf-auth-student-name">Tên học sinh</label>
                   <input
-                    id="vf-auth-email"
-                    type="email"
+                    id="vf-auth-student-name"
+                    type="text"
                     className="vf-input"
-                    placeholder="ban@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
+                    placeholder="Ví dụ: Nguyễn Anh Thư"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    autoComplete="username"
                     required
                   />
                 </div>
@@ -392,10 +406,11 @@ export function AuthModal({
                       id="vf-auth-password"
                       type={showPassword ? "text" : "password"}
                       className="vf-input vf-input--password"
-                      placeholder={mode === "signup" ? "Tối thiểu 6 ký tự" : "Nhập mật khẩu"}
+                      placeholder="Tối thiểu 6 ký tự"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                      autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                      minLength={6}
                       required
                     />
                     <button

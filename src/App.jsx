@@ -442,6 +442,7 @@ export function App() {
     (nextUser, nextProfile) => {
       setUser(nextUser);
       setUserProfile(nextProfile || null);
+      setStorageMode(nextUser && isSupabaseConfigured ? "supabase" : "local");
       if (!isSupabaseConfigured) {
         hydrateData();
       }

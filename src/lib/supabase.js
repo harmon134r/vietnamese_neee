@@ -31,6 +31,202 @@ export const supabase = isSupabaseConfigured
     })
   : null;
 
+export const STUDENT_EMAIL_DOMAIN = "students.vietflow.app";
+
+/**
+ * Normalize a student's name: NFC Unicode form, trimmed, collapsed internal whitespace.
+ * @param {string} rawName
+ * @returns {string}
+ */
+export function normalizeStudentName(rawName) {
+  if (rawName === null || rawName === undefined) return "";
+  return String(rawName).normalize("NFC").trim().replace(/\s+/g, " ");
+}
+
+/**
+ * True when an email address is an internal synthetic student identifier
+ * (`...@students.vietflow.app`) that must never be displayed in the UI.
+ * @param {string | null | undefined} email
+ * @returns {boolean}
+ */
+export function isSyntheticStudentEmail(email) {
+  const clean = String(email || "").trim().toLowerCase();
+  return clean.endsWith(`@${STUDENT_EMAIL_DOMAIN}`);
+}
+
+/**
+ * Resolve the human-friendly student name from profile + Supabase auth user.
+ * Never returns a raw email address or synthetic `@students.vietflow.app` address.
+ * @param {Record<string, any> | null | undefined} profile
+ * @param {import("@supabase/supabase-js").User | null | undefined} user
+ * @param {string} [fallback="Học sinh"]
+ * @returns {string}
+ */
+export function resolveStudentDisplayName(profile, user, fallback = "Học sinh") {
+  const fromProfile = normalizeStudentName(
+    profile?.displayName ?? profile?.display_name
+  );
+  if (fromProfile && !isSyntheticStudentEmail(fromProfile)) {
+    return fromProfile;
+  }
+  const fromMeta = normalizeStudentName(user?.user_metadata?.display_name);
+  if (fromMeta && !isSyntheticStudentEmail(fromMeta)) {
+    return fromMeta;
+  }
+  return fallback;
+}
+
+function shortDeterministicHash(input) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function utf8ToHex(text) {
+  const bytes = new TextEncoder().encode(text);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Deterministically convert a student's name into an internal Supabase email.
+ * - Preserves strings already containing `@` (lowercased) for backwards compatibility.
+ * - Normalizes Vietnamese diacritics (`Nguyễn Anh Thư` / `nguyen anh thu` -> `nguyen.anh.thu@students.vietflow.app`).
+ * - Encodes non-Latin names (Korean, Japanese, Chinese, etc.) via UTF-8 hex (`u.<hex>@students.vietflow.app`).
+ * @param {string} rawName
+ * @returns {string}
+ */
+export function studentNameToEmail(rawName) {
+  const normalized = normalizeStudentName(rawName);
+  if (normalized.length < 2) {
+    throw new Error("Vui lòng nhập tên học sinh tối thiểu 2 ký tự.");
+  }
+
+  if (normalized.includes("@")) {
+    return normalized.toLowerCase();
+  }
+
+  if (!/[\p{L}\p{N}]/u.test(normalized)) {
+    throw new Error("Tên học sinh cần chứa ít nhất một chữ cái hoặc chữ số.");
+  }
+
+  const lowerNfc = normalized.toLowerCase();
+  const stripped = lowerNfc
+    .replace(/[đĐ]/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const hasNonLatinLetters = /\p{L}/u.test(stripped.replace(/[a-z0-9\s]/g, ""));
+  const tokens = hasNonLatinLetters ? [] : stripped.match(/[a-z0-9]+/g) || [];
+
+  let localPart;
+  if (tokens.length > 0) {
+    localPart = tokens.join(".");
+    if (localPart.length > 64) {
+      const prefix = localPart.slice(0, 55).replace(/\.+$/, "");
+      localPart = `${prefix}.${shortDeterministicHash(localPart)}`;
+    }
+  } else {
+    const hex = utf8ToHex(lowerNfc);
+    if (hex.length <= 62) {
+      localPart = `u.${hex}`;
+    } else {
+      localPart = `u.${hex.slice(0, 53)}.${shortDeterministicHash(lowerNfc)}`;
+    }
+  }
+
+  return `${localPart}@${STUDENT_EMAIL_DOMAIN}`;
+}
+
+/**
+ * Map Supabase Auth errors into friendly Vietnamese student-name messages.
+ * Never exposes synthetic `@students.vietflow.app` addresses.
+ * @param {Error | { message?: string, code?: string } | null | undefined} error
+ * @param {"signin" | "signup"} [context="signin"]
+ * @returns {string}
+ */
+export function mapSupabaseAuthError(error, context = "signin") {
+  const rawMessage = String(error?.message || "").trim();
+  const code = String(error?.code || "").trim().toLowerCase();
+  const lower = rawMessage.toLowerCase();
+
+  if (
+    code === "invalid_credentials" ||
+    lower.includes("invalid login credentials")
+  ) {
+    return "Sai tên học sinh hoặc mật khẩu. Vui lòng kiểm tra lại.";
+  }
+
+  if (
+    code === "user_already_exists" ||
+    lower.includes("user already registered") ||
+    lower.includes("already been registered")
+  ) {
+    return "Tên học sinh này đã có tài khoản. Bạn hãy chuyển sang tab Đăng nhập hoặc thêm biệt danh (ví dụ: Nguyễn Anh Thư 2).";
+  }
+
+  if (
+    code === "email_not_confirmed" ||
+    lower.includes("email not confirmed")
+  ) {
+    return "Tài khoản chưa được kích hoạt xác thực. Vui lòng tắt 'Confirm email' trong Supabase Auth.";
+  }
+
+  if (
+    code === "weak_password" ||
+    (lower.includes("password") &&
+      (lower.includes("at least") ||
+        lower.includes("6") ||
+        lower.includes("short") ||
+        lower.includes("weak") ||
+        lower.includes("length")))
+  ) {
+    return "Mật khẩu cần tối thiểu 6 ký tự.";
+  }
+
+  if (
+    code === "over_email_send_rate_limit" ||
+    code === "over_request_rate_limit" ||
+    lower.includes("rate limit") ||
+    lower.includes("too many requests")
+  ) {
+    return "Bạn thao tác hơi nhanh. Vui lòng đợi một chút rồi thử lại.";
+  }
+
+  if (
+    lower.includes("invalid email") ||
+    lower.includes("unable to validate email") ||
+    lower.includes("email address")
+  ) {
+    return "Tên học sinh không hợp lệ. Vui lòng nhập tên đầy đủ (ví dụ: Nguyễn Anh Thư).";
+  }
+
+  if (
+    lower.includes("signup is disabled") ||
+    lower.includes("signups not allowed")
+  ) {
+    return "Tính năng tạo tài khoản hiện đang tạm tắt trên hệ thống.";
+  }
+
+  if (lower.includes("failed to fetch") || lower.includes("network")) {
+    return "Không thể kết nối máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.";
+  }
+
+  if (
+    !rawMessage ||
+    lower.includes(STUDENT_EMAIL_DOMAIN) ||
+    lower.includes("email")
+  ) {
+    return context === "signup"
+      ? "Không thể tạo tài khoản lúc này. Vui lòng thử lại."
+      : "Sai tên học sinh hoặc mật khẩu. Vui lòng kiểm tra lại.";
+  }
+
+  return rawMessage;
+}
+
 /**
  * Map a `user_profiles` row + auth user to a normalized UserProfile.
  * @param {Record<string, any> | null} profileRow
@@ -40,11 +236,8 @@ export const supabase = isSupabaseConfigured
 function toUserProfile(profileRow, user) {
   return {
     id: user.id,
-    email: user.email || "",
-    displayName:
-      profileRow?.display_name ||
-      user.user_metadata?.display_name ||
-      (user.email ? user.email.split("@")[0] : "Học viên"),
+    email: isSyntheticStudentEmail(user.email) ? "" : user.email || "",
+    displayName: resolveStudentDisplayName(profileRow, user, "Học sinh"),
     avatarUrl: profileRow?.avatar_url || null,
     cefrLevel: profileRow?.cefr_level || "A2-B1",
     nativeLang: profileRow?.native_lang || "en",
@@ -137,23 +330,28 @@ export async function updateUserProfile(updates = {}) {
 }
 
 /**
- * Sign in with email and password via Supabase Auth.
- * @param {{ email: string, password: string }} credentials
+ * Sign in with student name (or legacy email) and password via Supabase Auth.
+ * @param {{ studentName?: string, email?: string, password: string }} credentials
  * @returns {Promise<{ session: import("@supabase/supabase-js").Session | null, user: import("@supabase/supabase-js").User, profile: import("./contracts.js").UserProfile | null }>}
  */
-export async function signIn({ email, password }) {
+export async function signIn({ studentName, email, password } = {}) {
   if (!supabase) {
     throw new Error("Supabase chưa được cấu hình. Ứng dụng đang chạy ở chế độ lưu cục bộ.");
   }
 
-  const cleanEmail = String(email || "").trim().toLowerCase();
+  const internalEmail = studentNameToEmail(studentName ?? email ?? "");
+  const cleanPassword = String(password || "");
+  if (!cleanPassword) {
+    throw new Error("Vui lòng nhập mật khẩu.");
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: cleanEmail,
-    password: String(password || ""),
+    email: internalEmail,
+    password: cleanPassword,
   });
 
   if (error) {
-    throw new Error(error.message || "Email hoặc mật khẩu chưa chính xác.");
+    throw new Error(mapSupabaseAuthError(error, "signin"));
   }
 
   const profile = await getUserProfile(data.user.id);
@@ -165,21 +363,35 @@ export async function signIn({ email, password }) {
 }
 
 /**
- * Sign up a new learner with email, password, and optional display name.
- * @param {{ email: string, password: string, displayName?: string }} params
+ * Sign up a new student with student name (or legacy email) and password.
+ * @param {{ studentName?: string, email?: string, password: string, displayName?: string }} params
  * @returns {Promise<{ session: import("@supabase/supabase-js").Session | null, user: import("@supabase/supabase-js").User | null, profile: import("./contracts.js").UserProfile | null, needsEmailConfirmation: boolean }>}
  */
-export async function signUp({ email, password, displayName = "" }) {
+export async function signUp({ studentName, email, password, displayName = "" } = {}) {
   if (!supabase) {
     throw new Error("Supabase chưa được cấu hình. Ứng dụng đang chạy ở chế độ lưu cục bộ.");
   }
 
-  const cleanEmail = String(email || "").trim().toLowerCase();
-  const cleanName = String(displayName || "").trim() || cleanEmail.split("@")[0];
+  const rawIdentifier = studentName ?? email ?? "";
+  const internalEmail = studentNameToEmail(rawIdentifier);
+  const cleanPassword = String(password || "");
+  if (cleanPassword.length < 6) {
+    throw new Error("Mật khẩu cần tối thiểu 6 ký tự.");
+  }
+
+  const normalizedInput = normalizeStudentName(displayName || studentName);
+  const cleanName =
+    normalizedInput && !normalizedInput.includes("@")
+      ? normalizedInput
+      : normalizeStudentName(displayName) ||
+        (String(rawIdentifier).includes("@")
+          ? normalizeStudentName(String(rawIdentifier).split("@")[0])
+          : normalizeStudentName(rawIdentifier)) ||
+        "Học sinh";
 
   const { data, error } = await supabase.auth.signUp({
-    email: cleanEmail,
-    password: String(password || ""),
+    email: internalEmail,
+    password: cleanPassword,
     options: {
       data: {
         display_name: cleanName,
@@ -188,7 +400,17 @@ export async function signUp({ email, password, displayName = "" }) {
   });
 
   if (error) {
-    throw new Error(error.message || "Không thể đăng ký tài khoản.");
+    throw new Error(mapSupabaseAuthError(error, "signup"));
+  }
+
+  if (
+    data?.user &&
+    Array.isArray(data.user.identities) &&
+    data.user.identities.length === 0
+  ) {
+    throw new Error(
+      mapSupabaseAuthError({ message: "User already registered" }, "signup")
+    );
   }
 
   let profile = null;
