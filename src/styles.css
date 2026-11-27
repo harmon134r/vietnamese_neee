@@ -322,6 +322,56 @@ a:hover {
   animation: vfBambooSwayRightBack 14.5s ease-in-out -5.2s infinite;
 }
 
+/* Softly Wind-Drifting Upper Watercolor Clouds (Left & Right Empty Margins) */
+.vf-cloud {
+  position: absolute;
+  width: clamp(140px, 13vw, 225px);
+  height: auto;
+  display: block;
+  opacity: 0.34;
+  filter: drop-shadow(0 6px 18px rgba(10, 14, 18, 0.18));
+  pointer-events: none;
+  will-change: transform;
+}
+
+.vf-cloud--left {
+  top: 76px;
+  left: -12px;
+  transform-origin: 28% 55%;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 74%,
+    rgba(0, 0, 0, 0.14) 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 74%,
+    rgba(0, 0, 0, 0.14) 100%
+  );
+  animation: vfCloudDriftLeft 16s ease-in-out infinite;
+}
+
+.vf-cloud--right {
+  top: 94px;
+  right: -10px;
+  transform-origin: 72% 55%;
+  -webkit-mask-image: linear-gradient(
+    to left,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 74%,
+    rgba(0, 0, 0, 0.14) 100%
+  );
+  mask-image: linear-gradient(
+    to left,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.95) 74%,
+    rgba(0, 0, 0, 0.14) 100%
+  );
+  animation: vfCloudDriftRight 19s ease-in-out -5s infinite;
+}
+
 /* ==========================================================================
    Always-Visible Bottom Patrolling Trio (Duckling, Puppy & Kid)
    ========================================================================== */
@@ -2422,6 +2472,38 @@ a:hover {
   }
 }
 
+@keyframes vfCloudDriftLeft {
+  0%,
+  100% {
+    transform: translate3d(-4px, 0px, 0) rotate(-0.55deg);
+  }
+  28% {
+    transform: translate3d(8px, -3.5px, 0) rotate(0.45deg);
+  }
+  56% {
+    transform: translate3d(10px, 2px, 0) rotate(0.75deg);
+  }
+  80% {
+    transform: translate3d(-8px, -2px, 0) rotate(-0.75deg);
+  }
+}
+
+@keyframes vfCloudDriftRight {
+  0%,
+  100% {
+    transform: translate3d(5px, 0px, 0) rotate(0.6deg);
+  }
+  30% {
+    transform: translate3d(-9px, 3px, 0) rotate(-0.5deg);
+  }
+  58% {
+    transform: translate3d(-10px, -3.5px, 0) rotate(-0.8deg);
+  }
+  82% {
+    transform: translate3d(8px, 2.5px, 0) rotate(0.65deg);
+  }
+}
+
 @keyframes vfRunnerPatrolDesktop {
   0% {
     transform: translate3d(16px, 0, 0);
@@ -2535,10 +2617,26 @@ a:hover {
   .vf-bamboo-stalk--right-back {
     right: -26px;
   }
+
+  .vf-cloud {
+    width: clamp(86px, 8.5vw, 118px);
+    opacity: 0.24;
+  }
+
+  .vf-cloud--left {
+    top: 72px;
+    left: -14px;
+  }
+
+  .vf-cloud--right {
+    top: 86px;
+    right: -12px;
+  }
 }
 
 @media (max-width: 1119px) {
-  .vf-bamboo-frame {
+  .vf-bamboo-frame,
+  .vf-cloud {
     display: none;
   }
 }
@@ -2753,7 +2851,8 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .vf-bamboo-stalk {
+  .vf-bamboo-stalk,
+  .vf-cloud {
     animation: none;
   }
 

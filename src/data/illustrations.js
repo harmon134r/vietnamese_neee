@@ -59,6 +59,16 @@ export const APP_ART = Object.freeze({
     alt: "Rặng tre xanh nghiêng bên phải",
     transparent: true,
   },
+  cloudLeft: {
+    src: "/images/cloud-left.png",
+    alt: "Đám mây màu nước bên trái",
+    transparent: true,
+  },
+  cloudRight: {
+    src: "/images/cloud-right.png",
+    alt: "Đám mây màu nước bên phải",
+    transparent: true,
+  },
   runnerTrio: {
     src: "/images/runner-trio.png",
     alt: "Em bé, cún con và vịt vàng đang chạy",
