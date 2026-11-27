@@ -21,7 +21,7 @@ import {
   VIETNAMESE_TONES,
   scoreVietnamesePronunciation,
 } from "../../lib/pronunciation";
-import { stopSpeaking } from "../../lib/speech";
+import * as speechApi from "../../lib/speech";
 import { useVietnameseSpeech } from "../../hooks/useVietnameseSpeech";
 
 const DEFAULT_TONE_SPECS = [
@@ -191,6 +191,7 @@ export function PronunciationLab({
     isSpeaking,
     rate,
     setRate,
+    voice,
     speak,
     stopSpeak,
     isListening,
@@ -264,13 +265,40 @@ export function PronunciationLab({
     }
   }, [sttSupported, speechError]);
 
+  const nextSentenceVi = sentences[sentenceIndex + 1]?.textVi || "";
+
+  useEffect(() => {
+    if (sessionSummary) return;
+    if (typeof speechApi.prefetchVietnamese !== "function") return;
+
+    let texts = [];
+    if (subMode === "minimal-pairs" && currentPair) {
+      texts = (currentPair.items || [])
+        .map((item) => item?.vi)
+        .filter(Boolean);
+    } else if (subMode === "shadowing" && currentSentence) {
+      texts = [currentSentence.textVi, nextSentenceVi].filter(Boolean);
+    }
+
+    if (texts.length > 0) {
+      speechApi.prefetchVietnamese(texts, voice ? { voice } : {});
+    }
+  }, [
+    sessionSummary,
+    subMode,
+    currentPair,
+    currentSentence,
+    nextSentenceVi,
+    voice,
+  ]);
+
   useEffect(() => {
     return () => {
       if (pairSequenceTimerRef.current) {
         clearTimeout(pairSequenceTimerRef.current);
       }
       stopSpeak();
-      stopSpeaking();
+      speechApi.stopSpeaking?.();
       stopListening();
     };
   }, [stopSpeak, stopListening]);

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { READING_PASSAGES, SENTENCE_BUILDERS, getTopicById } from "../../data";
 import { GAME_TYPES, TOPIC_META } from "../../lib/contracts";
-import { stopSpeaking } from "../../lib/speech";
+import * as speechApi from "../../lib/speech";
 import { useVietnameseSpeech } from "../../hooks/useVietnameseSpeech";
 
 function escapeRegex(str) {
@@ -142,7 +142,7 @@ export function ReadingVocabGame({
   onCompleteSession,
   onBack,
 }) {
-  const { isSpeaking, speak, stopSpeak } = useVietnameseSpeech({
+  const { isSpeaking, voice, speak, stopSpeak } = useVietnameseSpeech({
     defaultRate: 0.95,
   });
 
@@ -219,10 +219,29 @@ export function ReadingVocabGame({
     }
   }, [currentBuilderItem]);
 
+  const currentBuilderTargetVi = currentBuilderItem?.targetSentenceVi || "";
+  const nextBuilderTargetVi =
+    sentenceRound[builderIndex + 1]?.targetSentenceVi || "";
+
+  useEffect(() => {
+    if (subMode !== "builder" || builderCompleted) return;
+    if (typeof speechApi.prefetchVietnamese !== "function") return;
+    const texts = [currentBuilderTargetVi, nextBuilderTargetVi].filter(Boolean);
+    if (texts.length > 0) {
+      speechApi.prefetchVietnamese(texts, voice ? { voice } : {});
+    }
+  }, [
+    subMode,
+    builderCompleted,
+    currentBuilderTargetVi,
+    nextBuilderTargetVi,
+    voice,
+  ]);
+
   useEffect(() => {
     return () => {
       stopSpeak();
-      stopSpeaking();
+      speechApi.stopSpeaking?.();
     };
   }, [stopSpeak]);
 

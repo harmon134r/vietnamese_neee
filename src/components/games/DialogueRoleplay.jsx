@@ -21,7 +21,7 @@ import {
   matchDialogueIntent,
   scoreVietnamesePronunciation,
 } from "../../lib/pronunciation";
-import { stopSpeaking } from "../../lib/speech";
+import * as speechApi from "../../lib/speech";
 import { useVietnameseSpeech } from "../../hooks/useVietnameseSpeech";
 
 function getInitials(name = "") {
@@ -37,6 +37,7 @@ export function DialogueRoleplay({
   onBack,
 }) {
   const {
+    voice,
     speak,
     stopSpeak,
     isListening,
@@ -110,11 +111,39 @@ export function DialogueRoleplay({
     }
   }, [messages.length]);
 
+  const nextTurnNpcTextVi = useMemo(() => {
+    if (!activeScenario || !currentTurn) return "";
+    const turns = activeScenario.turns || [];
+    const nextTurnId = (currentTurn.expectedResponses || []).find(
+      (r) => r?.nextTurnId
+    )?.nextTurnId;
+    if (nextTurnId) {
+      return turns.find((t) => t.id === nextTurnId)?.npcTextVi || "";
+    }
+    const idx = turns.findIndex((t) => t.id === currentTurn.id);
+    return idx >= 0 && idx + 1 < turns.length
+      ? turns[idx + 1]?.npcTextVi || ""
+      : "";
+  }, [activeScenario, currentTurn]);
+
+  useEffect(() => {
+    if (!activeScenario || !currentTurn || completed) return;
+    if (typeof speechApi.prefetchVietnamese !== "function") return;
+    const texts = [
+      currentTurn.npcTextVi,
+      ...(currentTurn.expectedResponses || []).map((r) => r?.textVi),
+      nextTurnNpcTextVi,
+    ].filter(Boolean);
+    if (texts.length > 0) {
+      speechApi.prefetchVietnamese(texts, voice ? { voice } : {});
+    }
+  }, [activeScenario, currentTurn, completed, nextTurnNpcTextVi, voice]);
+
   useEffect(() => {
     return () => {
       if (chainTimerRef.current) clearTimeout(chainTimerRef.current);
       stopSpeak();
-      stopSpeaking();
+      speechApi.stopSpeaking?.();
       stopListening();
     };
   }, [stopSpeak, stopListening]);

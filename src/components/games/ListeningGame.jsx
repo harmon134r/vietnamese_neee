@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { LISTENING_EXERCISES, getTopicById } from "../../data";
 import { GAME_TYPES, TOPIC_META } from "../../lib/contracts";
-import { stopSpeaking } from "../../lib/speech";
+import * as speechApi from "../../lib/speech";
 import { useVietnameseSpeech } from "../../hooks/useVietnameseSpeech";
 
 const SPEED_OPTIONS = [
@@ -69,7 +69,7 @@ export function ListeningGame({
   onCompleteSession,
   onBack,
 }) {
-  const { isSpeaking, rate, setRate, speak, stopSpeak } = useVietnameseSpeech({
+  const { isSpeaking, rate, setRate, voice, speak, stopSpeak } = useVietnameseSpeech({
     defaultRate: 1,
   });
 
@@ -116,10 +116,23 @@ export function ListeningGame({
     reportedRef.current = false;
   }, [activeTopicId, roundSeed, stopSpeak]);
 
+  const currentAudioVi = currentExercise?.audioTextVi || "";
+  const nextAudio1Vi = exercises[currentIndex + 1]?.audioTextVi || "";
+  const nextAudio2Vi = exercises[currentIndex + 2]?.audioTextVi || "";
+
+  useEffect(() => {
+    if (completed) return;
+    if (typeof speechApi.prefetchVietnamese !== "function") return;
+    const texts = [currentAudioVi, nextAudio1Vi, nextAudio2Vi].filter(Boolean);
+    if (texts.length > 0) {
+      speechApi.prefetchVietnamese(texts, voice ? { voice } : {});
+    }
+  }, [completed, currentAudioVi, nextAudio1Vi, nextAudio2Vi, voice]);
+
   useEffect(() => {
     return () => {
       stopSpeak();
-      stopSpeaking();
+      speechApi.stopSpeaking?.();
     };
   }, [stopSpeak]);
 

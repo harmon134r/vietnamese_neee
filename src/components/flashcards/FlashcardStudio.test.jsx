@@ -3,18 +3,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-vi.mock("../../lib/speech.js", () => ({
-  VIETNAMESE_VOICES: [
-    { id: "hoaimy", label: "Hoài My", shortLabel: "Giọng nữ · Hoài My", gender: "female" },
-    { id: "namminh", label: "Nam Minh", shortLabel: "Giọng nam · Nam Minh", gender: "male" },
-  ],
-  getSelectedVoice: vi.fn(() => "hoaimy"),
-  setSelectedVoice: vi.fn(),
-  speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
-  stopSpeaking: vi.fn(),
-  isSpeechRecognitionSupported: vi.fn(() => true),
-  startVietnameseListening: vi.fn(),
-}));
+vi.mock("../../lib/speech.js", () => {
+  const NORTHERN_VOICES = [
+    { id: "ngochuyen", label: "Ngọc Huyền", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Giọng đọc tự nhiên" },
+    { id: "trucly", label: "Trúc Ly", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Phong cách tự nhiên" },
+    { id: "maianh", label: "Mai Anh", shortLabel: "Nữ · Bắc · Tin tức", gender: "female", region: "Bắc", style: "Phong cách tin tức" },
+    { id: "haidang", label: "Hải Đăng", shortLabel: "Nam · Bắc · Tự nhiên", gender: "male", region: "Bắc", style: "Phong cách tự nhiên" },
+    { id: "thienminh", label: "Thiện Minh", shortLabel: "Nam · Bắc · Kể chuyện", gender: "male", region: "Bắc", style: "Phong cách kể chuyện" },
+  ];
+  return {
+    VIETNAMESE_VOICES: NORTHERN_VOICES,
+    VOICE_STORAGE_KEY: "vietflow_tts_voice",
+    VOICE_CHANGE_EVENT: "vietflow:voice-change",
+    getSelectedVoice: vi.fn(() => "ngochuyen"),
+    setSelectedVoice: vi.fn((id) => id),
+    getVoiceMeta: vi.fn((id) => NORTHERN_VOICES.find((v) => v.id === id) || NORTHERN_VOICES[0]),
+    prefetchVietnamese: vi.fn(),
+    speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
+    stopSpeaking: vi.fn(),
+    isSpeechRecognitionSupported: vi.fn(() => true),
+    startVietnameseListening: vi.fn(),
+  };
+});
 
 vi.mock("../../lib/pdfImport.js", async () => {
   const actual = await vi.importActual("../../lib/pdfImport.js");
@@ -46,6 +56,7 @@ vi.mock("../../lib/pronunciation.js", () => ({
 import { FlashcardStudio } from "./FlashcardStudio.jsx";
 import {
   isSpeechRecognitionSupported,
+  prefetchVietnamese,
   setSelectedVoice,
   speakVietnamese,
   startVietnameseListening,
@@ -195,10 +206,11 @@ describe("FlashcardStudio", () => {
     render(<FlashcardStudio decks={MOCK_DECKS} activeDeckId="deck-food" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Cài đặt thẻ flashcard" }));
-    expect(screen.getByRole("dialog", { name: "Cài đặt flashcard" })).toBeInTheDocument();
+    const settingsDialog = screen.getByRole("dialog", { name: "Cài đặt flashcard" });
+    expect(settingsDialog).toBeInTheDocument();
 
     // Change speed to 0.75x and test speaker uses 0.75
-    fireEvent.click(screen.getByRole("button", { name: "0.75x" }));
+    fireEvent.click(within(settingsDialog).getByRole("button", { name: "0.75x" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Nghe phát âm hài lòng" })[0]);
     await waitFor(() => {
       expect(speakVietnamese).toHaveBeenCalledWith(
@@ -207,17 +219,32 @@ describe("FlashcardStudio", () => {
       );
     });
 
-    // Settings popover has voice switcher (Hoài My / Nam Minh)
-    const namMinhBtn = screen.getByRole("button", { name: "Nam Minh (Nam)" });
-    expect(screen.getByRole("button", { name: "Hoài My (Nữ)" })).toBeInTheDocument();
-    fireEvent.click(namMinhBtn);
-    expect(setSelectedVoice).toHaveBeenCalledWith("namminh");
+    // Settings popover has all 5 Northern Vietnamese voices
+    const voiceGroup = within(settingsDialog).getByRole("group", {
+      name: "Giọng đọc tiếng Việt (Miền Bắc)",
+    });
+    expect(within(voiceGroup).getByText("Ngọc Huyền")).toBeInTheDocument();
+    expect(within(voiceGroup).getByText("Trúc Ly")).toBeInTheDocument();
+    expect(within(voiceGroup).getByText("Mai Anh")).toBeInTheDocument();
+    expect(within(voiceGroup).getByText("Thiện Minh")).toBeInTheDocument();
+    const haiDangBtn = within(voiceGroup).getByText("Hải Đăng").closest("button");
+    expect(haiDangBtn).not.toBeNull();
+    fireEvent.click(haiDangBtn);
+    expect(setSelectedVoice).toHaveBeenCalledWith("haidang");
+
+    // Stage prefetches active card word, example, and upcoming card for the newly selected voice
+    await waitFor(() => {
+      expect(prefetchVietnamese).toHaveBeenCalledWith(
+        ["hài lòng", "Tôi rất hài lòng với món phở ở quán này.", "đậm đà"],
+        { voice: "haidang" }
+      );
+    });
 
     // Settings popover has no IPA toggle, only POS visibility
-    expect(screen.queryByText(/phiên âm|IPA/i)).not.toBeInTheDocument();
+    expect(within(settingsDialog).queryByText(/phiên âm|IPA/i)).not.toBeInTheDocument();
 
     // Hide POS subline
-    fireEvent.click(screen.getByLabelText("Hiển thị loại từ"));
+    fireEvent.click(within(settingsDialog).getByLabelText("Hiển thị loại từ"));
     expect(screen.queryByTestId("fc-front-subline")).not.toBeInTheDocument();
   });
 
@@ -307,6 +334,7 @@ describe("FlashcardStudio", () => {
           exampleVi: "Tôi thường ăn bánh mì cho bữa sáng.",
         })
       );
+      expect(prefetchVietnamese).toHaveBeenCalledWith(["bữa sáng"]);
     });
   });
 
@@ -355,6 +383,7 @@ describe("FlashcardStudio", () => {
           }),
         ])
       );
+      expect(prefetchVietnamese).toHaveBeenCalledWith(["món tráng miệng", "ấm bụng"]);
     });
   });
 
@@ -487,6 +516,7 @@ describe("FlashcardStudio", () => {
           ]),
         })
       );
+      expect(prefetchVietnamese).toHaveBeenCalledWith(["cân bằng", "linh hoạt"]);
     });
   });
 

@@ -1,0 +1,21 @@
+name: Keep VieNeu-TTS HF Space Awake
+
+on:
+  schedule:
+    # Ping every 18 hours so the Hugging Face Space never hits its 48h sleep timeout
+    - cron: "0 */18 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-hf-awake
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping VieNeu-TTS-v3-Turbo Space config endpoint
+        run: curl -fsS --max-time 20 https://nam194-vieneu-tts-v3-turbo.hf.space/config > /dev/null

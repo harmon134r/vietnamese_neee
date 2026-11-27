@@ -3,7 +3,15 @@ import WebSocket from "ws";
 
 const MAX_CHUNK_LENGTH = 200;
 const MAX_TOTAL_LENGTH = 1000;
+const MAX_CACHE_BYTES = 4 * 1024 * 1024; // 4 MiB bucket limit
+
+const SUPABASE_CACHE_READ_TIMEOUT_MS = 1800;
+const SUPABASE_CACHE_WRITE_TIMEOUT_MS = 1200;
+const HF_SPACE_BASE_URL = "https://nam194-vieneu-tts-v3-turbo.hf.space";
+const HF_SYNTHESIZE_CALL_URL = `${HF_SPACE_BASE_URL}/gradio_api/call/synthesize`;
+const HF_TOTAL_TIMEOUT_MS = 7200;
 const EDGE_TIMEOUT_MS = 7500;
+const EDGE_FALLBACK_TIMEOUT_MS = 5000;
 const GOOGLE_TIMEOUT_MS = 6500;
 
 const EDGE_TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
@@ -21,30 +29,85 @@ const GOOGLE_USER_AGENT =
 
 const LANG_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$/;
 
-const VIETNAMESE_EDGE_VOICES = Object.freeze({
-  hoaimy: Object.freeze({
-    id: "hoaimy",
-    edgeName: "vi-VN-HoaiMyNeural",
+export const DEFAULT_NORTHERN_VOICE_ID = "ngochuyen";
+
+/**
+ * Northern Vietnamese (miền Bắc) voices powered by `nam194/VieNeu-TTS-v3-Turbo`,
+ * paired with matching gender Microsoft Edge Neural fallback voices.
+ */
+export const NORTHERN_VOICES = Object.freeze({
+  ngochuyen: Object.freeze({
+    id: "ngochuyen",
+    label: "Ngọc Huyền",
+    hfVoice: "Ngọc Huyền",
+    headerVoice: "Ngoc Huyen",
+    gender: "female",
+    region: "Bắc",
+    style: "Giọng đọc tự nhiên",
+    fallbackEdgeVoice: "vi-VN-HoaiMyNeural",
     locale: "vi-VN",
   }),
-  namminh: Object.freeze({
-    id: "namminh",
-    edgeName: "vi-VN-NamMinhNeural",
+  trucly: Object.freeze({
+    id: "trucly",
+    label: "Trúc Ly",
+    hfVoice: "Trúc Ly",
+    headerVoice: "Truc Ly",
+    gender: "female",
+    region: "Bắc",
+    style: "Phong cách tự nhiên",
+    fallbackEdgeVoice: "vi-VN-HoaiMyNeural",
+    locale: "vi-VN",
+  }),
+  maianh: Object.freeze({
+    id: "maianh",
+    label: "Mai Anh",
+    hfVoice: "Mai Anh",
+    headerVoice: "Mai Anh",
+    gender: "female",
+    region: "Bắc",
+    style: "Phong cách tin tức",
+    fallbackEdgeVoice: "vi-VN-HoaiMyNeural",
+    locale: "vi-VN",
+  }),
+  haidang: Object.freeze({
+    id: "haidang",
+    label: "Hải Đăng",
+    hfVoice: "Hải Đăng",
+    headerVoice: "Hai Dang",
+    gender: "male",
+    region: "Bắc",
+    style: "Phong cách tự nhiên",
+    fallbackEdgeVoice: "vi-VN-NamMinhNeural",
+    locale: "vi-VN",
+  }),
+  thienminh: Object.freeze({
+    id: "thienminh",
+    label: "Thiện Minh",
+    hfVoice: "Thiện Minh",
+    headerVoice: "Thien Minh",
+    gender: "male",
+    region: "Bắc",
+    style: "Phong cách kể chuyện",
+    fallbackEdgeVoice: "vi-VN-NamMinhNeural",
     locale: "vi-VN",
   }),
 });
 
-const ENGLISH_EDGE_VOICES = Object.freeze({
-  hoaimy: Object.freeze({
-    id: "hoaimy",
-    edgeName: "en-US-AriaNeural",
-    locale: "en-US",
-  }),
-  namminh: Object.freeze({
-    id: "namminh",
-    edgeName: "en-US-GuyNeural",
-    locale: "en-US",
-  }),
+const VOICE_ALIAS_MAP = Object.freeze({
+  ngochuyen: "ngochuyen",
+  trucly: "trucly",
+  maianh: "maianh",
+  haidang: "haidang",
+  thienminh: "thienminh",
+  // Legacy Microsoft Edge aliases
+  hoaimy: "ngochuyen",
+  vivnhoaimyneural: "ngochuyen",
+  female: "ngochuyen",
+  nu: "ngochuyen",
+  namminh: "haidang",
+  vivnnamminhneural: "haidang",
+  male: "haidang",
+  nam: "haidang",
 });
 
 // CS64 constants for Microsoft Edge Sec-MS-GEC v2 token
@@ -64,6 +127,22 @@ const MIX_SECOND_WORD = [0xa27416f5, 0xd38396ff, 0x7c932b89, 0xbfa49f69];
 let edgeClockOffsetMs = 0;
 
 /**
+ * Strip Vietnamese diacritics and convert to ASCII-safe HTTP header characters.
+ * Node's `http.ServerResponse.setHeader()` rejects characters > 0xFF (`ERR_INVALID_CHAR`).
+ * @param {string} value
+ * @returns {string}
+ */
+export function toSafeHeaderValue(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/[^\x20-\x7E]/g, "")
+    .trim();
+}
+
+/**
  * Normalize a BCP-47 language code to the target language code.
  * @param {string | undefined} rawLang
  * @returns {string}
@@ -79,45 +158,101 @@ export function normalizeLang(rawLang) {
 }
 
 /**
- * Normalize a requested voice parameter into `'hoaimy' | 'namminh'`.
+ * Normalize any voice ID, legacy alias (`hoaimy`/`namminh`), or full Vietnamese
+ * display name (`Ngọc Huyền`, `Hải Đăng`, ...) into one of the 5 Northern voice IDs.
  * @param {string | undefined} rawVoice
- * @returns {"hoaimy" | "namminh"}
+ * @returns {"ngochuyen" | "trucly" | "maianh" | "haidang" | "thienminh"}
  */
 export function normalizeVoice(rawVoice) {
-  if (!rawVoice || typeof rawVoice !== "string") return "hoaimy";
-  const lower = rawVoice.trim().toLowerCase();
-  if (
-    lower === "namminh" ||
-    lower === "vi-vn-namminhneural" ||
-    lower === "male" ||
-    lower === "nam"
-  ) {
-    return "namminh";
+  if (!rawVoice || typeof rawVoice !== "string") {
+    return DEFAULT_NORTHERN_VOICE_ID;
   }
-  return "hoaimy";
+  const canonical = rawVoice
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+
+  if (VOICE_ALIAS_MAP[canonical]) {
+    return VOICE_ALIAS_MAP[canonical];
+  }
+  if (canonical.includes("namminh")) return "haidang";
+  if (canonical.includes("hoaimy")) return "ngochuyen";
+  return DEFAULT_NORTHERN_VOICE_ID;
 }
 
 /**
- * Resolve Microsoft Edge Neural voice metadata for a normalized language & voice id.
- * Returns null if the language should fall back directly to Google Translate TTS.
+ * Resolve full Northern Vietnamese voice metadata from a raw voice string.
+ * @param {string | undefined} rawVoice
+ */
+export function resolveNorthernVoice(rawVoice) {
+  const voiceId = normalizeVoice(rawVoice);
+  return NORTHERN_VOICES[voiceId] || NORTHERN_VOICES[DEFAULT_NORTHERN_VOICE_ID];
+}
+
+/**
+ * Resolve Microsoft Edge Neural fallback voice metadata for a language & voice id.
+ * Female Northern voices fall back to `vi-VN-HoaiMyNeural`; male voices fall back
+ * to `vi-VN-NamMinhNeural`.
  * @param {string} lang
  * @param {string | undefined} rawVoice
  * @returns {{ id: string, edgeName: string, locale: string } | null}
  */
 export function resolveEdgeVoice(lang, rawVoice) {
-  const voiceId = normalizeVoice(rawVoice);
+  const northern = resolveNorthernVoice(rawVoice);
   if (lang === "vi") {
-    return VIETNAMESE_EDGE_VOICES[voiceId] || VIETNAMESE_EDGE_VOICES.hoaimy;
+    return {
+      id: northern.id,
+      edgeName: northern.fallbackEdgeVoice,
+      locale: "vi-VN",
+    };
   }
   if (lang === "en") {
-    return ENGLISH_EDGE_VOICES[voiceId] || ENGLISH_EDGE_VOICES.hoaimy;
+    return {
+      id: northern.id,
+      edgeName: northern.gender === "male" ? "en-US-GuyNeural" : "en-US-AriaNeural",
+      locale: "en-US",
+    };
   }
   return null;
 }
 
 /**
+ * Compute deterministic, speed-independent Supabase Storage cache path for VieNeu-TTS WAV clips.
+ * Format strictly matches `^v1/[a-z0-9_-]+/[a-f0-9]{64}\.wav$`.
+ * @param {string} text
+ * @param {string | undefined} rawVoice
+ * @returns {{ voice: object, normalizedText: string, hash: string, cachePath: string }}
+ */
+export function computeCachePath(text, rawVoice) {
+  const voice = resolveNorthernVoice(rawVoice);
+  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+  const hash = crypto
+    .createHash("sha256")
+    .update(`${voice.id}::${normalizedText}`)
+    .digest("hex");
+  const cachePath = `v1/${voice.id}/${hash}.wav`;
+  return { voice, normalizedText, hash, cachePath };
+}
+
+/**
+ * Choose adaptive `max_new_frames` for VieNeu-TTS-v3-Turbo based on text length
+ * to minimize generation latency on short flashcards while avoiding cutoff on passages.
+ * @param {string} text
+ * @returns {number}
+ */
+export function adaptiveMaxFrames(text) {
+  const len = String(text || "").replace(/\s+/g, " ").trim().length;
+  if (len <= 25) return 120;
+  if (len <= 80) return 200;
+  if (len <= 180) return 320;
+  return 480;
+}
+
+/**
  * Clamp requested playback speed into Google Translate TTS `ttsspeed` parameter.
- * Google Translate TTS supports slow (~0.24-0.5) and normal (1).
  * @param {string | number | undefined} rawSpeed
  * @returns {number}
  */
@@ -165,7 +300,6 @@ export function splitTextIntoChunks(input, maxLen = MAX_CHUNK_LENGTH) {
   while (remaining.length > maxLen) {
     const slice = remaining.slice(0, maxLen);
 
-    // 1. Prefer breaking at sentence punctuation (. ! ? …)
     let breakAt = Math.max(
       slice.lastIndexOf(". "),
       slice.lastIndexOf("! "),
@@ -173,9 +307,8 @@ export function splitTextIntoChunks(input, maxLen = MAX_CHUNK_LENGTH) {
       slice.lastIndexOf("… ")
     );
     if (breakAt > Math.floor(maxLen * 0.35)) {
-      breakAt += 1; // keep punctuation with chunk
+      breakAt += 1;
     } else {
-      // 2. Next prefer clause punctuation (, ; : — -)
       breakAt = Math.max(
         slice.lastIndexOf(", "),
         slice.lastIndexOf("; "),
@@ -184,7 +317,6 @@ export function splitTextIntoChunks(input, maxLen = MAX_CHUNK_LENGTH) {
       if (breakAt > Math.floor(maxLen * 0.35)) {
         breakAt += 1;
       } else {
-        // 3. Fall back to last space
         breakAt = slice.lastIndexOf(" ");
         if (breakAt <= 0) {
           breakAt = maxLen;
@@ -199,6 +331,367 @@ export function splitTextIntoChunks(input, maxLen = MAX_CHUNK_LENGTH) {
 
   if (remaining) chunks.push(remaining);
   return chunks;
+}
+
+/**
+ * Read Supabase Storage configuration from environment variables.
+ * @param {Record<string, string | undefined>} [env=process.env]
+ */
+function getSupabaseCacheConfig(env = process.env) {
+  const supabaseUrl = String(env?.SUPABASE_URL || env?.VITE_SUPABASE_URL || "")
+    .trim()
+    .replace(/\/+$/, "");
+  const supabaseKey = String(
+    env?.SUPABASE_SERVICE_ROLE_KEY ||
+      env?.SUPABASE_ANON_KEY ||
+      env?.VITE_SUPABASE_ANON_KEY ||
+      ""
+  ).trim();
+  return { supabaseUrl, supabaseKey };
+}
+
+/**
+ * Tier 1: Fetch cached WAV bytes from public Supabase Storage `tts-cache` bucket.
+ * Returns `null` on miss, timeout, or network error so synthesis continues cleanly.
+ * @param {string} cachePath
+ * @param {{ supabaseUrl?: string, timeoutMs?: number, fetchImpl?: typeof fetch }} [options={}]
+ * @returns {Promise<Buffer | null>}
+ */
+export async function fetchSupabaseCachedAudio(cachePath, options = {}) {
+  const {
+    supabaseUrl,
+    timeoutMs = SUPABASE_CACHE_READ_TIMEOUT_MS,
+    fetchImpl = fetch,
+  } = options;
+
+  if (!supabaseUrl || !cachePath || typeof fetchImpl !== "function") {
+    return null;
+  }
+
+  const url = `${supabaseUrl}/storage/v1/object/public/tts-cache/${cachePath}`;
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchImpl(url, {
+      method: "GET",
+      headers: {
+        Accept: "audio/wav, audio/x-wav, audio/*;q=0.9, */*;q=0.5",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response || !response.ok) {
+      return null;
+    }
+
+    const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
+    if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) {
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      return null;
+    }
+
+    return Buffer.from(arrayBuffer);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timerId);
+  }
+}
+
+/**
+ * Persist newly synthesized WAV audio into Supabase Storage `tts-cache` bucket.
+ * Write-once (`x-upsert: false`), capped at 1200ms timeout and 4 MiB max payload;
+ * swallows 409 conflicts and transient errors so user playback never fails.
+ * @param {string} cachePath
+ * @param {Buffer} audioBuffer
+ * @param {{ supabaseUrl?: string, supabaseKey?: string, timeoutMs?: number, fetchImpl?: typeof fetch }} [options={}]
+ * @returns {Promise<boolean>}
+ */
+export async function persistSupabaseCachedAudio(cachePath, audioBuffer, options = {}) {
+  const {
+    supabaseUrl,
+    supabaseKey,
+    timeoutMs = SUPABASE_CACHE_WRITE_TIMEOUT_MS,
+    fetchImpl = fetch,
+  } = options;
+
+  if (
+    !supabaseUrl ||
+    !supabaseKey ||
+    !cachePath ||
+    !audioBuffer ||
+    audioBuffer.byteLength === 0 ||
+    audioBuffer.byteLength > MAX_CACHE_BYTES ||
+    typeof fetchImpl !== "function"
+  ) {
+    return false;
+  }
+
+  const url = `${supabaseUrl}/storage/v1/object/tts-cache/${cachePath}`;
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        "Content-Type": "audio/wav",
+        "x-upsert": "false",
+      },
+      body: audioBuffer,
+      signal: controller.signal,
+    });
+    return Boolean(response && (response.ok || response.status === 409));
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timerId);
+  }
+}
+
+/**
+ * Extract downloadable audio URL from Gradio `/synthesize` `event: complete` payload.
+ * @param {string} rawData
+ * @returns {string}
+ */
+export function extractGradioAudioUrl(rawData) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawData);
+  } catch {
+    throw new Error("VieNeu-TTS returned invalid JSON in Gradio complete event");
+  }
+
+  const first = Array.isArray(parsed) ? parsed[0] : parsed;
+  let candidate = "";
+  if (typeof first === "string") {
+    candidate = first.trim();
+  } else if (first && typeof first === "object") {
+    if (typeof first.url === "string" && first.url.trim()) {
+      candidate = first.url.trim();
+    } else if (typeof first.path === "string" && first.path.trim()) {
+      candidate = `${HF_SPACE_BASE_URL}/gradio_api/file=${first.path.trim()}`;
+    }
+  }
+
+  if (!candidate) {
+    throw new Error("VieNeu-TTS Gradio complete event missing audio URL");
+  }
+  if (candidate.startsWith("/")) {
+    return `${HF_SPACE_BASE_URL}${candidate}`;
+  }
+  return candidate;
+}
+
+/**
+ * Parse a Gradio SSE stream (either streaming `ReadableStream` or full text fallback)
+ * until `event: complete` or `event: error`.
+ * @param {Response} sseResponse
+ * @returns {Promise<string>}
+ */
+async function readGradioSseAudioUrl(sseResponse) {
+  let currentEvent = "";
+  let dataLines = [];
+
+  const dispatchBlock = () => {
+    const eventName = currentEvent.trim().toLowerCase();
+    const dataText = dataLines.join("\n").trim();
+    currentEvent = "";
+    dataLines = [];
+
+    if (!eventName && !dataText) return null;
+    if (eventName === "complete") {
+      return extractGradioAudioUrl(dataText);
+    }
+    if (eventName === "error") {
+      const err = new Error(`VieNeu-TTS Space error: ${dataText || "synthesis failed"}`);
+      err.upstreamStatus = 502;
+      throw err;
+    }
+    return null;
+  };
+
+  const processLines = (lines) => {
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\r$/, "");
+      if (line === "") {
+        const foundUrl = dispatchBlock();
+        if (foundUrl) return foundUrl;
+        continue;
+      }
+      if (line.startsWith(":")) continue;
+      if (line.startsWith("event:")) {
+        currentEvent = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trimStart());
+      }
+    }
+    return null;
+  };
+
+  if (sseResponse.body && typeof sseResponse.body.getReader === "function") {
+    const reader = sseResponse.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n");
+        buffer = parts.pop() || "";
+        const foundUrl = processLines(parts);
+        if (foundUrl) {
+          reader.cancel().catch(() => {});
+          return foundUrl;
+        }
+      }
+      buffer += decoder.decode();
+      if (buffer) {
+        const foundUrl = processLines(buffer.split("\n"));
+        if (foundUrl) return foundUrl;
+      }
+      const tailUrl = dispatchBlock();
+      if (tailUrl) return tailUrl;
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // ignore
+      }
+    }
+  } else {
+    const fullText = await sseResponse.text();
+    const foundUrl = processLines(fullText.split("\n"));
+    if (foundUrl) return foundUrl;
+    const tailUrl = dispatchBlock();
+    if (tailUrl) return tailUrl;
+  }
+
+  const err = new Error("VieNeu-TTS SSE stream ended without a complete event");
+  err.upstreamStatus = 502;
+  throw err;
+}
+
+/**
+ * Tier 2: Synthesize Northern Vietnamese WAV audio via `nam194/VieNeu-TTS-v3-Turbo`
+ * Gradio API on Hugging Face Spaces with strict total timeout (`7200ms`).
+ *
+ * @param {string} text
+ * @param {string | object} rawVoice
+ * @param {{ timeoutMs?: number, fetchImpl?: typeof fetch }} [options={}]
+ * @returns {Promise<Buffer>}
+ */
+export async function fetchVieNeuAudio(text, rawVoice, options = {}) {
+  const { timeoutMs = HF_TOTAL_TIMEOUT_MS, fetchImpl = fetch } = options;
+  const voice =
+    rawVoice && typeof rawVoice === "object" && rawVoice.hfVoice
+      ? rawVoice
+      : resolveNorthernVoice(rawVoice);
+  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+  const maxNewFrames = adaptiveMaxFrames(normalizedText);
+
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    // 1. Submit synthesis job to Gradio queue
+    const callResponse = await fetchImpl(HF_SYNTHESIZE_CALL_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        data: [
+          normalizedText,
+          voice.hfVoice,
+          null,
+          0.8,
+          25,
+          0.95,
+          1.2,
+          maxNewFrames,
+          200,
+          true,
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    if (!callResponse.ok) {
+      const err = new Error(`VieNeu-TTS call returned HTTP ${callResponse.status}`);
+      err.upstreamStatus = callResponse.status;
+      throw err;
+    }
+
+    const callJson = await callResponse.json();
+    const eventId = typeof callJson?.event_id === "string" ? callJson.event_id.trim() : "";
+    if (!eventId) {
+      const err = new Error("VieNeu-TTS call response missing event_id");
+      err.upstreamStatus = 502;
+      throw err;
+    }
+
+    // 2. Listen to SSE stream until `event: complete`
+    const sseUrl = `${HF_SYNTHESIZE_CALL_URL}/${encodeURIComponent(eventId)}`;
+    const sseResponse = await fetchImpl(sseUrl, {
+      method: "GET",
+      headers: {
+        Accept: "text/event-stream",
+      },
+      signal: controller.signal,
+    });
+
+    if (!sseResponse.ok) {
+      const err = new Error(`VieNeu-TTS SSE stream returned HTTP ${sseResponse.status}`);
+      err.upstreamStatus = sseResponse.status;
+      throw err;
+    }
+
+    const audioUrl = await readGradioSseAudioUrl(sseResponse);
+
+    // 3. Download generated WAV bytes within the same total timeout budget
+    const audioResponse = await fetchImpl(audioUrl, {
+      method: "GET",
+      headers: {
+        Accept: "audio/wav, audio/x-wav, audio/*;q=0.9, */*;q=0.5",
+      },
+      signal: controller.signal,
+    });
+
+    if (!audioResponse.ok) {
+      const err = new Error(`VieNeu-TTS audio download returned HTTP ${audioResponse.status}`);
+      err.upstreamStatus = audioResponse.status;
+      throw err;
+    }
+
+    const contentType = String(audioResponse.headers?.get?.("content-type") || "").toLowerCase();
+    if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) {
+      const err = new Error(`Unexpected VieNeu-TTS audio content-type: ${contentType}`);
+      err.upstreamStatus = 502;
+      throw err;
+    }
+
+    const arrayBuffer = await audioResponse.arrayBuffer();
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      const err = new Error("VieNeu-TTS returned empty WAV payload");
+      err.upstreamStatus = 502;
+      throw err;
+    }
+
+    return Buffer.from(arrayBuffer);
+  } finally {
+    clearTimeout(timerId);
+  }
 }
 
 function swapHalves(value) {
@@ -298,14 +791,6 @@ export function buildEdgeSsml(text, edgeVoice, edgeRate = "+0%") {
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${edgeVoice.locale}"><voice name="${edgeVoice.edgeName}"><prosody pitch="+0Hz" rate="${edgeRate}" volume="+0%">${safeText}</prosody></voice></speak>`;
 }
 
-/**
- * Single Microsoft Edge Neural TTS WebSocket synthesis attempt.
- * @param {string} text
- * @param {{ id: string, edgeName: string, locale: string }} edgeVoice
- * @param {string} edgeRate
- * @param {number} timeoutMs
- * @returns {Promise<Buffer>}
- */
 function runEdgeTtsAttempt(text, edgeVoice, edgeRate, timeoutMs) {
   return new Promise((resolve, reject) => {
     const connectionId = crypto.randomBytes(16).toString("hex");
@@ -324,7 +809,7 @@ function runEdgeTtsAttempt(text, edgeVoice, edgeRate, timeoutMs) {
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
         Cookie: `muid=${muid};`,
       },
-      handshakeTimeout: Math.min(timeoutMs, 5000),
+      handshakeTimeout: Math.min(timeoutMs, 4500),
     });
 
     const audioChunks = [];
@@ -386,7 +871,9 @@ function runEdgeTtsAttempt(text, edgeVoice, edgeRate, timeoutMs) {
     });
 
     ws.once("open", () => {
-      const timestamp = new Date().toUTCString().replace("GMT", "GMT+0000 (Coordinated Universal Time)");
+      const timestamp = new Date()
+        .toUTCString()
+        .replace("GMT", "GMT+0000 (Coordinated Universal Time)");
       const configMsg =
         `X-Timestamp:${timestamp}\r\n` +
         `Content-Type:application/json; charset=utf-8\r\n` +
@@ -501,14 +988,7 @@ export async function synthesizeEdgeTts(text, edgeVoice, edgeRate, timeoutMs = E
   }
 }
 
-/**
- * Fetch a single MP3 chunk from Google Translate TTS (automatic fallback engine).
- * @param {string} chunk
- * @param {string} lang
- * @param {number} ttsSpeed
- * @returns {Promise<Buffer>}
- */
-async function fetchGoogleTtsChunk(chunk, lang, ttsSpeed) {
+async function fetchGoogleTtsChunk(chunk, lang, ttsSpeed, fetchImpl = fetch) {
   const params = new URLSearchParams({
     ie: "UTF-8",
     client: "tw-ob",
@@ -522,7 +1002,7 @@ async function fetchGoogleTtsChunk(chunk, lang, ttsSpeed) {
   const timeoutId = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchImpl(url, {
       method: "GET",
       headers: {
         "User-Agent": GOOGLE_USER_AGENT,
@@ -558,22 +1038,17 @@ async function fetchGoogleTtsChunk(chunk, lang, ttsSpeed) {
   }
 }
 
-async function synthesizeGoogleFallback(text, lang, ttsSpeed) {
+async function synthesizeGoogleFallback(text, lang, ttsSpeed, fetchImpl = fetch) {
   const chunks = splitTextIntoChunks(text, MAX_CHUNK_LENGTH);
   const audioBuffers = [];
   for (const chunk of chunks) {
-    const buffer = await fetchGoogleTtsChunk(chunk, lang, ttsSpeed);
+    const buffer = await fetchGoogleTtsChunk(chunk, lang, ttsSpeed, fetchImpl);
     audioBuffers.push(buffer);
   }
   const audio = audioBuffers.length === 1 ? audioBuffers[0] : Buffer.concat(audioBuffers);
   return { audio, chunkCount: chunks.length };
 }
 
-/**
- * Extract query parameters safely for both Vercel Serverless and raw Node http.
- * @param {object} req
- * @returns {Record<string, string>}
- */
 function getQueryParams(req) {
   if (req?.query && typeof req.query === "object") {
     return req.query;
@@ -587,15 +1062,15 @@ function getQueryParams(req) {
 }
 
 /**
- * Vercel Serverless Function: GET /api/tts?text=...&lang=vi&voice=hoaimy|namminh&speed=1
- * Primary engine: Microsoft Edge Neural TTS (`vi-VN-HoaiMyNeural` / `vi-VN-NamMinhNeural`).
- * Automatic fallback: Google Translate TTS if Edge Neural is unavailable or times out.
+ * Vercel Serverless Function:
+ * GET /api/tts?text=...&lang=vi&voice=ngochuyen|trucly|maianh|haidang|thienminh&speed=1
  *
- * Query parameters:
- * - text (required): Vietnamese or target text (1..1000 chars)
- * - lang (optional, default "vi"): Language code (e.g. "vi", "vi-VN", "en")
- * - voice (optional, default "hoaimy"): "hoaimy" (female) | "namminh" (male)
- * - speed (optional, default "1"): Playback speed (0.6..1.5 mapped to Edge SSML rate)
+ * 3-Tier Speed-Optimized Vietnamese TTS Architecture:
+ * - Tier 1: Public Supabase Storage shared WAV cache (`tts-cache` bucket, ~80ms hit)
+ * - Tier 2: `nam194/VieNeu-TTS-v3-Turbo` Hugging Face Space Gradio API (5 Northern voices)
+ *           with adaptive `max_new_frames` + write-once persistence to Supabase Storage
+ * - Tier 3: Automatic fast fallback to Microsoft Edge Neural (`vi-VN-HoaiMyNeural` /
+ *           `vi-VN-NamMinhNeural`), then Google Translate TTS as last resort.
  */
 export default async function handler(req, res, deps = {}) {
   const method = (req?.method || "GET").toUpperCase();
@@ -609,7 +1084,8 @@ export default async function handler(req, res, deps = {}) {
     res.setHeader("Allow", "GET, HEAD, OPTIONS");
     res.setHeader("Cache-Control", "no-store");
     return res.status(405).json({
-      error: "Method not allowed. Use GET /api/tts?text=...&lang=vi&voice=hoaimy&speed=1",
+      error:
+        "Method not allowed. Use GET /api/tts?text=...&lang=vi&voice=ngochuyen&speed=1",
     });
   }
 
@@ -638,67 +1114,157 @@ export default async function handler(req, res, deps = {}) {
   }
 
   const lang = normalizeLang(rawLang);
-  const edgeVoice = resolveEdgeVoice(lang, rawVoice);
+  const { voice: northernVoice, normalizedText, cachePath } = computeCachePath(text, rawVoice);
+  const edgeVoice = resolveEdgeVoice(lang, northernVoice.id);
   const edgeRate = speedToEdgeRate(rawSpeed);
   const googleSpeed = normalizeSpeed(rawSpeed);
 
+  const env = deps.env || process.env;
+  const fetchImpl = deps.fetchImpl || fetch;
+  const { supabaseUrl, supabaseKey } = getSupabaseCacheConfig(env);
+
+  const cacheReader =
+    deps.fetchCache ||
+    ((path) => fetchSupabaseCachedAudio(path, { supabaseUrl, fetchImpl }));
+  const cacheWriter =
+    deps.persistCache ||
+    ((path, buf) =>
+      persistSupabaseCachedAudio(path, buf, { supabaseUrl, supabaseKey, fetchImpl }));
+  const vieNeuSynthesizer =
+    deps.fetchVieNeu ||
+    ((t, v) => fetchVieNeuAudio(t, v, { fetchImpl }));
   const edgeSynthesizer = deps.synthesizeEdge || synthesizeEdgeTts;
+  const googleSynthesizer =
+    deps.synthesizeGoogle ||
+    ((t, l, s) => synthesizeGoogleFallback(t, l, s, fetchImpl));
 
   let audioBuffer = null;
-  let provider = "edge-neural";
-  let resolvedVoiceHeader = edgeVoice?.edgeName || `google-${lang}`;
+  let contentType = "audio/wav";
+  let cacheControl =
+    "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
+  let provider = "vieneu-hf";
+  let resolvedVoiceHeader = northernVoice.headerVoice || toSafeHeaderValue(northernVoice.hfVoice);
   let chunkCount = 1;
-  let edgeError = null;
+  let lastError = null;
 
-  // 1. Primary path: Microsoft Edge Neural TTS (Hoài My / Nam Minh)
-  if (edgeVoice) {
-    try {
-      const synthesized = await edgeSynthesizer(text, edgeVoice, edgeRate);
-      if (synthesized && synthesized.byteLength > 0) {
-        audioBuffer = Buffer.isBuffer(synthesized) ? synthesized : Buffer.from(synthesized);
-        provider = "edge-neural";
-        resolvedVoiceHeader = edgeVoice.edgeName;
-        chunkCount = 1;
-      } else {
-        edgeError = new Error("Edge Neural TTS returned empty audio buffer");
+  if (lang === "vi") {
+    // Tier 1: Supabase Storage Shared Cache (~80ms)
+    if (supabaseUrl || deps.fetchCache) {
+      try {
+        const cached = await cacheReader(cachePath);
+        if (cached && cached.byteLength > 0) {
+          audioBuffer = Buffer.isBuffer(cached) ? cached : Buffer.from(cached);
+          contentType = "audio/wav";
+          cacheControl = "public, max-age=31536000, immutable";
+          provider = "vieneu-cache";
+          resolvedVoiceHeader =
+            northernVoice.headerVoice || toSafeHeaderValue(northernVoice.hfVoice);
+          chunkCount = 1;
+        }
+      } catch {
+        // Ignore cache read failures and fall through to Tier 2
       }
-    } catch (err) {
-      edgeError = err;
+    }
+
+    // Tier 2: nam194/VieNeu-TTS-v3-Turbo Gradio API on Hugging Face
+    if (!audioBuffer) {
+      try {
+        const synthesized = await vieNeuSynthesizer(normalizedText, northernVoice);
+        if (synthesized && synthesized.byteLength > 0) {
+          audioBuffer = Buffer.isBuffer(synthesized)
+            ? synthesized
+            : Buffer.from(synthesized);
+          contentType = "audio/wav";
+          cacheControl =
+            "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
+          provider = "vieneu-hf";
+          resolvedVoiceHeader =
+            northernVoice.headerVoice || toSafeHeaderValue(northernVoice.hfVoice);
+          chunkCount = 1;
+
+          // Persist to Supabase Storage (capped 1200ms, <= 4MB, swallow errors)
+          if (
+            (supabaseUrl && supabaseKey) ||
+            deps.persistCache
+          ) {
+            if (audioBuffer.byteLength <= MAX_CACHE_BYTES) {
+              try {
+                await cacheWriter(cachePath, audioBuffer);
+              } catch {
+                // Never fail response on cache write error
+              }
+            }
+          }
+        } else {
+          lastError = new Error("VieNeu-TTS returned empty audio buffer");
+        }
+      } catch (err) {
+        lastError = err;
+      }
     }
   }
 
-  // 2. Automatic fallback: Google Translate TTS
+  // Tier 3a: Automatic Fast Fallback -> Microsoft Edge Neural TTS
+  if (!audioBuffer && edgeVoice) {
+    try {
+      const edgeTimeout = lang === "vi" ? EDGE_FALLBACK_TIMEOUT_MS : EDGE_TIMEOUT_MS;
+      const synthesized = await edgeSynthesizer(
+        normalizedText,
+        edgeVoice,
+        edgeRate,
+        edgeTimeout
+      );
+      if (synthesized && synthesized.byteLength > 0) {
+        audioBuffer = Buffer.isBuffer(synthesized)
+          ? synthesized
+          : Buffer.from(synthesized);
+        contentType = "audio/mpeg";
+        cacheControl =
+          "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
+        provider = lang === "vi" ? "edge-fallback" : "edge-neural";
+        resolvedVoiceHeader = edgeVoice.edgeName;
+        chunkCount = 1;
+      } else {
+        lastError = new Error("Edge Neural TTS returned empty audio buffer");
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  // Tier 3b: Last-resort Fallback -> Google Translate TTS
   if (!audioBuffer) {
     try {
-      const fallback = await synthesizeGoogleFallback(text, lang, googleSpeed);
+      const fallback = await googleSynthesizer(normalizedText, lang, googleSpeed);
       audioBuffer = fallback.audio;
+      contentType = "audio/mpeg";
+      cacheControl =
+        "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
       provider = "google-fallback";
       resolvedVoiceHeader = `google-${lang}`;
       chunkCount = fallback.chunkCount;
     } catch (fallbackErr) {
       const isTimeout =
         fallbackErr?.name === "AbortError" ||
-        (edgeError?.name === "AbortError" && !fallbackErr?.upstreamStatus);
+        (lastError?.name === "AbortError" && !fallbackErr?.upstreamStatus);
       const status = isTimeout ? 504 : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json({
         error: isTimeout
           ? "TTS upstream timed out"
           : "Failed to synthesize Vietnamese audio from upstream TTS",
-        upstreamStatus: fallbackErr?.upstreamStatus || edgeError?.upstreamStatus || null,
-        details: fallbackErr?.message || edgeError?.message || "Unknown upstream error",
+        upstreamStatus: fallbackErr?.upstreamStatus || lastError?.upstreamStatus || null,
+        details: fallbackErr?.message || lastError?.message || "Unknown upstream error",
       });
     }
   }
 
-  res.setHeader("Content-Type", "audio/mpeg");
+  res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Length", String(audioBuffer.byteLength));
-  res.setHeader(
-    "Cache-Control",
-    "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400"
-  );
+  res.setHeader("Cache-Control", cacheControl);
   res.setHeader("X-TTS-Provider", provider);
-  res.setHeader("X-TTS-Voice", resolvedVoiceHeader);
+  res.setHeader("X-TTS-Voice", toSafeHeaderValue(resolvedVoiceHeader));
+  res.setHeader("X-TTS-Voice-Id", northernVoice.id);
   res.setHeader("X-TTS-Lang", lang);
   res.setHeader("X-TTS-Chunks", String(chunkCount));
   res.setHeader("X-Content-Type-Options", "nosniff");

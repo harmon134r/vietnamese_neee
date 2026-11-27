@@ -8,7 +8,7 @@ import {
   Square,
   Volume2,
 } from "lucide-react";
-import { speakVietnamese, stopSpeaking } from "../../lib/speech";
+import * as speechApi from "../../lib/speech";
 
 const TOPIC_SHORT_LABELS = {
   self: "Bản thân",
@@ -35,6 +35,9 @@ export function TopicOverview({
 }) {
   const [speechRate, setSpeechRate] = useState(1);
   const [playingKey, setPlayingKey] = useState(null);
+  const [voiceId, setVoiceId] = useState(
+    () => speechApi.getSelectedVoice?.() || "ngochuyen"
+  );
 
   const activeIndex = Math.max(
     0,
@@ -43,27 +46,64 @@ export function TopicOverview({
   const activeTopic = topics[activeIndex] || topics[0] || null;
 
   useEffect(() => {
+    const voiceChangeEvent =
+      speechApi.VOICE_CHANGE_EVENT || "vietflow:voice-change";
+    const voiceStorageKey = speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice";
+
+    const syncVoice = (event) => {
+      const next = event?.detail?.voice || speechApi.getSelectedVoice?.();
+      if (next) setVoiceId(next);
+    };
+    const handleStorage = (event) => {
+      if (!event?.key || event.key === voiceStorageKey) {
+        const next = speechApi.getSelectedVoice?.();
+        if (next) setVoiceId(next);
+      }
+    };
+
+    window.addEventListener(voiceChangeEvent, syncVoice);
+    window.addEventListener("storage", handleStorage);
     return () => {
-      stopSpeaking();
+      window.removeEventListener(voiceChangeEvent, syncVoice);
+      window.removeEventListener("storage", handleStorage);
     };
   }, []);
 
   useEffect(() => {
-    stopSpeaking();
+    return () => {
+      speechApi.stopSpeaking?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    speechApi.stopSpeaking?.();
     setPlayingKey(null);
   }, [activeTopic?.id]);
+
+  // Quietly prefetch the first 3 key phrases of the selected topic
+  useEffect(() => {
+    if (!activeTopic) return;
+    if (typeof speechApi.prefetchVietnamese !== "function") return;
+    const texts = (Array.isArray(activeTopic.keyPhrases) ? activeTopic.keyPhrases : [])
+      .slice(0, 3)
+      .map((phrase) => (typeof phrase === "string" ? phrase : phrase?.vi))
+      .filter(Boolean);
+    if (texts.length > 0) {
+      speechApi.prefetchVietnamese(texts, voiceId ? { voice: voiceId } : {});
+    }
+  }, [activeTopic, voiceId]);
 
   const handlePlayPhrase = async (key, text) => {
     if (!text) return;
     if (playingKey === key) {
-      stopSpeaking();
+      speechApi.stopSpeaking?.();
       setPlayingKey(null);
       return;
     }
 
     setPlayingKey(key);
     try {
-      await speakVietnamese(text, {
+      await speechApi.speakVietnamese?.(text, {
         rate: speechRate,
         onStart: () => setPlayingKey(key),
         onEnd: () => setPlayingKey((prev) => (prev === key ? null : prev)),

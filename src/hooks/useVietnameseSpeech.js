@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  VIETNAMESE_VOICES,
   VOICE_CHANGE_EVENT,
   VOICE_STORAGE_KEY,
   createAudioRecorder,
   getSelectedVoice,
+  getVoiceMeta,
   isSpeechRecognitionSupported,
+  prefetchVietnamese,
   setSelectedVoice,
   speakVietnamese,
   startVietnameseListening,
@@ -92,11 +95,22 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
     setRateState(Math.min(1.5, Math.max(0.5, num)));
   }, []);
 
+  const voiceMeta = useMemo(() => getVoiceMeta(voice), [voice]);
+
   const setVoice = useCallback((nextVoice) => {
     const normalized = setSelectedVoice(nextVoice);
     setVoiceState(normalized);
     return normalized;
   }, []);
+
+  const prefetch = useCallback(
+    (texts, overrideOptions = {}) => {
+      prefetchVietnamese(texts, {
+        voice: overrideOptions?.voice ?? voice,
+      });
+    },
+    [voice]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -309,7 +323,10 @@ export function useVietnameseSpeech({ defaultRate = 1 } = {}) {
     rate,
     setRate,
     voice,
+    voiceMeta,
+    voices: VIETNAMESE_VOICES,
     setVoice,
+    prefetch,
     speak,
     stopSpeak,
     isListening,

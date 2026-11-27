@@ -6,6 +6,8 @@ import "@testing-library/jest-dom/vitest";
 const mockSpeak = vi.fn(() => Promise.resolve({ source: "api" }));
 const mockStopSpeak = vi.fn();
 const mockSetRate = vi.fn();
+const mockSetVoice = vi.fn();
+const mockPrefetch = vi.fn();
 const mockStartListening = vi.fn();
 const mockStopListening = vi.fn();
 const mockResetTranscript = vi.fn();
@@ -15,6 +17,9 @@ const speechHookState = {
   speakingText: "",
   rate: 1,
   setRate: mockSetRate,
+  voice: "ngochuyen",
+  setVoice: mockSetVoice,
+  prefetch: mockPrefetch,
   speak: mockSpeak,
   stopSpeak: mockStopSpeak,
   isListening: false,
@@ -29,12 +34,28 @@ const speechHookState = {
   speechError: null,
 };
 
-vi.mock("../../lib/speech", () => ({
-  speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
-  stopSpeaking: vi.fn(),
-  isSpeechRecognitionSupported: vi.fn(() => true),
-  startVietnameseListening: vi.fn(() => ({ stop: vi.fn(), abort: vi.fn() })),
-}));
+vi.mock("../../lib/speech", () => {
+  const NORTHERN_VOICES = [
+    { id: "ngochuyen", label: "Ngọc Huyền", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Giọng đọc tự nhiên" },
+    { id: "trucly", label: "Trúc Ly", shortLabel: "Nữ · Bắc · Tự nhiên", gender: "female", region: "Bắc", style: "Phong cách tự nhiên" },
+    { id: "maianh", label: "Mai Anh", shortLabel: "Nữ · Bắc · Tin tức", gender: "female", region: "Bắc", style: "Phong cách tin tức" },
+    { id: "haidang", label: "Hải Đăng", shortLabel: "Nam · Bắc · Tự nhiên", gender: "male", region: "Bắc", style: "Phong cách tự nhiên" },
+    { id: "thienminh", label: "Thiện Minh", shortLabel: "Nam · Bắc · Kể chuyện", gender: "male", region: "Bắc", style: "Phong cách kể chuyện" },
+  ];
+  return {
+    VIETNAMESE_VOICES: NORTHERN_VOICES,
+    VOICE_STORAGE_KEY: "vietflow_tts_voice",
+    VOICE_CHANGE_EVENT: "vietflow:voice-change",
+    getSelectedVoice: vi.fn(() => "ngochuyen"),
+    setSelectedVoice: vi.fn((id) => id),
+    getVoiceMeta: vi.fn((id) => NORTHERN_VOICES.find((v) => v.id === id) || NORTHERN_VOICES[0]),
+    prefetchVietnamese: vi.fn(),
+    speakVietnamese: vi.fn(() => Promise.resolve({ source: "api" })),
+    stopSpeaking: vi.fn(),
+    isSpeechRecognitionSupported: vi.fn(() => true),
+    startVietnameseListening: vi.fn(() => ({ stop: vi.fn(), abort: vi.fn() })),
+  };
+});
 
 vi.mock("../../hooks/useVietnameseSpeech", () => ({
   useVietnameseSpeech: vi.fn(() => speechHookState),
@@ -46,8 +67,14 @@ import { ListeningGame } from "./ListeningGame";
 import { PronunciationLab } from "./PronunciationLab";
 import { DialogueRoleplay } from "./DialogueRoleplay";
 import { ReadingVocabGame } from "./ReadingVocabGame";
+import { Navbar } from "../layout/Navbar";
+import { TopicOverview } from "../layout/TopicOverview";
 import { GAME_TYPES } from "../../lib/contracts";
-import { speakVietnamese } from "../../lib/speech";
+import {
+  prefetchVietnamese,
+  setSelectedVoice,
+  speakVietnamese,
+} from "../../lib/speech";
 import {
   DIALOGUE_SCENARIOS,
   LISTENING_EXERCISES,
@@ -141,6 +168,12 @@ describe("ListeningGame", () => {
       />
     );
 
+    // Prefetches current + next 2 exercises on mount
+    expect(prefetchVietnamese).toHaveBeenCalledWith(
+      selfExercises.slice(0, 3).map((e) => e.audioTextVi),
+      { voice: "ngochuyen" }
+    );
+
     // Play audio and verify replay count increments
     fireEvent.click(screen.getByTestId("listening-play-btn"));
     expect(mockSpeak).toHaveBeenCalledWith(
@@ -190,10 +223,19 @@ describe("PronunciationLab", () => {
 
     expect(screen.getByTestId("pronunciation-pairs-view")).toBeInTheDocument();
     expect(screen.getByText(/Biểu đồ 6 Thanh Điệu Tiếng Việt/i)).toBeInTheDocument();
+    expect(prefetchVietnamese).toHaveBeenCalledWith(
+      expect.any(Array),
+      { voice: "ngochuyen" }
+    );
 
     // Switch to Sentence Shadowing tab
+    prefetchVietnamese.mockClear();
     fireEvent.click(screen.getByTestId("pronunciation-tab-shadowing"));
     expect(screen.getByTestId("pronunciation-shadowing-view")).toBeInTheDocument();
+    expect(prefetchVietnamese).toHaveBeenCalledWith(
+      expect.arrayContaining([firstSelfSentence.textVi]),
+      { voice: "ngochuyen" }
+    );
 
     // Submit simulated Vietnamese sentence through fallback input
     const input = screen.getByTestId("shadowing-fallback-input");
@@ -248,6 +290,20 @@ describe("DialogueRoleplay", () => {
 
     fireEvent.click(screen.getByTestId(`dialogue-scenario-${scenario.id}`));
     expect(screen.getByTestId("dialogue-arena")).toBeInTheDocument();
+
+    // Prefetches current NPC line + expected responses + next turn NPC line
+    const turn0 = scenario.turns[0];
+    const turn1 = scenario.turns.find(
+      (t) => t.id === turn0.expectedResponses[0].nextTurnId
+    );
+    expect(prefetchVietnamese).toHaveBeenCalledWith(
+      [
+        turn0.npcTextVi,
+        ...turn0.expectedResponses.map((r) => r.textVi),
+        ...(turn1 ? [turn1.npcTextVi] : []),
+      ],
+      { voice: "ngochuyen" }
+    );
 
     // Turn 1: respond via Speak/Typed intent matching pipeline
     let activeTurn = scenario.turns[0];
@@ -342,6 +398,10 @@ describe("ReadingVocabGame", () => {
     );
 
     expect(screen.getByTestId("sentence-builder-view")).toBeInTheDocument();
+    expect(prefetchVietnamese).toHaveBeenCalledWith(
+      selfBuilders.slice(0, 2).map((b) => b.targetSentenceVi),
+      { voice: "ngochuyen" }
+    );
 
     for (const item of selfBuilders) {
       const bank = screen.getByTestId("builder-bank");
@@ -368,6 +428,75 @@ describe("ReadingVocabGame", () => {
         skillTags: ["reading", "listening"],
         accuracy: 100,
       })
+    );
+  });
+});
+
+describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
+  it("opens 5-voice Northern popover, closes on Escape/outside click, and selects a voice cleanly", () => {
+    render(
+      <Navbar
+        activeView="dashboard"
+        onNavigate={vi.fn()}
+        skillProgress={{ xp: 120, streakDays: 3 }}
+        user={null}
+        storageMode="local"
+        isSupabaseConfigured={false}
+        onOpenAuth={vi.fn()}
+      />
+    );
+
+    const trigger = screen.getByTestId("navbar-voice-trigger");
+    expect(trigger).toHaveTextContent("Ngọc Huyền");
+    expect(screen.queryByTestId("navbar-voice-menu")).not.toBeInTheDocument();
+
+    // Open popover and verify header + all 5 Northern voices & sublabels
+    fireEvent.click(trigger);
+    const menu = screen.getByTestId("navbar-voice-menu");
+    expect(menu).toHaveTextContent("Giọng đọc Miền Bắc · VieNeu-TTS");
+    expect(within(menu).getByText("Ngọc Huyền")).toBeInTheDocument();
+    expect(within(menu).getByText("Trúc Ly")).toBeInTheDocument();
+    expect(within(menu).getByText("Mai Anh")).toBeInTheDocument();
+    expect(within(menu).getByText("Hải Đăng")).toBeInTheDocument();
+    expect(within(menu).getByText("Thiện Minh")).toBeInTheDocument();
+    expect(within(menu).getByText("Nữ · Tin tức")).toBeInTheDocument();
+    expect(within(menu).getByText("Nam · Kể chuyện")).toBeInTheDocument();
+
+    // Close on Escape
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("navbar-voice-menu")).not.toBeInTheDocument();
+
+    // Re-open and close on outside click
+    fireEvent.click(trigger);
+    expect(screen.getByTestId("navbar-voice-menu")).toBeInTheDocument();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByTestId("navbar-voice-menu")).not.toBeInTheDocument();
+
+    // Re-open and select Thiện Minh
+    fireEvent.click(trigger);
+    fireEvent.click(within(screen.getByTestId("navbar-voice-menu")).getByText("Thiện Minh"));
+    expect(setSelectedVoice).toHaveBeenCalledWith("thienminh");
+    expect(screen.queryByTestId("navbar-voice-menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Thiện Minh");
+  });
+
+  it("prefetches the first 3 keyPhrases of the selected topic in TopicOverview", () => {
+    const foodTopic = TOPICS.find((t) => t.id === "food");
+    render(
+      <TopicOverview
+        topics={TOPICS}
+        selectedTopicId="food"
+        onSelectTopic={vi.fn()}
+        skillProgress={{ topicMastery: { food: 40 } }}
+        decks={[]}
+        onLaunchGame={vi.fn()}
+        onOpenFlashcards={vi.fn()}
+      />
+    );
+
+    expect(prefetchVietnamese).toHaveBeenCalledWith(
+      foodTopic.keyPhrases.slice(0, 3).map((p) => p.vi),
+      { voice: "ngochuyen" }
     );
   });
 });

@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
-import { speakVietnamese } from "../../lib/speech.js";
+import * as speechApi from "../../lib/speech.js";
 import {
   PDF_FORMAT_EXAMPLES,
   VIETNAMESE_POS_OPTIONS,
@@ -179,6 +179,17 @@ export function FlashcardCreator({
     [activeGuideId]
   );
 
+  const prefetchCreatedCards = (savedCards) => {
+    if (typeof speechApi.prefetchVietnamese !== "function") return;
+    const texts = (Array.isArray(savedCards) ? savedCards : [])
+      .slice(0, 4)
+      .map((c) => c?.frontVi)
+      .filter(Boolean);
+    if (texts.length > 0) {
+      speechApi.prefetchVietnamese(texts);
+    }
+  };
+
   const resolveDeckAndSaveCards = async (cardsToSave, { openStudyAfter = false } = {}) => {
     if (isCreatingNewDeck) {
       const cleanTitle = newDeckTitle.trim();
@@ -199,6 +210,7 @@ export function FlashcardCreator({
         setTargetDeckId(resolvedDeckId);
         setNewDeckTitle("");
       }
+      prefetchCreatedCards(cardsToSave);
       if (openStudyAfter) {
         onCreatedAndStudy?.(resolvedDeckId, 0);
       }
@@ -226,6 +238,7 @@ export function FlashcardCreator({
       }
     }
 
+    prefetchCreatedCards(enriched);
     if (openStudyAfter) {
       onCreatedAndStudy?.(deck.id, prevCount);
     }
@@ -605,7 +618,7 @@ export function FlashcardCreator({
                   type="button"
                   className="fc-field-inline-action"
                   disabled={!form.frontVi.trim()}
-                  onClick={() => speakVietnamese(form.frontVi.trim())}
+                  onClick={() => speechApi.speakVietnamese?.(form.frontVi.trim())}
                 >
                   <Volume2 size={13} />
                   <span>Nghe thử</span>
@@ -659,7 +672,7 @@ export function FlashcardCreator({
                   type="button"
                   className="fc-field-inline-action"
                   disabled={!form.exampleVi.trim()}
-                  onClick={() => speakVietnamese(form.exampleVi.trim())}
+                  onClick={() => speechApi.speakVietnamese?.(form.exampleVi.trim())}
                 >
                   <Volume2 size={13} />
                   <span>Nghe ví dụ</span>

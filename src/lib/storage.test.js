@@ -1,13 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ttsHandler, {
+  NORTHERN_VOICES,
+  adaptiveMaxFrames,
   buildEdgeSsml,
+  computeCachePath,
+  fetchVieNeuAudio,
   generateSecMsGecV2,
   normalizeLang,
   normalizeSpeed,
   normalizeVoice,
   resolveEdgeVoice,
+  resolveNorthernVoice,
   speedToEdgeRate,
   splitTextIntoChunks,
+  toSafeHeaderValue,
 } from "../../api/tts.js";
 import {
   GAME_TYPES,
@@ -113,31 +119,145 @@ describe("api/tts.js", () => {
     expect(speedToEdgeRate("2.0")).toBe("+50%");
   });
 
-  it("normalizes Vietnamese neural voice IDs, builds escaped SSML, and formats v2 Sec-MS-GEC tokens", () => {
-    expect(normalizeVoice(undefined)).toBe("hoaimy");
-    expect(normalizeVoice("hoaimy")).toBe("hoaimy");
-    expect(normalizeVoice("namminh")).toBe("namminh");
-    expect(normalizeVoice("vi-VN-NamMinhNeural")).toBe("namminh");
-    expect(normalizeVoice("unknown")).toBe("hoaimy");
+  it("normalizes all 5 Northern Vietnamese voices + legacy hoaimy/namminh aliases, computes deterministic cache paths, and chooses adaptive max_new_frames", () => {
+    expect(Object.keys(NORTHERN_VOICES)).toEqual([
+      "ngochuyen",
+      "trucly",
+      "maianh",
+      "haidang",
+      "thienminh",
+    ]);
 
-    expect(resolveEdgeVoice("vi", "hoaimy")).toEqual({
-      id: "hoaimy",
+    // Default & exact Northern IDs
+    expect(normalizeVoice(undefined)).toBe("ngochuyen");
+    expect(normalizeVoice("ngochuyen")).toBe("ngochuyen");
+    expect(normalizeVoice("trucly")).toBe("trucly");
+    expect(normalizeVoice("maianh")).toBe("maianh");
+    expect(normalizeVoice("haidang")).toBe("haidang");
+    expect(normalizeVoice("thienminh")).toBe("thienminh");
+
+    // Full Vietnamese HF display names
+    expect(normalizeVoice("Ngọc Huyền")).toBe("ngochuyen");
+    expect(normalizeVoice("Trúc Ly")).toBe("trucly");
+    expect(normalizeVoice("Mai Anh")).toBe("maianh");
+    expect(normalizeVoice("Hải Đăng")).toBe("haidang");
+    expect(normalizeVoice("Thiện Minh")).toBe("thienminh");
+
+    // Legacy Edge aliases migrate cleanly
+    expect(normalizeVoice("hoaimy")).toBe("ngochuyen");
+    expect(normalizeVoice("vi-VN-HoaiMyNeural")).toBe("ngochuyen");
+    expect(normalizeVoice("namminh")).toBe("haidang");
+    expect(normalizeVoice("vi-VN-NamMinhNeural")).toBe("haidang");
+    expect(normalizeVoice("unknown")).toBe("ngochuyen");
+
+    // Northern metadata & Edge fallback gender mapping
+    expect(resolveNorthernVoice("ngochuyen")).toMatchObject({
+      id: "ngochuyen",
+      hfVoice: "Ngọc Huyền",
+      gender: "female",
+      region: "Bắc",
+      fallbackEdgeVoice: "vi-VN-HoaiMyNeural",
+    });
+    expect(resolveNorthernVoice("thienminh")).toMatchObject({
+      id: "thienminh",
+      hfVoice: "Thiện Minh",
+      gender: "male",
+      region: "Bắc",
+      fallbackEdgeVoice: "vi-VN-NamMinhNeural",
+    });
+
+    expect(resolveEdgeVoice("vi", "maianh")).toEqual({
+      id: "maianh",
       edgeName: "vi-VN-HoaiMyNeural",
       locale: "vi-VN",
     });
+    expect(resolveEdgeVoice("vi", "haidang")).toEqual({
+      id: "haidang",
+      edgeName: "vi-VN-NamMinhNeural",
+      locale: "vi-VN",
+    });
     expect(resolveEdgeVoice("vi", "namminh")).toEqual({
-      id: "namminh",
+      id: "haidang",
       edgeName: "vi-VN-NamMinhNeural",
       locale: "vi-VN",
     });
 
-    const ssml = buildEdgeSsml('A & B < "C" > \'D\'', resolveEdgeVoice("vi", "namminh"), "-25%");
+    // Deterministic SHA-256 cache path matching RLS regex
+    const p1 = computeCachePath("  Xin   chào Hà Nội  ", "Ngọc Huyền");
+    const p2 = computeCachePath("Xin chào Hà Nội", "ngochuyen");
+    const p3 = computeCachePath("Xin chào Hà Nội", "haidang");
+    expect(p1.cachePath).toBe(p2.cachePath);
+    expect(p1.cachePath).not.toBe(p3.cachePath);
+    expect(p1.cachePath).toMatch(/^v1\/ngochuyen\/[a-f0-9]{64}\.wav$/);
+    expect(p3.cachePath).toMatch(/^v1\/haidang\/[a-f0-9]{64}\.wav$/);
+
+    // Adaptive max_new_frames thresholds
+    expect(adaptiveMaxFrames("Xin chào")).toBe(120); // <= 25
+    expect(adaptiveMaxFrames("a".repeat(25))).toBe(120);
+    expect(adaptiveMaxFrames("a".repeat(26))).toBe(200); // <= 80
+    expect(adaptiveMaxFrames("a".repeat(80))).toBe(200);
+    expect(adaptiveMaxFrames("a".repeat(81))).toBe(320); // <= 180
+    expect(adaptiveMaxFrames("a".repeat(180))).toBe(320);
+    expect(adaptiveMaxFrames("a".repeat(181))).toBe(480); // > 180
+
+    // Safe ASCII header sanitization & Edge helpers
+    expect(toSafeHeaderValue("Ngọc Huyền")).toBe("Ngoc Huyen");
+    expect(toSafeHeaderValue("Hải Đăng")).toBe("Hai Dang");
+    expect(toSafeHeaderValue("Thiện Minh")).toBe("Thien Minh");
+
+    const ssml = buildEdgeSsml('A & B < "C" > \'D\'', resolveEdgeVoice("vi", "haidang"), "-25%");
     expect(ssml).toContain('voice name="vi-VN-NamMinhNeural"');
     expect(ssml).toContain('rate="-25%"');
     expect(ssml).toContain("A &amp; B &lt; &quot;C&quot; &gt; &apos;D&apos;");
 
     const token = generateSecMsGecV2(1700000000000);
     expect(token).toMatch(/^[0-9A-F]{16}-[0-9A-F]{64}$/);
+  });
+
+  it("synthesizes WAV bytes through VieNeu-TTS Gradio SSE API with adaptive max_new_frames", async () => {
+    const fakeWav = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00]).buffer;
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ event_id: "evt-123" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () =>
+          'event: heartbeat\ndata: null\n\nevent: complete\ndata: [{"url":"https://nam194-vieneu-tts-v3-turbo.hf.space/gradio_api/file=/tmp/out.wav"},"RTF: 0.18"]\n\n',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => "audio/wav" },
+        arrayBuffer: async () => fakeWav,
+      });
+
+    const audio = await fetchVieNeuAudio("Xin chào", "ngochuyen", { fetchImpl: mockFetch });
+    expect(Buffer.isBuffer(audio)).toBe(true);
+    expect(audio.byteLength).toBe(8);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+
+    const [callUrl, callInit] = mockFetch.mock.calls[0];
+    expect(callUrl).toBe("https://nam194-vieneu-tts-v3-turbo.hf.space/gradio_api/call/synthesize");
+    const parsedBody = JSON.parse(callInit.body);
+    expect(parsedBody.data).toEqual([
+      "Xin chào",
+      "Ngọc Huyền",
+      null,
+      0.8,
+      25,
+      0.95,
+      1.2,
+      120,
+      200,
+      true,
+    ]);
+    expect(mockFetch.mock.calls[1][0]).toContain("/gradio_api/call/synthesize/evt-123");
+    expect(mockFetch.mock.calls[2][0]).toContain("/tmp/out.wav");
   });
 
   it("splits long Vietnamese text cleanly into chunks <= 200 chars without dropping words", () => {
@@ -178,48 +298,108 @@ describe("api/tts.js", () => {
     expect(resTooLong.body.maxLength).toBe(1000);
   });
 
-  it("serves primary Edge Neural TTS audio, falls back to Google Translate on Edge error, and returns 502/504 when both fail", async () => {
+  it("executes full 3-tier TTS waterfall: Supabase cache hit -> HF VieNeu-TTS miss + persist -> Edge fallback -> Google fallback -> 502/504", async () => {
+    const fakeWav = Buffer.from("RIFF\x24\x00\x00\x00WAVEfmt ", "binary");
     const fakeEdgeMp3 = Buffer.from([0xff, 0xf3, 0x64, 0xc4, 0x00, 0x00]);
+    const fakeGoogleMp3 = new Uint8Array([0x49, 0x44, 0x33, 0x03]).buffer;
+
+    // Tier 1: Supabase Storage Cache HIT -> immutable audio/wav, zero HF/Edge calls
+    const fetchCacheHit = vi.fn().mockResolvedValue(fakeWav);
+    const fetchVieNeuSpy = vi.fn();
+    const synthesizeEdgeSpy = vi.fn();
+    const resCache = createMockRes();
+    await ttsHandler(
+      { method: "GET", query: { text: "Xin chào", lang: "vi", voice: "ngochuyen" } },
+      resCache,
+      {
+        fetchCache: fetchCacheHit,
+        fetchVieNeu: fetchVieNeuSpy,
+        synthesizeEdge: synthesizeEdgeSpy,
+      }
+    );
+    expect(resCache.statusCode).toBe(200);
+    expect(resCache.headers["content-type"]).toBe("audio/wav");
+    expect(resCache.headers["x-tts-provider"]).toBe("vieneu-cache");
+    expect(resCache.headers["x-tts-voice"]).toBe("Ngoc Huyen");
+    expect(resCache.headers["x-tts-voice-id"]).toBe("ngochuyen");
+    expect(resCache.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+    expect(fetchVieNeuSpy).not.toHaveBeenCalled();
+    expect(synthesizeEdgeSpy).not.toHaveBeenCalled();
+
+    // Tier 2: Supabase Cache MISS -> HF VieNeu-TTS HIT -> persists to Supabase (swallows write errors cleanly)
+    const fetchCacheMiss = vi.fn().mockResolvedValue(null);
+    const fetchVieNeuOk = vi.fn().mockResolvedValue(fakeWav);
+    const persistCacheFail = vi.fn().mockRejectedValue(new Error("409 conflict"));
+    const resHf = createMockRes();
+    await ttsHandler(
+      { method: "GET", query: { text: "Hà Nội mùa thu", lang: "vi-VN", voice: "Hải Đăng" } },
+      resHf,
+      {
+        fetchCache: fetchCacheMiss,
+        fetchVieNeu: fetchVieNeuOk,
+        persistCache: persistCacheFail,
+        synthesizeEdge: synthesizeEdgeSpy,
+      }
+    );
+    expect(resHf.statusCode).toBe(200);
+    expect(resHf.headers["content-type"]).toBe("audio/wav");
+    expect(resHf.headers["x-tts-provider"]).toBe("vieneu-hf");
+    expect(resHf.headers["x-tts-voice"]).toBe("Hai Dang");
+    expect(resHf.headers["x-tts-voice-id"]).toBe("haidang");
+    expect(resHf.headers["cache-control"]).toContain("max-age=86400");
+    expect(fetchVieNeuOk).toHaveBeenCalledWith(
+      "Hà Nội mùa thu",
+      expect.objectContaining({ id: "haidang", hfVoice: "Hải Đăng" })
+    );
+    expect(persistCacheFail).toHaveBeenCalledWith(
+      expect.stringMatching(/^v1\/haidang\/[a-f0-9]{64}\.wav$/),
+      fakeWav
+    );
+    expect(synthesizeEdgeSpy).not.toHaveBeenCalled();
+
+    // Tier 3a: HF fails -> Edge Neural fallback with matching gender Northern voice
+    const fetchVieNeuFail = vi.fn().mockRejectedValue(new Error("HF Space sleeping"));
     const synthesizeEdgeOk = vi.fn().mockResolvedValue(fakeEdgeMp3);
 
-    const resHoaiMy = createMockRes();
+    const resEdgeFemale = createMockRes();
     await ttsHandler(
-      { method: "GET", query: { text: "Xin chào", lang: "vi-VN", voice: "hoaimy", speed: "0.75" } },
-      resHoaiMy,
-      { synthesizeEdge: synthesizeEdgeOk }
+      { method: "GET", query: { text: "Xin chào", lang: "vi", voice: "maianh", speed: "0.75" } },
+      resEdgeFemale,
+      {
+        fetchCache: fetchCacheMiss,
+        fetchVieNeu: fetchVieNeuFail,
+        synthesizeEdge: synthesizeEdgeOk,
+      }
     );
-    expect(resHoaiMy.statusCode).toBe(200);
-    expect(resHoaiMy.headers["content-type"]).toBe("audio/mpeg");
-    expect(resHoaiMy.headers["x-tts-provider"]).toBe("edge-neural");
-    expect(resHoaiMy.headers["x-tts-voice"]).toBe("vi-VN-HoaiMyNeural");
-    expect(resHoaiMy.headers["x-tts-lang"]).toBe("vi");
-    expect(resHoaiMy.headers["x-tts-chunks"]).toBe("1");
-    expect(resHoaiMy.headers["cache-control"]).toContain("max-age=86400");
-    expect(Buffer.isBuffer(resHoaiMy.body)).toBe(true);
+    expect(resEdgeFemale.statusCode).toBe(200);
+    expect(resEdgeFemale.headers["content-type"]).toBe("audio/mpeg");
+    expect(resEdgeFemale.headers["x-tts-provider"]).toBe("edge-fallback");
+    expect(resEdgeFemale.headers["x-tts-voice"]).toBe("vi-VN-HoaiMyNeural");
+    expect(resEdgeFemale.headers["x-tts-voice-id"]).toBe("maianh");
     expect(synthesizeEdgeOk).toHaveBeenCalledWith(
       "Xin chào",
       expect.objectContaining({ edgeName: "vi-VN-HoaiMyNeural" }),
-      "-25%"
+      "-25%",
+      expect.any(Number)
     );
 
-    const resNamMinh = createMockRes();
+    const resEdgeMale = createMockRes();
     await ttsHandler(
-      { method: "GET", query: { text: "Xin chào", lang: "vi", voice: "namminh", speed: "1.15" } },
-      resNamMinh,
-      { synthesizeEdge: synthesizeEdgeOk }
+      { method: "GET", query: { text: "Xin chào", lang: "vi", voice: "thienminh", speed: "1.15" } },
+      resEdgeMale,
+      {
+        fetchCache: fetchCacheMiss,
+        fetchVieNeu: fetchVieNeuFail,
+        synthesizeEdge: synthesizeEdgeOk,
+      }
     );
-    expect(resNamMinh.statusCode).toBe(200);
-    expect(resNamMinh.headers["x-tts-provider"]).toBe("edge-neural");
-    expect(resNamMinh.headers["x-tts-voice"]).toBe("vi-VN-NamMinhNeural");
-    expect(synthesizeEdgeOk).toHaveBeenLastCalledWith(
-      "Xin chào",
-      expect.objectContaining({ edgeName: "vi-VN-NamMinhNeural" }),
-      "+15%"
-    );
+    expect(resEdgeMale.statusCode).toBe(200);
+    expect(resEdgeMale.headers["x-tts-provider"]).toBe("edge-fallback");
+    expect(resEdgeMale.headers["x-tts-voice"]).toBe("vi-VN-NamMinhNeural");
+    expect(resEdgeMale.headers["x-tts-voice-id"]).toBe("thienminh");
 
-    // Fallback to Google Translate TTS when Edge Neural fails
+    // Tier 3b: HF + Edge fail -> Google Translate TTS fallback
     const synthesizeEdgeFail = vi.fn().mockRejectedValue(new Error("Edge temporarily unavailable"));
-    const fakeGoogleMp3 = new Uint8Array([0x49, 0x44, 0x33, 0x03]).buffer;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -230,22 +410,23 @@ describe("api/tts.js", () => {
       })
     );
 
-    const resFallback = createMockRes();
+    const resGoogle = createMockRes();
     await ttsHandler(
-      { method: "GET", query: { text: "Xin chào", lang: "vi-VN", speed: "1" } },
-      resFallback,
-      { synthesizeEdge: synthesizeEdgeFail }
+      { method: "GET", query: { text: "Xin chào", lang: "vi-VN", voice: "trucly" } },
+      resGoogle,
+      {
+        fetchCache: fetchCacheMiss,
+        fetchVieNeu: fetchVieNeuFail,
+        synthesizeEdge: synthesizeEdgeFail,
+      }
     );
-    expect(resFallback.statusCode).toBe(200);
-    expect(resFallback.headers["content-type"]).toBe("audio/mpeg");
-    expect(resFallback.headers["x-tts-provider"]).toBe("google-fallback");
-    expect(resFallback.headers["x-tts-voice"]).toBe("google-vi");
-    expect(resFallback.headers["x-tts-lang"]).toBe("vi");
-    expect(resFallback.headers["x-tts-chunks"]).toBe("1");
-    expect(resFallback.headers["cache-control"]).toContain("max-age=86400");
-    expect(Buffer.isBuffer(resFallback.body)).toBe(true);
+    expect(resGoogle.statusCode).toBe(200);
+    expect(resGoogle.headers["content-type"]).toBe("audio/mpeg");
+    expect(resGoogle.headers["x-tts-provider"]).toBe("google-fallback");
+    expect(resGoogle.headers["x-tts-voice"]).toBe("google-vi");
+    expect(resGoogle.headers["x-tts-voice-id"]).toBe("trucly");
 
-    // Both Edge and Google fail -> 502 with no-store
+    // All tiers fail -> 502 with no-store
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -254,21 +435,24 @@ describe("api/tts.js", () => {
         headers: { get: () => "text/html" },
       })
     );
-
     const resFail = createMockRes();
     await ttsHandler({ method: "GET", query: { text: "Xin chào" } }, resFail, {
+      fetchCache: fetchCacheMiss,
+      fetchVieNeu: fetchVieNeuFail,
       synthesizeEdge: synthesizeEdgeFail,
     });
     expect(resFail.statusCode).toBe(502);
     expect(resFail.body.upstreamStatus).toBe(503);
     expect(resFail.headers["cache-control"]).toBe("no-store");
 
-    // Both time out -> 504 with no-store
+    // All tiers time out -> 504 with no-store
     const abortErr = new Error("Timeout");
     abortErr.name = "AbortError";
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortErr));
     const resTimeout = createMockRes();
     await ttsHandler({ method: "GET", query: { text: "Xin chào" } }, resTimeout, {
+      fetchCache: fetchCacheMiss,
+      fetchVieNeu: vi.fn().mockRejectedValue(abortErr),
       synthesizeEdge: vi.fn().mockRejectedValue(abortErr),
     });
     expect(resTimeout.statusCode).toBe(504);

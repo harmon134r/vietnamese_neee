@@ -18,8 +18,46 @@ import { scoreVietnamesePronunciation } from "../../lib/pronunciation.js";
 const SPEED_OPTIONS = [0.75, 0.9, 1, 1.15];
 
 const FALLBACK_VIETNAMESE_VOICES = Object.freeze([
-  { id: "hoaimy", label: "Hoài My", gender: "female" },
-  { id: "namminh", label: "Nam Minh", gender: "male" },
+  Object.freeze({
+    id: "ngochuyen",
+    label: "Ngọc Huyền",
+    shortLabel: "Nữ · Bắc · Tự nhiên",
+    gender: "female",
+    region: "Bắc",
+    style: "Giọng đọc tự nhiên",
+  }),
+  Object.freeze({
+    id: "trucly",
+    label: "Trúc Ly",
+    shortLabel: "Nữ · Bắc · Tự nhiên",
+    gender: "female",
+    region: "Bắc",
+    style: "Phong cách tự nhiên",
+  }),
+  Object.freeze({
+    id: "maianh",
+    label: "Mai Anh",
+    shortLabel: "Nữ · Bắc · Tin tức",
+    gender: "female",
+    region: "Bắc",
+    style: "Phong cách tin tức",
+  }),
+  Object.freeze({
+    id: "haidang",
+    label: "Hải Đăng",
+    shortLabel: "Nam · Bắc · Tự nhiên",
+    gender: "male",
+    region: "Bắc",
+    style: "Phong cách tự nhiên",
+  }),
+  Object.freeze({
+    id: "thienminh",
+    label: "Thiện Minh",
+    shortLabel: "Nam · Bắc · Kể chuyện",
+    gender: "male",
+    region: "Bắc",
+    style: "Phong cách kể chuyện",
+  }),
 ]);
 
 function getAvailableVoices() {
@@ -29,44 +67,63 @@ function getAvailableVoices() {
   return FALLBACK_VIETNAMESE_VOICES;
 }
 
+function formatVoiceSublabel(voice) {
+  if (!voice) return "";
+  if (voice.shortLabel) {
+    return voice.shortLabel.replace(/\s*·\s*Bắc(?=\s*·|\s*$)/u, "").trim();
+  }
+  const genderLabel = voice.gender === "male" ? "Nam" : "Nữ";
+  return voice.style ? `${genderLabel} · ${voice.style}` : genderLabel;
+}
+
 function readSelectedVoice() {
   if (typeof speechApi.getSelectedVoice === "function") {
     try {
-      return speechApi.getSelectedVoice() || "hoaimy";
+      return speechApi.getSelectedVoice() || "ngochuyen";
     } catch {
-      return "hoaimy";
+      return "ngochuyen";
     }
   }
   if (typeof window !== "undefined" && window.localStorage) {
     try {
-      const saved = window.localStorage.getItem("vietflow_tts_voice");
-      if (saved === "hoaimy" || saved === "namminh") return saved;
+      const saved = window.localStorage.getItem(
+        speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice"
+      );
+      if (saved === "hoaimy") return "ngochuyen";
+      if (saved === "namminh") return "haidang";
+      const validIds = new Set(getAvailableVoices().map((v) => v.id));
+      if (saved && validIds.has(saved)) return saved;
     } catch {
       // ignore
     }
   }
-  return "hoaimy";
+  return "ngochuyen";
 }
 
 function writeSelectedVoice(voiceId) {
   if (typeof speechApi.setSelectedVoice === "function") {
     try {
-      speechApi.setSelectedVoice(voiceId);
-      return;
+      return speechApi.setSelectedVoice(voiceId) || voiceId;
     } catch {
       // fallback below
     }
   }
   if (typeof window !== "undefined") {
     try {
-      window.localStorage?.setItem("vietflow_tts_voice", voiceId);
+      window.localStorage?.setItem(
+        speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice",
+        voiceId
+      );
       window.dispatchEvent(
-        new CustomEvent("vietflow:voice-change", { detail: { voice: voiceId } })
+        new CustomEvent(speechApi.VOICE_CHANGE_EVENT || "vietflow:voice-change", {
+          detail: { voice: voiceId },
+        })
       );
     } catch {
       // ignore
     }
   }
+  return voiceId;
 }
 
 function isTypingElement(target) {
@@ -168,18 +225,58 @@ export function FlashcardStage({
   }, []);
 
   useEffect(() => {
+    const voiceChangeEvent =
+      speechApi.VOICE_CHANGE_EVENT || "vietflow:voice-change";
+    const voiceStorageKey = speechApi.VOICE_STORAGE_KEY || "vietflow_tts_voice";
+
     const handleVoiceSync = (event) => {
       const nextVoice = event?.detail?.voice || readSelectedVoice();
       if (nextVoice) setSelectedVoiceState(nextVoice);
     };
-    window.addEventListener("vietflow:voice-change", handleVoiceSync);
-    return () => window.removeEventListener("vietflow:voice-change", handleVoiceSync);
+    const handleStorage = (event) => {
+      if (!event?.key || event.key === voiceStorageKey) {
+        setSelectedVoiceState(readSelectedVoice());
+      }
+    };
+
+    window.addEventListener(voiceChangeEvent, handleVoiceSync);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(voiceChangeEvent, handleVoiceSync);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   const handleSelectVoice = useCallback((voiceId) => {
-    setSelectedVoiceState(voiceId);
-    writeSelectedVoice(voiceId);
+    speechApi.stopSpeaking?.();
+    const updated = writeSelectedVoice(voiceId) || voiceId;
+    setSelectedVoiceState(updated);
   }, []);
+
+  // Smart background pre-fetching for active card + example + next 2 cards
+  const nextCard1FrontVi = cards[safeIndex + 1]?.frontVi || "";
+  const nextCard2FrontVi = cards[safeIndex + 2]?.frontVi || "";
+
+  useEffect(() => {
+    if (!card) return;
+    if (typeof speechApi.prefetchVietnamese !== "function") return;
+    const texts = [
+      card.frontVi,
+      card.exampleVi,
+      nextCard1FrontVi,
+      nextCard2FrontVi,
+    ].filter(Boolean);
+    if (texts.length > 0) {
+      speechApi.prefetchVietnamese(texts, { voice: selectedVoice });
+    }
+  }, [
+    card?.id,
+    card?.frontVi,
+    card?.exampleVi,
+    nextCard1FrontVi,
+    nextCard2FrontVi,
+    selectedVoice,
+  ]);
 
   const stopActiveListening = useCallback(() => {
     if (recognizerRef.current) {
@@ -552,25 +649,38 @@ export function FlashcardStage({
           </div>
 
           <div className="fc-popover-section">
-            <span className="fc-popover-label">Giọng đọc tiếng Việt</span>
-            <div className="fc-direction-row" role="group" aria-label="Giọng đọc tiếng Việt">
+            <span className="fc-popover-label">Giọng đọc tiếng Việt (Miền Bắc)</span>
+            <div
+              className="fc-voice-list"
+              role="group"
+              aria-label="Giọng đọc tiếng Việt (Miền Bắc)"
+            >
               {availableVoices.map((voiceOpt) => {
-                const displayLabel =
-                  voiceOpt.gender === "male"
-                    ? `${voiceOpt.label} (Nam)`
-                    : voiceOpt.gender === "female"
-                      ? `${voiceOpt.label} (Nữ)`
-                      : voiceOpt.label;
                 const isActive = selectedVoice === voiceOpt.id;
+                const sublabel = formatVoiceSublabel(voiceOpt);
                 return (
                   <button
                     key={voiceOpt.id}
                     type="button"
                     aria-pressed={isActive}
-                    className={`fc-dir-pill ${isActive ? "is-active" : ""}`}
+                    className={`fc-voice-option ${isActive ? "is-active" : ""}`}
                     onClick={() => handleSelectVoice(voiceOpt.id)}
+                    data-voice-option={voiceOpt.id}
                   >
-                    {displayLabel}
+                    <span className="fc-voice-option-name">{voiceOpt.label}</span>
+                    <span className="fc-voice-option-meta">
+                      {sublabel && (
+                        <span className="fc-voice-option-sub">{sublabel}</span>
+                      )}
+                      {isActive && (
+                        <Check
+                          size={14}
+                          strokeWidth={2.2}
+                          className="fc-voice-option-check"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </span>
                   </button>
                 );
               })}

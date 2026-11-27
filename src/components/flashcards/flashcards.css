@@ -553,7 +553,10 @@
   position: absolute;
   top: calc(100% + 10px);
   left: 0;
-  width: 288px;
+  width: 304px;
+  max-width: calc(100vw - 40px);
+  max-height: min(76vh, 500px);
+  overflow-y: auto;
   padding: 16px;
   border-radius: 14px;
   background: var(--fc-surface);
@@ -648,6 +651,72 @@
   background: var(--fc-accent-soft);
   border-color: rgba(217, 119, 87, 0.58);
   color: var(--fc-ink);
+}
+
+/* Northern Vietnamese 5-Voice Compact Stack */
+.fc-voice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fc-voice-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--fc-border);
+  background: var(--fc-surface-card);
+  color: var(--fc-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+.fc-voice-option:hover {
+  color: var(--fc-ink);
+  border-color: var(--fc-border-strong);
+  background: var(--fc-surface-elevated);
+}
+
+.fc-voice-option.is-active {
+  background: var(--fc-accent-soft);
+  border-color: rgba(217, 119, 87, 0.54);
+  color: var(--fc-ink);
+}
+
+.fc-voice-option-name {
+  white-space: nowrap;
+  font-weight: 500;
+  color: inherit;
+}
+
+.fc-voice-option-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fc-voice-option-sub {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--fc-muted);
+  white-space: nowrap;
+}
+
+.fc-voice-option.is-active .fc-voice-option-sub {
+  color: var(--fc-secondary);
+}
+
+.fc-voice-option-check {
+  color: var(--fc-accent);
+  flex-shrink: 0;
 }
 
 .fc-setting-toggle-row {
