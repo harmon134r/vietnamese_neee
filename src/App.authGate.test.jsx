@@ -414,13 +414,13 @@ describe("Mandatory Auth Gate (App + AuthModal)", () => {
     expect(gateScene).toBeInTheDocument();
     expect(gateScene).toHaveAttribute("aria-hidden", "true");
 
-    // New twilight village + 2-fish pond (left) and wood-chopping bear (right) wings
-    const leftWing = within(gateScene).getByTestId("auth-left-village-pond");
+    // Twilight village (left) and wood-chopping bear (right) wings; pond/fish removed
+    const leftWing = within(gateScene).getByTestId("auth-left-village");
     expect(leftWing).toBeInTheDocument();
-    const pond = within(leftWing).getByTestId("auth-pond");
-    expect(pond).toBeInTheDocument();
-    expect(within(pond).getAllByTestId("auth-pond-fish")).toHaveLength(2);
+    expect(within(gateScene).getByTestId("auth-right-bear")).toBeInTheDocument();
     expect(within(gateScene).getByTestId("auth-woodchop-bear")).toBeInTheDocument();
+    expect(screen.queryByTestId("auth-pond")).toBeNull();
+    expect(screen.queryAllByTestId("auth-pond-fish")).toHaveLength(0);
 
     // Old phrase charms, lotus, and Cốm thu Hà Nội medallion are gone
     expect(screen.queryByText("Xin chào!")).not.toBeInTheDocument();
@@ -444,8 +444,8 @@ describe("Mandatory Auth Gate (App + AuthModal)", () => {
       expect(screen.getByText(/Nguyễn Anh Thư, hôm nay luyện gì/i)).toBeInTheDocument();
     });
     expect(screen.queryByTestId("auth-gate-scene")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("auth-left-village-pond")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("auth-pond")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("auth-left-village")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("auth-right-bear")).not.toBeInTheDocument();
     expect(screen.queryByTestId("auth-woodchop-bear")).not.toBeInTheDocument();
   });
 

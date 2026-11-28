@@ -2722,7 +2722,15 @@ a:hover {
    Mandatory Auth Gate — Lively Warm-Stone Vietnamese Twilight Entry Screen
    ========================================================================== */
 
+.vf-app--auth-gate {
+  --vf-auth-bamboo-w: clamp(140px, 12vw, 210px);
+  --vf-auth-corridor-span: calc(50vw - 230px - var(--vf-auth-bamboo-w));
+  --vf-auth-corridor-mid: calc((var(--vf-auth-bamboo-w) + 50vw - 230px) / 2);
+}
+
 .vf-app--auth-gate .vf-bamboo-side {
+  width: var(--vf-auth-bamboo-w);
+  height: min(68vh, 620px);
   opacity: 0.52;
 }
 
@@ -3227,7 +3235,7 @@ a:hover {
   animation: vfFireflyTwinkle 3.6s ease-in-out infinite;
 }
 
-/* f) Twilight Village + 2-Fish Pond (Left) & Animated Wood-Chopping Bear (Right) */
+/* f) Twilight Village (Left) & Animated Wood-Chopping Bear (Right) */
 .vf-auth-wing {
   position: absolute;
   top: 53%;
@@ -3238,15 +3246,17 @@ a:hover {
 }
 
 .vf-auth-wing--left {
-  left: clamp(20px, 3.8vw, 76px);
-  top: 53%;
-  width: clamp(220px, 20.5vw, 278px);
+  left: var(--vf-auth-corridor-mid);
+  top: 49%;
+  transform: translate(-50%, -50%);
+  width: clamp(176px, calc(var(--vf-auth-corridor-span) - 40px), 248px);
 }
 
 .vf-auth-wing--right {
-  right: clamp(24px, 4.2vw, 82px);
-  top: 54%;
-  width: clamp(188px, 17.5vw, 236px);
+  right: var(--vf-auth-corridor-mid);
+  top: 52%;
+  transform: translate(50%, -50%);
+  width: clamp(160px, calc(var(--vf-auth-corridor-span) - 60px), 216px);
 }
 
 /* Left Wing: Twilight Village Vignette */
@@ -3329,95 +3339,6 @@ a:hover {
   left: 34.4%;
   animation-duration: 5.4s;
   animation-delay: -2.4s;
-}
-
-/* Left Wing: Foreground Tranquil 2-Fish Pond */
-.vf-auth-pond {
-  position: relative;
-  width: 88%;
-  aspect-ratio: 260 / 114;
-  margin-top: -18px;
-  z-index: 2;
-}
-
-.vf-auth-pond-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  overflow: visible;
-  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.34));
-}
-
-.vf-auth-lilypad {
-  transform-box: fill-box;
-  transform-origin: center;
-  will-change: transform;
-  animation: vfLilypadBob 6.4s ease-in-out infinite;
-}
-
-.vf-auth-lilypad--2 {
-  animation-duration: 7.4s;
-  animation-delay: -2.8s;
-}
-
-.vf-auth-pond-ripple {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(154, 196, 174, 0.34);
-  opacity: 0;
-  will-change: transform, opacity;
-  animation: vfPondRipple 5.4s ease-out infinite;
-}
-
-.vf-auth-pond-ripple--1 {
-  left: 26%;
-  top: 42%;
-  width: 58px;
-  height: 22px;
-}
-
-.vf-auth-pond-ripple--2 {
-  left: 55%;
-  top: 49%;
-  width: 48px;
-  height: 18px;
-  animation-delay: -2.7s;
-}
-
-.vf-auth-pond-fish {
-  position: absolute;
-  width: 34px;
-  height: 17px;
-  transform-origin: 55% 50%;
-  will-change: transform;
-}
-
-.vf-auth-pond-fish--1 {
-  left: 22%;
-  top: 42%;
-  animation: vfFishSwimA 11.5s linear infinite;
-}
-
-.vf-auth-pond-fish--2 {
-  left: 50%;
-  top: 48%;
-  width: 30px;
-  height: 15px;
-  animation: vfFishSwimB 13.8s linear -3.4s infinite;
-}
-
-.vf-auth-fish-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  filter: drop-shadow(0 2px 3px rgba(14, 24, 20, 0.55));
-}
-
-.vf-auth-fish-tail {
-  transform-box: fill-box;
-  transform-origin: 100% 50%;
-  will-change: transform;
-  animation: vfFishTailWag 0.55s ease-in-out infinite;
 }
 
 /* Right Wing: Wood-Chopping Bear */
@@ -4258,85 +4179,6 @@ a:hover {
   }
 }
 
-@keyframes vfLilypadBob {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(-1.5deg);
-  }
-  50% {
-    transform: translate3d(0, -1.8px, 0) rotate(1.8deg);
-  }
-}
-
-@keyframes vfPondRipple {
-  0% {
-    transform: scale(0.56);
-    opacity: 0;
-  }
-  22% {
-    opacity: 0.52;
-  }
-  100% {
-    transform: scale(1.38);
-    opacity: 0;
-  }
-}
-
-@keyframes vfFishSwimA {
-  0% {
-    transform: translate3d(0px, 0px, 0) rotate(-6deg);
-  }
-  20% {
-    transform: translate3d(52px, -11px, 0) rotate(8deg);
-  }
-  42% {
-    transform: translate3d(84px, 5px, 0) rotate(74deg);
-  }
-  55% {
-    transform: translate3d(72px, 20px, 0) rotate(168deg);
-  }
-  76% {
-    transform: translate3d(14px, 15px, 0) rotate(188deg);
-  }
-  90% {
-    transform: translate3d(-10px, 3px, 0) rotate(266deg);
-  }
-  100% {
-    transform: translate3d(0px, 0px, 0) rotate(354deg);
-  }
-}
-
-@keyframes vfFishSwimB {
-  0% {
-    transform: translate3d(0px, 0px, 0) rotate(184deg);
-  }
-  24% {
-    transform: translate3d(-56px, -9px, 0) rotate(204deg);
-  }
-  44% {
-    transform: translate3d(-70px, 8px, 0) rotate(318deg);
-  }
-  70% {
-    transform: translate3d(-12px, 14px, 0) rotate(366deg);
-  }
-  88% {
-    transform: translate3d(20px, 2px, 0) rotate(474deg);
-  }
-  100% {
-    transform: translate3d(0px, 0px, 0) rotate(544deg);
-  }
-}
-
-@keyframes vfFishTailWag {
-  0%,
-  100% {
-    transform: rotate(-16deg);
-  }
-  50% {
-    transform: rotate(16deg);
-  }
-}
-
 @keyframes vfBearChop {
   from {
     transform: translate3d(0%, 0, 0);
@@ -4522,15 +4364,25 @@ a:hover {
     right: -12px;
   }
 
+  .vf-app--auth-gate {
+    --vf-auth-bamboo-w: clamp(104px, 10.5vw, 146px);
+  }
+
   .vf-app--auth-gate .vf-bamboo-side {
-    width: clamp(118px, 12vw, 174px);
-    height: min(68vh, 580px);
+    width: var(--vf-auth-bamboo-w);
+    height: min(62vh, 520px);
     opacity: 0.52;
   }
 
   .vf-app--auth-gate .vf-cloud {
     width: clamp(110px, 11vw, 162px);
     opacity: 0.42;
+  }
+}
+
+@media (max-width: 1149px) {
+  .vf-auth-wing {
+    display: none;
   }
 }
 
@@ -4558,10 +4410,6 @@ a:hover {
 }
 
 @media (max-width: 1023px) {
-  .vf-auth-wing {
-    display: none;
-  }
-
   .vf-auth-lantern--left {
     left: 4%;
     width: 56px;
@@ -4877,10 +4725,6 @@ a:hover {
   .vf-auth-firefly-dot,
   .vf-auth-village-glow,
   .vf-auth-chimney-wisp,
-  .vf-auth-lilypad,
-  .vf-auth-pond-ripple,
-  .vf-auth-pond-fish,
-  .vf-auth-fish-tail,
   .vf-auth-bear-sheet,
   .vf-auth-bear-shadow,
   .vf-auth-woodchip,
@@ -4929,8 +4773,7 @@ a:hover {
   .vf-auth-chase-dust,
   .vf-auth-leaf,
   .vf-auth-woodchip,
-  .vf-auth-chimney-wisp,
-  .vf-auth-pond-ripple {
+  .vf-auth-chimney-wisp {
     display: none;
   }
 
