@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   Copy,
+  Database,
   Eye,
   EyeOff,
   GraduationCap,
@@ -21,11 +22,39 @@ import {
   signOut,
   signUp,
 } from "../../lib/supabase";
+import { d1Health, isD1Configured } from "../../lib/d1Client";
 import { syncLocalToCloud } from "../../lib/storage";
 import { APP_ART } from "../../data/illustrations";
 
 const ENV_SNIPPET = `VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY`;
+
+function formatByteSize(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value < 0) return "";
+  if (value < 1024) return `${Math.round(value)} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatD1UsageSummary(stats) {
+  if (!stats || typeof stats !== "object") return "";
+  const parts = [];
+  const usedLabel = formatByteSize(stats.usedBytes);
+  if (usedLabel) {
+    parts.push(`Đã dùng ${usedLabel} / 5 GB`);
+  }
+  const deckCount = Number(stats.counts?.decks);
+  if (Number.isFinite(deckCount)) {
+    parts.push(`${deckCount.toLocaleString("vi-VN")} bộ thẻ`);
+  }
+  const cardCount = Number(stats.counts?.flashcards);
+  if (Number.isFinite(cardCount)) {
+    parts.push(`${cardCount.toLocaleString("vi-VN")} flashcard`);
+  }
+  return parts.join(" · ");
+}
 
 function getAccountInitials(name, fallback = "HS") {
   const parts = normalizeStudentName(name).split(" ").filter(Boolean);
@@ -56,6 +85,9 @@ export function AuthModal({
   const [errorMsg, setErrorMsg] = useState("");
   const [infoMsg, setInfoMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const [d1Stats, setD1Stats] = useState(null);
+
+  const d1Active = isD1Configured();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,6 +100,28 @@ export function AuthModal({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen || !user || !d1Active) {
+      setD1Stats(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    d1Health()
+      .then((data) => {
+        if (!cancelled && data?.ok) {
+          setD1Stats(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setD1Stats(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, user, d1Active]);
 
   if (!isOpen) return null;
 
@@ -290,8 +344,12 @@ export function AuthModal({
                   ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
                   : user
                     ? signedInIsTeacher
-                      ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Supabase."
-                      : "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Supabase."
+                      ? d1Active
+                        ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Cloudflare D1."
+                        : "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Supabase."
+                      : d1Active
+                        ? "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Cloudflare D1."
+                        : "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Supabase."
                     : isTeacherTab
                       ? "Tạo và giao bộ thẻ Flashcard từ file PDF cho toàn lớp học."
                       : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
@@ -388,11 +446,31 @@ export function AuthModal({
                     >
                       {signedInIsTeacher ? "Giáo viên" : "Học sinh"}
                     </span>
-                    <span className="vf-tag vf-tag--good">Đang đồng bộ</span>
+                    {d1Active ? (
+                      <span className="vf-tag vf-tag--good" data-testid="d1-capacity-pill">
+                        <Database size={11} aria-hidden="true" />
+                        <span>Cloudflare D1 · 5 GB</span>
+                      </span>
+                    ) : (
+                      <span className="vf-tag vf-tag--good">Đang đồng bộ</span>
+                    )}
                     {!signedInIsTeacher && (
                       <span className="vf-tag">{userProfile?.cefrLevel || "A2–B1"}</span>
                     )}
                   </div>
+                  {d1Active && d1Stats && formatD1UsageSummary(d1Stats) && (
+                    <p
+                      data-testid="d1-health-stats"
+                      style={{
+                        margin: "6px 0 0",
+                        fontSize: "0.75rem",
+                        color: "var(--text-muted)",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {formatD1UsageSummary(d1Stats)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -433,7 +511,11 @@ export function AuthModal({
                 >
                   <RefreshCw size={14} className={syncing ? "vf-spin" : ""} />
                   <span>
-                    {syncing ? "Đang đồng bộ..." : "Đồng bộ dữ liệu cục bộ lên Supabase"}
+                    {syncing
+                      ? "Đang đồng bộ..."
+                      : d1Active
+                        ? "Đồng bộ dữ liệu cục bộ lên Cloudflare D1"
+                        : "Đồng bộ dữ liệu cục bộ lên Supabase"}
                   </span>
                 </button>
               </div>

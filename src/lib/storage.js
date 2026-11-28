@@ -11,6 +11,22 @@ import {
   normalizeGameResult,
 } from "./contracts.js";
 import { getCurrentUser, isSupabaseConfigured, supabase } from "./supabase.js";
+import {
+  d1AddCardsBulk,
+  d1CreateDeck,
+  d1DeleteCard,
+  d1DeleteDeck,
+  d1LoadAssignedDecks,
+  d1LoadDecks,
+  d1LoadGameHistory,
+  d1LoadSkillProgress,
+  d1SaveGameSession,
+  d1SaveSkillProgress,
+  d1SaveStudentProgress,
+  d1UpdateCard,
+  d1UpdateDeck,
+  isD1Configured,
+} from "./d1Client.js";
 
 const STORAGE_KEYS = Object.freeze({
   DECKS: "vietflow_v1_decks",
@@ -32,8 +48,20 @@ const DECK_SELECT_WITH_CARDS_LEGACY = `${DECK_SELECT_BASE_LEGACY},flashcards(${F
 const memoryFallback = new Map();
 const inFlightCloudSeedByUser = new Map();
 const assignedCardsById = new Map();
+const ownCardReviewCountById = new Map();
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function cacheOwnDeckCardCounts(decks = []) {
+  for (const deck of decks || []) {
+    if (!deck || deck.canEdit === false) continue;
+    for (const card of deck.cards || []) {
+      if (card?.id) {
+        ownCardReviewCountById.set(card.id, Math.max(0, Number(card.reviewCount || 0)));
+      }
+    }
+  }
+}
 
 function isMissingAssignedColumnError(err) {
   const msg = String(err?.message || "").toLowerCase();
@@ -178,12 +206,22 @@ async function getCloudUser() {
 }
 
 /**
- * Return the currently active persistence mode ("supabase" when configured + logged in, else "local").
- * @returns {Promise<"supabase" | "local">}
+ * True when the storage mode is backed by a cloud database (Cloudflare D1 or Supabase).
+ * @param {string | null | undefined} mode
+ * @returns {boolean}
+ */
+export function isCloudStorageMode(mode) {
+  return mode === "cloudflare-d1" || mode === "supabase";
+}
+
+/**
+ * Return the currently active persistence mode ("cloudflare-d1" or "supabase" when configured + logged in, else "local").
+ * @returns {Promise<"cloudflare-d1" | "supabase" | "local">}
  */
 export async function getStorageMode() {
   const user = await getCloudUser();
-  return user ? "supabase" : "local";
+  if (!user) return "local";
+  return isD1Configured() ? "cloudflare-d1" : "supabase";
 }
 
 // ============================================================================
@@ -222,15 +260,105 @@ function toDbFlashcardRow(card, deckId, userId, position) {
   };
 }
 
-/**
- * Load all teacher-assigned decks from Supabase (publicly readable by students & guests)
- * and overlay the current learner's private mastery progress on each card.
- * Gracefully returns `[]` when unconfigured, offline, or before migration 003 runs.
- * @param {string | null} [currentUserId=null]
- * @returns {Promise<import("./contracts.js").Deck[]>}
- */
-export async function loadAssignedDecksFromCloud(currentUserId = null) {
-  if (!isSupabaseConfigured || !supabase) return [];
+function buildStudentProgressMap(progressRows = []) {
+  const progressByCardId = new Map();
+  for (const row of progressRows || []) {
+    const cardId = row?.card_id ?? row?.cardId;
+    if (!cardId) continue;
+    progressByCardId.set(String(cardId), {
+      masteryLevel: Math.round(
+        clampNumber(row.mastery_level ?? row.masteryLevel ?? 0, 0, 5)
+      ),
+      reviewCount: Math.max(
+        0,
+        Math.round(Number(row.review_count ?? row.reviewCount ?? 0) || 0)
+      ),
+      lastReviewedAt: row.last_reviewed_at ?? row.lastReviewedAt ?? null,
+    });
+  }
+  return progressByCardId;
+}
+
+function buildLocalAssignedProgressMap() {
+  const progressByCardId = new Map();
+  const localMap = readLocalAssignedMastery();
+  for (const [cardId, entry] of Object.entries(localMap)) {
+    if (entry && typeof entry === "object") {
+      progressByCardId.set(String(cardId), {
+        masteryLevel: Math.round(clampNumber(entry.masteryLevel ?? 0, 0, 5)),
+        reviewCount: Math.max(0, Math.round(Number(entry.reviewCount ?? 0) || 0)),
+        lastReviewedAt: entry.lastReviewedAt ?? null,
+      });
+    }
+  }
+  return progressByCardId;
+}
+
+function normalizeAssignedDeckRows(deckRows, currentUserId, progressByCardId) {
+  return (deckRows || []).map((row) => {
+    const ownerId = row.user_id ?? row.ownerId ?? null;
+    const canEdit = Boolean(currentUserId && ownerId === currentUserId);
+    const rawCards = Array.isArray(row.flashcards)
+      ? row.flashcards
+      : Array.isArray(row.cards)
+        ? row.cards
+        : [];
+    const overlaidCards = rawCards.map((card) => {
+      const cardId = String(card.id);
+      const studentProgress = progressByCardId.get(cardId);
+      if (studentProgress) {
+        return {
+          ...card,
+          mastery_level: studentProgress.masteryLevel,
+          masteryLevel: studentProgress.masteryLevel,
+          review_count: studentProgress.reviewCount,
+          reviewCount: studentProgress.reviewCount,
+          last_reviewed_at: studentProgress.lastReviewedAt,
+          lastReviewedAt: studentProgress.lastReviewedAt,
+        };
+      }
+      if (!canEdit) {
+        return {
+          ...card,
+          mastery_level: 0,
+          masteryLevel: 0,
+          review_count: 0,
+          reviewCount: 0,
+          last_reviewed_at: null,
+          lastReviewedAt: null,
+        };
+      }
+      return card;
+    });
+
+    const normalized = normalizeDeck({
+      ...row,
+      isAssigned: true,
+      is_assigned: true,
+      teacherName:
+        String(row.teacher_name ?? row.teacherName ?? "").trim() || "Giáo viên",
+      ownerId,
+      canEdit,
+      cards: overlaidCards,
+      flashcards: undefined,
+    });
+
+    for (const card of normalized.cards) {
+      assignedCardsById.set(card.id, {
+        deckId: normalized.id,
+        canEdit,
+        card,
+      });
+    }
+
+    return normalized;
+  });
+}
+
+async function loadAssignedDecksFromSupabase(currentUserId = null) {
+  if (!isSupabaseConfigured || !supabase || typeof supabase.from !== "function") {
+    return [];
+  }
 
   try {
     const { data: deckRows, error } = await supabase
@@ -243,7 +371,7 @@ export async function loadAssignedDecksFromCloud(currentUserId = null) {
     if (error) throw error;
     if (!Array.isArray(deckRows) || deckRows.length === 0) return [];
 
-    const progressByCardId = new Map();
+    let progressByCardId = new Map();
     if (currentUserId) {
       try {
         const { data: progressRows, error: progressError } = await supabase
@@ -252,116 +380,234 @@ export async function loadAssignedDecksFromCloud(currentUserId = null) {
           .eq("user_id", currentUserId);
 
         if (!progressError && Array.isArray(progressRows)) {
-          for (const row of progressRows) {
-            progressByCardId.set(String(row.card_id), {
-              masteryLevel: Math.round(clampNumber(row.mastery_level ?? 0, 0, 5)),
-              reviewCount: Math.max(0, Math.round(Number(row.review_count ?? 0) || 0)),
-              lastReviewedAt: row.last_reviewed_at ?? null,
-            });
-          }
+          progressByCardId = buildStudentProgressMap(progressRows);
         }
       } catch (err) {
         console.warn("Could not load student_card_progress:", err?.message);
       }
     } else {
-      const localMap = readLocalAssignedMastery();
-      for (const [cardId, entry] of Object.entries(localMap)) {
-        if (entry && typeof entry === "object") {
-          progressByCardId.set(String(cardId), {
-            masteryLevel: Math.round(clampNumber(entry.masteryLevel ?? 0, 0, 5)),
-            reviewCount: Math.max(0, Math.round(Number(entry.reviewCount ?? 0) || 0)),
-            lastReviewedAt: entry.lastReviewedAt ?? null,
-          });
-        }
-      }
+      progressByCardId = buildLocalAssignedProgressMap();
     }
 
-    return deckRows.map((row) => {
-      const canEdit = Boolean(currentUserId && row.user_id === currentUserId);
-      const rawCards = Array.isArray(row.flashcards) ? row.flashcards : [];
-      const overlaidCards = rawCards.map((card) => {
-        const cardId = String(card.id);
-        const studentProgress = progressByCardId.get(cardId);
-        if (studentProgress) {
-          return {
-            ...card,
-            mastery_level: studentProgress.masteryLevel,
-            review_count: studentProgress.reviewCount,
-            last_reviewed_at: studentProgress.lastReviewedAt,
-          };
-        }
-        if (!canEdit) {
-          return {
-            ...card,
-            mastery_level: 0,
-            review_count: 0,
-            last_reviewed_at: null,
-          };
-        }
-        return card;
-      });
-
-      const normalized = normalizeDeck({
-        ...row,
-        isAssigned: true,
-        is_assigned: true,
-        teacherName: String(row.teacher_name || "").trim() || "Giáo viên",
-        ownerId: row.user_id ?? null,
-        canEdit,
-        flashcards: overlaidCards,
-      });
-
-      for (const card of normalized.cards) {
-        assignedCardsById.set(card.id, {
-          deckId: normalized.id,
-          canEdit,
-          card,
-        });
-      }
-
-      return normalized;
-    });
+    return normalizeAssignedDeckRows(deckRows, currentUserId, progressByCardId);
   } catch (err) {
     console.warn("Could not load assigned decks from cloud:", err?.message);
     return [];
   }
 }
 
+async function fetchOwnDecksFromSupabase(userId) {
+  let { data, error } = await supabase
+    .from("flashcard_decks")
+    .select(DECK_SELECT_WITH_CARDS)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error && isMissingAssignedColumnError(error)) {
+    const legacyRes = await supabase
+      .from("flashcard_decks")
+      .select(DECK_SELECT_WITH_CARDS_LEGACY)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    data = legacyRes.data;
+    error = legacyRes.error;
+  }
+
+  if (error) throw error;
+  return (data || []).map((row) =>
+    normalizeDeck({ ...row, ownerId: row.user_id ?? userId, canEdit: true })
+  );
+}
+
+async function createDeckInD1(deck, userId) {
+  const res = await d1CreateDeck({
+    id: isValidUuid(deck.id) ? deck.id : generateId(),
+    title: deck.title,
+    description: deck.description,
+    topicId: deck.topicId,
+    color: deck.color,
+    isDefault: deck.isDefault,
+    isAssigned: deck.isAssigned,
+    teacherName: deck.teacherName,
+    assignedAt: deck.assignedAt,
+    cards: (deck.cards || []).map((card, idx) => ({
+      id: isValidUuid(card.id) ? card.id : generateId(),
+      frontVi: card.frontVi,
+      pos: card.pos,
+      ipa: card.ipa,
+      definition: card.definition,
+      exampleVi: card.exampleVi,
+      exampleEn: card.exampleEn,
+      notes: card.notes,
+      topicId: card.topicId ?? deck.topicId,
+      masteryLevel: card.masteryLevel,
+      reviewCount: card.reviewCount,
+      lastReviewedAt: card.lastReviewedAt,
+      position: idx,
+    })),
+  });
+  const row = res?.deck || res;
+  const normalized = normalizeDeck({
+    ...row,
+    ownerId: row?.user_id ?? row?.ownerId ?? userId,
+    canEdit: true,
+  });
+  cacheOwnDeckCardCounts([normalized]);
+  return normalized;
+}
+
+/**
+ * Load all teacher-assigned decks from Cloudflare D1 (and/or Supabase legacy fallback)
+ * and overlay the current learner's private mastery progress on each card.
+ * Gracefully returns `[]` when unconfigured, offline, or before migration 003 runs.
+ * @param {string | null} [currentUserId=null]
+ * @returns {Promise<import("./contracts.js").Deck[]>}
+ */
+export async function loadAssignedDecksFromCloud(currentUserId = null) {
+  if (isD1Configured()) {
+    let d1Assigned = [];
+    try {
+      if (currentUserId) {
+        try {
+          const res = await d1LoadDecks();
+          const progressByCardId = buildStudentProgressMap(res?.studentProgress);
+          d1Assigned = normalizeAssignedDeckRows(
+            res?.assignedDecks || [],
+            currentUserId,
+            progressByCardId
+          );
+        } catch (authErr) {
+          if (authErr?.status === 401) {
+            const publicRes = await d1LoadAssignedDecks();
+            d1Assigned = normalizeAssignedDeckRows(
+              publicRes?.decks || [],
+              currentUserId,
+              new Map()
+            );
+          } else {
+            throw authErr;
+          }
+        }
+      } else {
+        const publicRes = await d1LoadAssignedDecks();
+        const progressByCardId = buildLocalAssignedProgressMap();
+        d1Assigned = normalizeAssignedDeckRows(
+          publicRes?.decks || [],
+          null,
+          progressByCardId
+        );
+      }
+    } catch (err) {
+      console.warn("Could not load assigned decks from Cloudflare D1:", err?.message);
+    }
+
+    const supabaseAssigned = await loadAssignedDecksFromSupabase(currentUserId);
+    return mergeAssignedAndOwnDecks(d1Assigned, supabaseAssigned);
+  }
+
+  return loadAssignedDecksFromSupabase(currentUserId);
+}
+
 /**
  * Load all flashcard decks (with their nested flashcards).
  * Merges teacher-assigned cloud decks at the top (deduplicated by ID), even in guest mode
- * when Supabase is configured. If personal storage is empty and `seedDecks` is provided,
- * seeds those starter decks once.
+ * when Cloudflare D1 or Supabase is configured. If personal storage is empty and `seedDecks`
+ * is provided, seeds those starter decks once (or migrates existing Supabase decks into D1).
  * @param {Array<Partial<import("./contracts.js").Deck>>} [seedDecks=[]]
  * @returns {Promise<import("./contracts.js").Deck[]>}
  */
 export async function loadDecks(seedDecks = []) {
   const user = await getCloudUser();
-  const assignedDecks = await loadAssignedDecksFromCloud(user?.id || null);
+  let d1Failed = false;
 
-  if (user && supabase) {
+  if (user && isD1Configured()) {
     try {
-      let { data, error } = await supabase
-        .from("flashcard_decks")
-        .select(DECK_SELECT_WITH_CARDS)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      const d1Data = await d1LoadDecks();
+      const progressByCardId = buildStudentProgressMap(d1Data?.studentProgress);
+      let assignedDecks = normalizeAssignedDeckRows(
+        d1Data?.assignedDecks || [],
+        user.id,
+        progressByCardId
+      );
+      let ownDecks = (d1Data?.ownDecks || []).map((row) =>
+        normalizeDeck({
+          ...row,
+          ownerId: row.user_id ?? row.ownerId ?? user.id,
+          canEdit: true,
+        })
+      );
 
-      if (error && isMissingAssignedColumnError(error)) {
-        const legacyRes = await supabase
-          .from("flashcard_decks")
-          .select(DECK_SELECT_WITH_CARDS_LEGACY)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-        data = legacyRes.data;
-        error = legacyRes.error;
+      if (assignedDecks.length === 0 && isSupabaseConfigured && supabase) {
+        const legacyAssigned = await loadAssignedDecksFromSupabase(user.id);
+        assignedDecks = mergeAssignedAndOwnDecks(assignedDecks, legacyAssigned);
       }
 
-      if (error) throw error;
+      if (ownDecks.length === 0) {
+        if (!inFlightCloudSeedByUser.has(user.id)) {
+          const seedOrMigratePromise = (async () => {
+            if (supabase && typeof supabase.from === "function") {
+              try {
+                const supabaseOwnDecks = await fetchOwnDecksFromSupabase(user.id);
+                if (supabaseOwnDecks.length > 0) {
+                  const migrated = [];
+                  for (const supaDeck of supabaseOwnDecks) {
+                    try {
+                      migrated.push(await createDeckInD1(supaDeck, user.id));
+                    } catch (migErr) {
+                      console.warn(
+                        "Skipping Supabase deck migration to Cloudflare D1:",
+                        migErr?.message
+                      );
+                    }
+                  }
+                  if (migrated.length > 0) return migrated;
+                }
+              } catch (err) {
+                console.warn(
+                  "Could not check Supabase decks for D1 migration:",
+                  err?.message
+                );
+              }
+            }
 
-      let ownDecks = (data || []).map((row) =>
-        normalizeDeck({ ...row, ownerId: row.user_id ?? user.id, canEdit: true })
+            if (Array.isArray(seedDecks) && seedDecks.length > 0) {
+              const seeded = [];
+              for (const seed of seedDecks) {
+                seeded.push(await createDeck(cloneDeckWithFreshIds(seed)));
+              }
+              return seeded;
+            }
+            return [];
+          })().finally(() => {
+            inFlightCloudSeedByUser.delete(user.id);
+          });
+          inFlightCloudSeedByUser.set(user.id, seedOrMigratePromise);
+        }
+        ownDecks = await inFlightCloudSeedByUser.get(user.id);
+      }
+
+      cacheOwnDeckCardCounts(ownDecks);
+      const combinedAssigned = mergeAssignedAndOwnDecks(
+        assignedDecks,
+        ownDecks.filter((deck) => deck.isAssigned)
       );
+      return mergeAssignedAndOwnDecks(combinedAssigned, ownDecks);
+    } catch (err) {
+      d1Failed = true;
+      console.warn(
+        "Falling back from Cloudflare D1 after error:",
+        err?.message
+      );
+    }
+  }
+
+  const assignedDecks = d1Failed
+    ? await loadAssignedDecksFromSupabase(user?.id || null)
+    : await loadAssignedDecksFromCloud(user?.id || null);
+
+  if (user && supabase && typeof supabase.from === "function") {
+    try {
+      let ownDecks = await fetchOwnDecksFromSupabase(user.id);
 
       if (ownDecks.length === 0 && Array.isArray(seedDecks) && seedDecks.length > 0) {
         if (!inFlightCloudSeedByUser.has(user.id)) {
@@ -424,6 +670,10 @@ export async function createDeck(input) {
   });
 
   const user = await getCloudUser();
+  if (user && isD1Configured()) {
+    return createDeckInD1(deck, user.id);
+  }
+
   if (user && supabase) {
     const baseInsert = {
       id: deck.id,
@@ -509,6 +759,38 @@ export async function updateDeck(deckId, updates = {}) {
     updates.assignedAt !== undefined ? updates.assignedAt : updates.assigned_at;
 
   const user = await getCloudUser();
+  if (user && isD1Configured()) {
+    const payload = {};
+    if (updates.title !== undefined) payload.title = String(updates.title).trim();
+    if (updates.description !== undefined) payload.description = String(updates.description).trim();
+    if (topicInput !== undefined) {
+      payload.topicId = isValidTopicId(topicInput) ? topicInput : null;
+    }
+    if (updates.color !== undefined) payload.color = String(updates.color);
+    if (isAssignedInput !== undefined) {
+      const nextAssigned = Boolean(isAssignedInput);
+      payload.isAssigned = nextAssigned;
+      payload.assignedAt = nextAssigned
+        ? (assignedAtInput ?? new Date().toISOString())
+        : null;
+    } else if (assignedAtInput !== undefined) {
+      payload.assignedAt = assignedAtInput;
+    }
+    if (teacherNameInput !== undefined) {
+      payload.teacherName = String(teacherNameInput || "").trim();
+    }
+
+    const res = await d1UpdateDeck(deckId, payload);
+    const row = res?.deck || res;
+    const normalized = normalizeDeck({
+      ...row,
+      ownerId: row?.user_id ?? row?.ownerId ?? user.id,
+      canEdit: true,
+    });
+    cacheOwnDeckCardCounts([normalized]);
+    return normalized;
+  }
+
   if (user && supabase) {
     const payload = {};
     if (updates.title !== undefined) payload.title = String(updates.title).trim();
@@ -595,6 +877,11 @@ export async function updateDeck(deckId, updates = {}) {
  */
 export async function deleteDeck(deckId) {
   const user = await getCloudUser();
+  if (user && isD1Configured()) {
+    await d1DeleteDeck(deckId);
+    return;
+  }
+
   if (user && supabase) {
     const { error } = await supabase
       .from("flashcard_decks")
@@ -643,6 +930,32 @@ export async function addFlashcardsBulk(deckId, cardsInput = []) {
   }
 
   const user = await getCloudUser();
+  if (user && isD1Configured()) {
+    const res = await d1AddCardsBulk(
+      deckId,
+      prepared.map((card) => ({
+        id: card.id,
+        frontVi: card.frontVi,
+        pos: card.pos,
+        ipa: card.ipa,
+        definition: card.definition,
+        exampleVi: card.exampleVi,
+        exampleEn: card.exampleEn,
+        notes: card.notes,
+        topicId: card.topicId,
+        masteryLevel: card.masteryLevel,
+        reviewCount: card.reviewCount,
+        lastReviewedAt: card.lastReviewedAt,
+      }))
+    );
+    const rows = Array.isArray(res?.cards) ? res.cards : Array.isArray(res) ? res : [];
+    const normalized = rows.map((row) => normalizeFlashcard(row, deckId));
+    for (const card of normalized) {
+      ownCardReviewCountById.set(card.id, Number(card.reviewCount || 0));
+    }
+    return normalized;
+  }
+
   if (user && supabase) {
     const { count } = await supabase
       .from("flashcards")
@@ -716,6 +1029,37 @@ export async function updateFlashcard(cardId, updates = {}) {
   if (lastReviewedAt !== undefined) normalizedUpdates.lastReviewedAt = lastReviewedAt;
 
   const user = await getCloudUser();
+  if (user && isD1Configured()) {
+    const payload = {};
+    if (frontVi !== undefined) payload.frontVi = String(frontVi).trim();
+    if (updates.pos !== undefined) payload.pos = String(updates.pos).trim();
+    if (updates.ipa !== undefined) payload.ipa = String(updates.ipa).trim();
+    if (updates.definition !== undefined) payload.definition = String(updates.definition).trim();
+    if (exampleVi !== undefined) payload.exampleVi = String(exampleVi).trim();
+    if (exampleEn !== undefined) payload.exampleEn = String(exampleEn).trim();
+    if (updates.notes !== undefined) payload.notes = String(updates.notes).trim();
+    if (topicId !== undefined) {
+      payload.topicId = isValidTopicId(topicId) ? topicId : null;
+    }
+    if (masteryLevel !== undefined) {
+      payload.masteryLevel = Math.round(clampNumber(masteryLevel, 0, 5));
+    }
+    if (reviewCount !== undefined) {
+      payload.reviewCount = Math.max(0, Math.round(Number(reviewCount) || 0));
+    }
+    if (lastReviewedAt !== undefined) {
+      payload.lastReviewedAt = lastReviewedAt;
+    }
+    if (updates.position !== undefined) {
+      payload.position = Math.max(0, Math.round(Number(updates.position) || 0));
+    }
+
+    const res = await d1UpdateCard(cardId, payload);
+    const normalized = normalizeFlashcard(res?.card || res);
+    ownCardReviewCountById.set(normalized.id, Number(normalized.reviewCount || 0));
+    return normalized;
+  }
+
   if (user && supabase) {
     const payload = {};
     if (frontVi !== undefined) payload.front_vi = String(frontVi).trim();
@@ -783,6 +1127,12 @@ export async function updateFlashcard(cardId, updates = {}) {
  */
 export async function deleteFlashcard(cardId) {
   const user = await getCloudUser();
+  if (user && isD1Configured()) {
+    await d1DeleteCard(cardId);
+    ownCardReviewCountById.delete(cardId);
+    return;
+  }
+
   if (user && supabase) {
     const { error } = await supabase
       .from("flashcards")
@@ -805,6 +1155,54 @@ export async function deleteFlashcard(cardId) {
 async function saveAssignedCardMastery(cardId, masteryLevel, now, deckIdHint, user) {
   const cached = assignedCardsById.get(cardId);
   let resolvedDeckId = deckIdHint || cached?.deckId || "";
+
+  if (user && isD1Configured()) {
+    const res = await d1SaveStudentProgress(cardId, {
+      deckId: resolvedDeckId || undefined,
+      masteryLevel,
+      lastReviewedAt: now,
+    });
+    const progress = res?.progress || res || {};
+    const nextMastery = Math.round(
+      clampNumber(progress.mastery_level ?? progress.masteryLevel ?? masteryLevel, 0, 5)
+    );
+    const nextReviewCount = Math.max(
+      1,
+      Math.round(
+        Number(
+          progress.review_count ??
+            progress.reviewCount ??
+            Number(cached?.card?.reviewCount || 0) + 1
+        ) || 1
+      )
+    );
+    const nextLastReviewedAt =
+      progress.last_reviewed_at ?? progress.lastReviewedAt ?? now;
+    const nextUpdatedAt = progress.updated_at ?? progress.updatedAt ?? now;
+    const nextDeckId = progress.deck_id ?? progress.deckId ?? resolvedDeckId;
+
+    const mergedCard = cached?.card
+      ? {
+          ...cached.card,
+          masteryLevel: nextMastery,
+          reviewCount: nextReviewCount,
+          lastReviewedAt: nextLastReviewedAt,
+          updatedAt: nextUpdatedAt,
+        }
+      : {
+          id: cardId,
+          deckId: nextDeckId,
+          masteryLevel: nextMastery,
+          reviewCount: nextReviewCount,
+          lastReviewedAt: nextLastReviewedAt,
+          updatedAt: nextUpdatedAt,
+        };
+
+    if (cached) {
+      assignedCardsById.set(cardId, { ...cached, deckId: mergedCard.deckId, card: mergedCard });
+    }
+    return mergedCard;
+  }
 
   if (user && supabase) {
     if (!resolvedDeckId) {
@@ -929,6 +1327,32 @@ export async function setFlashcardMastery(cardId, masteryLevel, options = {}) {
     );
   }
 
+  if (user && isD1Configured()) {
+    const prevReviewCount =
+      ownCardReviewCountById.get(cardId) ??
+      Number(cached?.card?.reviewCount || 0);
+    try {
+      const updated = await updateFlashcard(cardId, {
+        masteryLevel: clamped,
+        reviewCount: prevReviewCount + 1,
+        lastReviewedAt: now,
+      });
+      ownCardReviewCountById.set(cardId, Number(updated.reviewCount || prevReviewCount + 1));
+      return updated;
+    } catch (err) {
+      if (err?.status === 404) {
+        return saveAssignedCardMastery(
+          cardId,
+          clamped,
+          now,
+          options?.deckId || cached?.deckId || "",
+          user
+        );
+      }
+      throw err;
+    }
+  }
+
   if (user && supabase) {
     const { data: existing } = await supabase
       .from("flashcards")
@@ -1011,24 +1435,40 @@ function normalizeSkillProgress(raw = {}) {
   };
 }
 
+async function loadSkillProgressFromSupabase(userId) {
+  if (!supabase || typeof supabase.from !== "function") return null;
+  const { data, error } = await supabase
+    .from("skill_progress")
+    .select(
+      "listening,speaking,reading,pronunciation,xp,streak_days,last_active_date,topic_mastery,updated_at"
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? normalizeSkillProgress(data) : null;
+}
+
 /**
  * Load the learner's 4-skill progress, XP, streak, and per-topic mastery.
  * @returns {Promise<import("./contracts.js").SkillProgress>}
  */
 export async function loadSkillProgress() {
   const user = await getCloudUser();
-  if (user && supabase) {
+  if (user && isD1Configured()) {
     try {
-      const { data, error } = await supabase
-        .from("skill_progress")
-        .select(
-          "listening,speaking,reading,pronunciation,xp,streak_days,last_active_date,topic_mastery,updated_at"
-        )
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const res = await d1LoadSkillProgress();
+      const row = res?.progress ?? null;
+      if (row) return normalizeSkillProgress(row);
+    } catch (err) {
+      console.warn("Falling back from Cloudflare D1 skill progress:", err?.message);
+    }
+  }
 
-      if (error) throw error;
-      if (data) return normalizeSkillProgress(data);
+  if (user && supabase && typeof supabase.from === "function") {
+    try {
+      const supaProgress = await loadSkillProgressFromSupabase(user.id);
+      if (supaProgress) return supaProgress;
     } catch (err) {
       console.warn("Falling back to local skill progress:", err?.message);
     }
@@ -1039,7 +1479,7 @@ export async function loadSkillProgress() {
 }
 
 /**
- * Save a full SkillProgress snapshot to Supabase (if logged in) and localStorage.
+ * Save a full SkillProgress snapshot to Cloudflare D1 / Supabase (if logged in) and localStorage.
  * @param {Partial<import("./contracts.js").SkillProgress>} progress
  * @returns {Promise<import("./contracts.js").SkillProgress>}
  */
@@ -1052,6 +1492,20 @@ export async function saveSkillProgress(progress) {
   writeLocalJson(STORAGE_KEYS.PROGRESS, normalized);
 
   const user = await getCloudUser();
+  if (user && isD1Configured()) {
+    const res = await d1SaveSkillProgress({
+      listening: normalized.listening,
+      speaking: normalized.speaking,
+      reading: normalized.reading,
+      pronunciation: normalized.pronunciation,
+      xp: normalized.xp,
+      streakDays: normalized.streakDays,
+      lastActiveDate: normalized.lastActiveDate,
+      topicMastery: normalized.topicMastery,
+    });
+    return normalizeSkillProgress(res?.progress || res || normalized);
+  }
+
   if (user && supabase) {
     const { data, error } = await supabase
       .from("skill_progress")
@@ -1132,6 +1586,28 @@ export async function recordSkillGain({
 // Game Sessions / History
 // ============================================================================
 
+async function fetchGameHistoryFromSupabase(userId, options, limit) {
+  let query = supabase
+    .from("game_sessions")
+    .select(
+      "id,game_type,topic_id,skill_tags,score,max_score,accuracy,duration_seconds,details_json,created_at"
+    )
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (isValidTopicId(options.topicId)) {
+    query = query.eq("topic_id", options.topicId);
+  }
+  if (options.gameType) {
+    query = query.eq("game_type", options.gameType);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map(normalizeGameResult);
+}
+
 /**
  * Load recent game sessions, optionally filtered by topicId or gameType.
  * @param {{ limit?: number, topicId?: import("./contracts.js").TopicId, gameType?: string }} [options={}]
@@ -1141,27 +1617,42 @@ export async function loadGameHistory(options = {}) {
   const limit = Math.max(1, Math.min(200, Math.round(Number(options.limit || 50))));
   const user = await getCloudUser();
 
-  if (user && supabase) {
+  if (user && isD1Configured()) {
     try {
-      let query = supabase
-        .from("game_sessions")
-        .select(
-          "id,game_type,topic_id,skill_tags,score,max_score,accuracy,duration_seconds,details_json,created_at"
-        )
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-
+      const d1Opts = { limit };
       if (isValidTopicId(options.topicId)) {
-        query = query.eq("topic_id", options.topicId);
+        d1Opts.topicId = options.topicId;
       }
       if (options.gameType) {
-        query = query.eq("game_type", options.gameType);
+        d1Opts.gameType = options.gameType;
+      }
+      const res = await d1LoadGameHistory(d1Opts);
+      const rawSessions = Array.isArray(res?.sessions)
+        ? res.sessions
+        : Array.isArray(res)
+          ? res
+          : [];
+      if (rawSessions.length > 0) {
+        return rawSessions.map(normalizeGameResult);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []).map(normalizeGameResult);
+      if (supabase && typeof supabase.from === "function") {
+        try {
+          const supaSessions = await fetchGameHistoryFromSupabase(user.id, options, limit);
+          if (supaSessions.length > 0) return supaSessions;
+        } catch {
+          // ignore Supabase lookup failure when D1 already succeeded with []
+        }
+      }
+      return [];
+    } catch (err) {
+      console.warn("Falling back from Cloudflare D1 game history:", err?.message);
+    }
+  }
+
+  if (user && supabase && typeof supabase.from === "function") {
+    try {
+      return await fetchGameHistoryFromSupabase(user.id, options, limit);
     } catch (err) {
       console.warn("Falling back to local game history:", err?.message);
     }
@@ -1188,7 +1679,21 @@ export async function saveGameSession(resultInput) {
   const user = await getCloudUser();
 
   let savedSession = session;
-  if (user && supabase) {
+  if (user && isD1Configured()) {
+    const res = await d1SaveGameSession({
+      id: isValidUuid(session.id) ? session.id : generateId(),
+      gameType: session.gameType,
+      topicId: session.topicId,
+      skillTags: session.skillTags,
+      score: session.score,
+      maxScore: session.maxScore,
+      accuracy: session.accuracy,
+      durationSeconds: session.durationSeconds,
+      details: session.details,
+      createdAt: session.createdAt,
+    });
+    savedSession = normalizeGameResult(res?.session || res || session);
+  } else if (user && supabase) {
     const { data, error } = await supabase
       .from("game_sessions")
       .insert({
@@ -1266,7 +1771,8 @@ export function savePreferences(partial = {}) {
  */
 export async function syncLocalToCloud() {
   const user = await getCloudUser();
-  if (!user || !supabase) {
+  const useD1 = isD1Configured();
+  if (!user || (!useD1 && !supabase)) {
     return { syncedDecks: 0, syncedCards: 0, syncedSessions: 0 };
   }
 
@@ -1276,12 +1782,27 @@ export async function syncLocalToCloud() {
 
   const localDecks = (getLocalDecksRaw() || []).filter((deck) => deck.canEdit !== false);
   if (localDecks.length > 0) {
-    const { data: existingDecks } = await supabase
-      .from("flashcard_decks")
-      .select("id,title,is_default,topic_id,flashcards(front_vi)")
-      .eq("user_id", user.id);
+    let cloudDecks = [];
+    if (useD1) {
+      const d1Res = await d1LoadDecks();
+      cloudDecks = (d1Res?.ownDecks || []).map((row) => {
+        const normalized = normalizeDeck(row);
+        return {
+          id: normalized.id,
+          title: normalized.title,
+          is_default: normalized.isDefault,
+          topic_id: normalized.topicId,
+          flashcards: normalized.cards.map((c) => ({ front_vi: c.frontVi })),
+        };
+      });
+    } else {
+      const { data: existingDecks } = await supabase
+        .from("flashcard_decks")
+        .select("id,title,is_default,topic_id,flashcards(front_vi)")
+        .eq("user_id", user.id);
 
-    const cloudDecks = Array.isArray(existingDecks) ? existingDecks : [];
+      cloudDecks = Array.isArray(existingDecks) ? existingDecks : [];
+    }
 
     for (const deck of localDecks) {
       const localTitleKey = normalizeMatchKey(deck.title);
@@ -1348,39 +1869,73 @@ export async function syncLocalToCloud() {
 
   const localSessions = readLocalJson(STORAGE_KEYS.SESSIONS, []);
   if (Array.isArray(localSessions) && localSessions.length > 0) {
-    const { data: existingSessions } = await supabase
-      .from("game_sessions")
-      .select("id,game_type,created_at")
-      .eq("user_id", user.id);
+    if (useD1) {
+      const existingRes = await d1LoadGameHistory({ limit: 200 });
+      const existingSessions = (existingRes?.sessions || []).map(normalizeGameResult);
+      const existingIds = new Set(existingSessions.map((s) => s.id));
+      const existingSignatures = new Set(
+        existingSessions.map((s) => `${s.gameType}|${s.createdAt}`)
+      );
 
-    const existingIds = new Set((existingSessions || []).map((s) => s.id));
-    const existingSignatures = new Set(
-      (existingSessions || []).map((s) => `${s.game_type}|${s.created_at}`)
-    );
-
-    const toInsert = localSessions
-      .map(normalizeGameResult)
-      .filter((s) => {
+      const toUpload = localSessions.map(normalizeGameResult).filter((s) => {
         const sig = `${s.gameType}|${s.createdAt}`;
         return !existingIds.has(s.id) && !existingSignatures.has(sig);
-      })
-      .map((s) => ({
-        id: generateId(),
-        user_id: user.id,
-        game_type: s.gameType,
-        topic_id: s.topicId,
-        skill_tags: s.skillTags,
-        score: s.score,
-        max_score: s.maxScore,
-        accuracy: s.accuracy,
-        duration_seconds: s.durationSeconds,
-        details_json: s.details,
-        created_at: s.createdAt,
-      }));
+      });
 
-    if (toInsert.length > 0) {
-      const { error } = await supabase.from("game_sessions").insert(toInsert);
-      if (!error) syncedSessions = toInsert.length;
+      for (const s of toUpload) {
+        try {
+          await d1SaveGameSession({
+            id: generateId(),
+            gameType: s.gameType,
+            topicId: s.topicId,
+            skillTags: s.skillTags,
+            score: s.score,
+            maxScore: s.maxScore,
+            accuracy: s.accuracy,
+            durationSeconds: s.durationSeconds,
+            details: s.details,
+            createdAt: s.createdAt,
+          });
+          syncedSessions += 1;
+        } catch (err) {
+          console.warn("Skipping session sync to Cloudflare D1:", err?.message);
+        }
+      }
+    } else {
+      const { data: existingSessions } = await supabase
+        .from("game_sessions")
+        .select("id,game_type,created_at")
+        .eq("user_id", user.id);
+
+      const existingIds = new Set((existingSessions || []).map((s) => s.id));
+      const existingSignatures = new Set(
+        (existingSessions || []).map((s) => `${s.game_type}|${s.created_at}`)
+      );
+
+      const toInsert = localSessions
+        .map(normalizeGameResult)
+        .filter((s) => {
+          const sig = `${s.gameType}|${s.createdAt}`;
+          return !existingIds.has(s.id) && !existingSignatures.has(sig);
+        })
+        .map((s) => ({
+          id: generateId(),
+          user_id: user.id,
+          game_type: s.gameType,
+          topic_id: s.topicId,
+          skill_tags: s.skillTags,
+          score: s.score,
+          max_score: s.maxScore,
+          accuracy: s.accuracy,
+          duration_seconds: s.durationSeconds,
+          details_json: s.details,
+          created_at: s.createdAt,
+        }));
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from("game_sessions").insert(toInsert);
+        if (!error) syncedSessions = toInsert.length;
+      }
     }
   }
 
@@ -1419,6 +1974,7 @@ export async function syncLocalToCloud() {
 export function clearLocalStorageData() {
   Object.values(STORAGE_KEYS).forEach(removeLocalKey);
   assignedCardsById.clear();
+  ownCardReviewCountById.clear();
 }
 
 export { SKILL_IDS, TOPIC_IDS };

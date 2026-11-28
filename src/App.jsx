@@ -29,6 +29,7 @@ import {
   onAuthStateChange,
   resolveStudentDisplayName,
 } from "./lib/supabase";
+import { isD1Configured } from "./lib/d1Client";
 import { stopSpeaking } from "./lib/speech";
 import Navbar from "./components/layout/Navbar";
 import BambooFrame from "./components/layout/BambooFrame";
@@ -516,7 +517,15 @@ export function App() {
     (nextUser, nextProfile) => {
       setUser(nextUser);
       setUserProfile(nextProfile || null);
-      setStorageMode(nextUser && isSupabaseConfigured ? "supabase" : "local");
+      setStorageMode(
+        nextUser
+          ? isD1Configured()
+            ? "cloudflare-d1"
+            : isSupabaseConfigured
+              ? "supabase"
+              : "local"
+          : "local"
+      );
       if (!isSupabaseConfigured) {
         hydrateData();
       }

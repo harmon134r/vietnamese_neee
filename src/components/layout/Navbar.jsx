@@ -10,6 +10,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { isTeacherProfile, resolveStudentDisplayName } from "../../lib/supabase";
+import { isCloudStorageMode } from "../../lib/storage";
 import * as speechApi from "../../lib/speech";
 import { APP_ART } from "../../data/illustrations";
 
@@ -281,7 +282,12 @@ export function Navbar({
 
   const xp = Math.round(Number(skillProgress?.xp || 0));
   const streakDays = Math.round(Number(skillProgress?.streakDays || 0));
-  const isCloud = storageMode === "supabase" && Boolean(user);
+  const isD1Mode = storageMode === "cloudflare-d1";
+  const isCloud =
+    (typeof isCloudStorageMode === "function"
+      ? isCloudStorageMode(storageMode)
+      : storageMode === "cloudflare-d1" || storageMode === "supabase") &&
+    Boolean(user);
   const resolvedIsTeacher =
     typeof isTeacherProp === "boolean"
       ? isTeacherProp
@@ -494,9 +500,13 @@ export function Navbar({
               onClick={onOpenAuth}
               title={
                 isCloud
-                  ? resolvedIsTeacher
-                    ? `Tài khoản giáo viên · ${userDisplayName || ""}`
-                    : `Đang đồng bộ tài khoản ${userDisplayName || ""}`
+                  ? isD1Mode
+                    ? resolvedIsTeacher
+                      ? `Tài khoản giáo viên · ${userDisplayName || ""} · Đang đồng bộ Cloudflare D1 (5 GB)`
+                      : "Đang đồng bộ Cloudflare D1 (5 GB)"
+                    : resolvedIsTeacher
+                      ? `Tài khoản giáo viên · ${userDisplayName || ""}`
+                      : `Đang đồng bộ tài khoản ${userDisplayName || ""}`
                   : isSupabaseConfigured
                     ? "Đăng nhập để đồng bộ tiến độ giữa các thiết bị"
                     : "Đang lưu dữ liệu trên trình duyệt này"

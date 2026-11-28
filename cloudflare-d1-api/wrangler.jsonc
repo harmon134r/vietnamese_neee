@@ -1,0 +1,31 @@
+{
+  // Cloudflare Workers configuration for munnn01 D1 Edge API
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "munnn01-d1-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-28",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "munnn01-db",
+      "database_id": "57bd3d1d-3a87-4fb0-b1cb-5ed89b943375",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "SUPABASE_URL": "https://astsuiojyzxjdubxwvfr.supabase.co",
+    "ALLOWED_ORIGINS": "https://vietnamese-neee.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
+  }
+}
