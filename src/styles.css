@@ -491,14 +491,38 @@ a:hover {
 }
 
 .vf-btn--primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   background: var(--accent-primary);
   color: #1b1917;
   border-color: var(--accent-primary);
 }
 
+.vf-btn--primary::after {
+  content: "";
+  position: absolute;
+  inset: -40% auto -40% -35%;
+  width: 52%;
+  background: linear-gradient(
+    108deg,
+    rgba(255, 248, 238, 0) 0%,
+    rgba(255, 248, 238, 0.36) 50%,
+    rgba(255, 248, 238, 0) 100%
+  );
+  transform: translate3d(-140%, 0, 0) skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
 .vf-btn--primary:hover:not(:disabled) {
   background: var(--accent-primary-hover);
   border-color: var(--accent-primary-hover);
+}
+
+.vf-btn--primary:hover:not(:disabled)::after {
+  animation: vfPrimarySheen 680ms var(--ease-out);
 }
 
 .vf-btn--secondary {
@@ -2277,8 +2301,22 @@ a:hover {
   margin-top: 2px;
 }
 
+.vf-auth-mascot--alive {
+  transform-origin: 50% 82%;
+  will-change: transform;
+  animation: vfMascotFloat 4.8s ease-in-out infinite;
+}
+
 .vf-modal-header-copy {
   min-width: 0;
+  flex: 1;
+}
+
+.vf-modal-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .vf-modal-title {
@@ -2290,6 +2328,59 @@ a:hover {
   line-height: 1.25;
   color: var(--text-primary);
   font-optical-sizing: auto;
+}
+
+.vf-mascot-bubble {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(108, 154, 124, 0.16);
+  border: 1px solid rgba(108, 154, 124, 0.38);
+  color: #cfe6d8;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  transform-origin: 0% 50%;
+  animation: vfBubblePop 260ms var(--ease-out) both;
+}
+
+.vf-mascot-bubble::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  background: #2f3b33;
+  border-left: 1px solid rgba(108, 154, 124, 0.38);
+  border-bottom: 1px solid rgba(108, 154, 124, 0.38);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.vf-mascot-bubble.is-teacher {
+  background: rgba(217, 119, 87, 0.16);
+  border-color: rgba(217, 119, 87, 0.44);
+  color: #f3c4b0;
+}
+
+.vf-mascot-bubble.is-teacher::before {
+  background: #3d312c;
+  border-left-color: rgba(217, 119, 87, 0.44);
+  border-bottom-color: rgba(217, 119, 87, 0.44);
+}
+
+.vf-auth-panel-swap {
+  animation: vfPanelSwap 220ms var(--ease-out) both;
+}
+
+.vf-field--slide-in {
+  transform-origin: 50% 0%;
+  animation: vfFieldSlideIn 240ms var(--ease-out) both;
 }
 
 .vf-modal-subtitle {
@@ -2628,10 +2719,20 @@ a:hover {
 }
 
 /* ==========================================================================
-   Mandatory Auth Gate — Calm Warm-Stone Editorial Entry Screen
+   Mandatory Auth Gate — Lively Warm-Stone Vietnamese Twilight Entry Screen
    ========================================================================== */
 
+.vf-app--auth-gate .vf-bamboo-side {
+  opacity: 0.52;
+}
+
+.vf-app--auth-gate .vf-cloud {
+  opacity: 0.42;
+}
+
 .vf-auth-gate-loading {
+  position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2639,15 +2740,14 @@ a:hover {
 
 .vf-auth-gate {
   position: relative;
-  z-index: 1;
+  z-index: 5;
   flex: 1;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px 20px 96px;
-  animation: vfFadeIn 180ms ease-out;
+  padding: 20px 20px 84px;
 }
 
 .vf-auth-gate-inner {
@@ -2656,7 +2756,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 15px;
 }
 
 .vf-auth-gate-header {
@@ -2665,7 +2765,7 @@ a:hover {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .vf-auth-gate-brand {
@@ -2677,6 +2777,12 @@ a:hover {
 
 .vf-auth-gate-emblem {
   height: 26px;
+}
+
+.vf-auth-gate-emblem--animated {
+  transform-origin: 50% 65%;
+  will-change: transform;
+  animation: vfEmblemFloat 5.6s ease-in-out infinite;
 }
 
 .vf-auth-gate-brand-name {
@@ -2697,23 +2803,100 @@ a:hover {
 }
 
 .vf-auth-gate-title {
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   font-family: var(--font-serif);
-  font-size: clamp(1.5rem, 2.8vw, 1.85rem);
+  font-size: clamp(1.42rem, 2.5vw, 1.76rem);
   font-weight: 400;
   letter-spacing: -0.022em;
-  line-height: 1.24;
+  line-height: 1.22;
   color: var(--text-primary);
 }
 
 .vf-auth-gate-sub {
   margin: 0;
-  max-width: 42ch;
+  max-width: 44ch;
   font-family: var(--font-sans);
-  font-size: 0.875rem;
+  font-size: 0.855rem;
   font-weight: 400;
-  line-height: 1.58;
+  line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.vf-auth-gate-pills {
+  list-style: none;
+  margin: 3px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.vf-auth-gate-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(46, 46, 43, 0.76);
+  border: 1px solid rgba(236, 235, 228, 0.1);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.vf-auth-gate-pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vf-auth-gate-pill-dot--terracotta {
+  background: #d97757;
+}
+
+.vf-auth-gate-pill-dot--amber {
+  background: #e0a96d;
+}
+
+.vf-auth-gate-pill-dot--sage {
+  background: #6c9a7c;
+}
+
+.vf-auth-gate-pill-dot--sky {
+  background: #7ea6c4;
+}
+
+.vf-auth-gate-card-wrap {
+  width: 100%;
+}
+
+.vf-auth-rise {
+  animation: vfAuthRiseIn 460ms var(--ease-out) both;
+}
+
+.vf-auth-rise--1 {
+  animation-delay: 20ms;
+}
+
+.vf-auth-rise--2 {
+  animation-delay: 75ms;
+}
+
+.vf-auth-rise--3 {
+  animation-delay: 125ms;
+}
+
+.vf-auth-rise--4 {
+  animation-delay: 170ms;
+}
+
+.vf-auth-rise--5 {
+  animation-delay: 215ms;
 }
 
 .vf-modal--inline {
@@ -2721,16 +2904,630 @@ a:hover {
   width: 100%;
   max-width: 460px;
   max-height: none;
-  overflow: visible;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+  background: rgba(46, 46, 43, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(236, 235, 228, 0.04) inset;
+}
+
+.vf-modal-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.vf-modal-shimmer-track {
+  display: block;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(217, 119, 87, 0.72) 0%,
+    rgba(224, 169, 109, 0.94) 17%,
+    rgba(108, 154, 124, 0.88) 34%,
+    rgba(217, 119, 87, 0.72) 50%,
+    rgba(224, 169, 109, 0.94) 67%,
+    rgba(108, 154, 124, 0.88) 84%,
+    rgba(217, 119, 87, 0.72) 100%
+  );
+  will-change: transform;
+  animation: vfModalShimmerSlide 8s linear infinite;
+}
+
+.vf-modal--inline[data-auth-role="teacher"] .vf-modal-shimmer-track {
+  background: linear-gradient(
+    90deg,
+    rgba(217, 119, 87, 0.74) 0%,
+    rgba(224, 169, 109, 0.98) 25%,
+    rgba(217, 119, 87, 0.74) 50%,
+    rgba(224, 169, 109, 0.98) 75%,
+    rgba(217, 119, 87, 0.74) 100%
+  );
+}
+
+.vf-modal--inline .vf-modal-header {
+  padding: 17px 22px 13px;
+}
+
+.vf-modal--inline .vf-modal-subtitle {
+  margin-top: 4px;
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+
+.vf-modal--inline .vf-modal-body {
+  padding: 15px 22px 18px;
+  gap: 13px;
+}
+
+.vf-modal--inline .vf-form {
+  gap: 12px;
 }
 
 .vf-auth-footer-note {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.77rem;
   color: var(--text-muted);
   text-align: center;
-  line-height: 1.55;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   Auth Gate Decorative Twilight Scene (AuthGateScene.jsx)
+   GPU-composited transform/opacity layers, strictly aria-hidden & non-interactive
+   ========================================================================== */
+
+.vf-auth-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* a) Breathing Twilight Ambient Glows */
+.vf-auth-glows {
+  position: absolute;
+  inset: 0;
+}
+
+.vf-auth-glow {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform, opacity;
+}
+
+.vf-auth-glow--terracotta {
+  top: -120px;
+  left: -80px;
+  width: min(56vw, 580px);
+  height: min(56vw, 580px);
+  background: radial-gradient(
+    circle,
+    rgba(217, 119, 87, 0.16) 0%,
+    rgba(217, 119, 87, 0.06) 44%,
+    rgba(217, 119, 87, 0) 72%
+  );
+  animation: vfGlowBreatheA 18s ease-in-out infinite;
+}
+
+.vf-auth-glow--amber {
+  top: -90px;
+  right: -100px;
+  width: min(54vw, 560px);
+  height: min(54vw, 560px);
+  background: radial-gradient(
+    circle,
+    rgba(224, 169, 109, 0.15) 0%,
+    rgba(224, 169, 109, 0.05) 45%,
+    rgba(224, 169, 109, 0) 72%
+  );
+  animation: vfGlowBreatheB 22s ease-in-out -6s infinite;
+}
+
+.vf-auth-glow--sage {
+  bottom: -170px;
+  left: 50%;
+  width: min(74vw, 760px);
+  height: min(44vh, 420px);
+  margin-left: calc(min(74vw, 760px) / -2);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(108, 154, 124, 0.14) 0%,
+    rgba(108, 154, 124, 0.05) 46%,
+    rgba(108, 154, 124, 0) 74%
+  );
+  animation: vfGlowBreatheC 20s ease-in-out -11s infinite;
+}
+
+/* b) Layered Extra Parallax Clouds */
+.vf-auth-clouds {
+  position: absolute;
+  inset: 0;
+}
+
+.vf-auth-cloud {
+  position: absolute;
+  height: auto;
+  display: block;
+  opacity: 0.22;
+  will-change: transform;
+}
+
+.vf-auth-cloud--far-left {
+  top: 20px;
+  left: 11%;
+  width: clamp(110px, 11vw, 178px);
+  animation: vfAuthCloudParallaxA 26s ease-in-out -4s infinite;
+}
+
+.vf-auth-cloud--far-right {
+  top: 34px;
+  right: 11%;
+  width: clamp(106px, 10.5vw, 170px);
+  opacity: 0.2;
+  animation: vfAuthCloudParallaxB 30s ease-in-out -11s infinite;
+}
+
+/* c) Swaying Hội An Silk Lanterns */
+.vf-auth-lantern {
+  position: absolute;
+  top: -2px;
+  width: 68px;
+  transform-origin: 50% 0%;
+  will-change: transform;
+}
+
+.vf-auth-lantern--left {
+  left: 8.5%;
+  animation: vfLanternSwingLeft 7.4s ease-in-out infinite;
+}
+
+.vf-auth-lantern--right {
+  right: 8.5%;
+  width: 62px;
+  animation: vfLanternSwingRight 8.6s ease-in-out -2.2s infinite;
+}
+
+.vf-auth-lantern-svg {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(15, 13, 11, 0.42));
+}
+
+.vf-auth-lantern-halo {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 144px;
+  height: 144px;
+  margin-left: -72px;
+  margin-top: -72px;
+  border-radius: 50%;
+  will-change: transform, opacity;
+  animation: vfLanternGlowPulse 4.6s ease-in-out infinite;
+}
+
+.vf-auth-lantern-halo--left {
+  background: radial-gradient(
+    circle,
+    rgba(217, 119, 87, 0.34) 0%,
+    rgba(224, 169, 109, 0.14) 38%,
+    rgba(217, 119, 87, 0) 70%
+  );
+}
+
+.vf-auth-lantern-halo--right {
+  background: radial-gradient(
+    circle,
+    rgba(224, 169, 109, 0.36) 0%,
+    rgba(224, 169, 109, 0.14) 40%,
+    rgba(224, 169, 109, 0) 70%
+  );
+  animation-delay: -1.8s;
+}
+
+.vf-auth-lantern-tassel {
+  transform-origin: 36px 98px;
+  will-change: transform;
+  animation: vfLanternTasselSwing 7.4s ease-in-out -0.65s infinite;
+}
+
+.vf-auth-lantern--right .vf-auth-lantern-tassel {
+  animation-duration: 8.6s;
+  animation-delay: -2.9s;
+}
+
+/* d) Drifting Watercolor Bamboo Leaves */
+.vf-auth-leaves {
+  position: absolute;
+  inset: 0;
+}
+
+.vf-auth-leaf {
+  position: absolute;
+  top: -28px;
+  display: block;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.vf-auth-leaf svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.vf-auth-leaf--sage {
+  color: #6c9a7c;
+}
+
+.vf-auth-leaf--olive {
+  color: #849c74;
+}
+
+.vf-auth-leaf--mist {
+  color: #5b846b;
+}
+
+.vf-auth-leaf--a {
+  animation: vfLeafDriftA 14s linear infinite;
+}
+
+.vf-auth-leaf--b {
+  animation: vfLeafDriftB 15.5s linear infinite;
+}
+
+/* e) Golden Village Fireflies */
+.vf-auth-fireflies {
+  position: absolute;
+  inset: 0;
+}
+
+.vf-auth-firefly {
+  position: absolute;
+  display: block;
+  will-change: transform;
+}
+
+.vf-auth-firefly--a {
+  animation: vfFireflyPathA 13s ease-in-out infinite;
+}
+
+.vf-auth-firefly--b {
+  animation: vfFireflyPathB 15s ease-in-out infinite;
+}
+
+.vf-auth-firefly--c {
+  animation: vfFireflyPathC 12s ease-in-out infinite;
+}
+
+.vf-auth-firefly-dot {
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #fff3cf 0%,
+    #e0a96d 52%,
+    rgba(224, 169, 109, 0) 100%
+  );
+  box-shadow: 0 0 10px 2px rgba(224, 169, 109, 0.52);
+  will-change: transform, opacity;
+  animation: vfFireflyTwinkle 3.6s ease-in-out infinite;
+}
+
+/* f) Floating Cultural Motifs & Vietnamese Phrase Charms (Desktop >= 1080px wings only) */
+.vf-auth-wing {
+  position: absolute;
+  top: 53%;
+  width: clamp(188px, 17.5vw, 240px);
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.vf-auth-wing--left {
+  left: clamp(22px, 3.6vw, 66px);
+}
+
+.vf-auth-wing--right {
+  right: clamp(22px, 3.6vw, 66px);
+}
+
+.vf-auth-lotus-stage {
+  position: relative;
+  width: 122px;
+  height: 122px;
+  display: grid;
+  place-items: center;
+}
+
+.vf-auth-lotus-img {
+  position: relative;
+  z-index: 2;
+  width: 102px;
+  height: auto;
+  display: block;
+  opacity: 0.88;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.34));
+  will-change: transform;
+  animation: vfLotusBob 6.8s ease-in-out infinite;
+}
+
+.vf-auth-ripple {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  width: 92px;
+  height: 24px;
+  margin-left: -46px;
+  border-radius: 50%;
+  border: 1px solid rgba(108, 154, 124, 0.42);
+  will-change: transform, opacity;
+  animation: vfWaterRipple 5.2s ease-out infinite;
+}
+
+.vf-auth-ripple--2 {
+  animation-delay: -2.6s;
+}
+
+.vf-auth-medallion {
+  width: 148px;
+  padding: 7px 7px 9px;
+  border-radius: 13px;
+  background: rgba(247, 243, 234, 0.94);
+  border: 1px solid rgba(236, 235, 228, 0.24);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.36);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  will-change: transform;
+  animation: vfMedallionBob 7.4s ease-in-out -1.5s infinite;
+}
+
+.vf-auth-medallion-frame {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5efe2;
+}
+
+.vf-auth-medallion-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.vf-auth-medallion-caption {
+  font-family: var(--font-serif);
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #3a3630;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.vf-auth-charm-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.vf-auth-charm {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(46, 46, 43, 0.72);
+  border: 1px solid rgba(236, 235, 228, 0.11);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(236, 235, 228, 0.84);
+  font-family: var(--font-serif);
+  font-size: 0.82rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  will-change: transform;
+  animation: vfCharmFloat 7.2s ease-in-out infinite;
+}
+
+.vf-auth-charm--left {
+  align-self: flex-start;
+}
+
+.vf-auth-charm--right {
+  align-self: flex-end;
+}
+
+.vf-auth-charm--center {
+  align-self: center;
+}
+
+.vf-auth-charm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vf-auth-charm-dot--terracotta {
+  background: #d97757;
+}
+
+.vf-auth-charm-dot--amber {
+  background: #e0a96d;
+}
+
+.vf-auth-charm-dot--sage {
+  background: #6c9a7c;
+}
+
+/* g) Soft Swaying Grass Horizon + Playful Dog & Cat Chase Cameo */
+.vf-auth-meadow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+  overflow: hidden;
+  background: linear-gradient(
+    to top,
+    rgba(24, 29, 25, 0.68) 0%,
+    rgba(24, 29, 25, 0.18) 58%,
+    rgba(24, 29, 25, 0) 100%
+  );
+}
+
+.vf-auth-grass-layer {
+  position: absolute;
+  left: -4%;
+  bottom: -2px;
+  width: 108%;
+  height: 30px;
+  display: block;
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+
+.vf-auth-grass-layer--back {
+  color: rgba(54, 78, 63, 0.52);
+  height: 34px;
+  animation: vfGrassSwayBack 7.6s ease-in-out infinite;
+}
+
+.vf-auth-grass-layer--front {
+  color: rgba(72, 104, 84, 0.44);
+  height: 24px;
+  animation: vfGrassSwayFront 5.8s ease-in-out -2.1s infinite;
+}
+
+.vf-auth-chase-stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  height: 48px;
+  overflow: hidden;
+}
+
+.vf-auth-chase-track {
+  position: absolute;
+  left: 0;
+  bottom: 2px;
+  width: max-content;
+  will-change: transform;
+  animation: vfAuthChasePatrolDesktop 38s linear -19s infinite;
+}
+
+.vf-auth-chase-flip {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 14px;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  animation: vfAuthChaseFlip 38s linear -19s infinite;
+}
+
+.vf-auth-chase-actor {
+  position: relative;
+  display: inline-block;
+}
+
+.vf-auth-chase-viewport {
+  position: relative;
+  overflow: hidden;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.34));
+}
+
+.vf-auth-chase-viewport--dog {
+  height: 42px;
+  aspect-ratio: 340 / 240;
+}
+
+.vf-auth-chase-viewport--cat {
+  height: 40px;
+  aspect-ratio: 320 / 240;
+}
+
+.vf-auth-chase-sheet {
+  width: 400%;
+  height: 100%;
+  max-width: none;
+  display: block;
+  will-change: transform;
+}
+
+.vf-auth-chase-sheet--dog {
+  animation: vf-runner-stride 0.52s steps(4, end) infinite;
+}
+
+.vf-auth-chase-sheet--cat {
+  animation: vf-runner-stride 0.46s steps(4, end) -0.14s infinite;
+}
+
+.vf-auth-chase-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 72%;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.32);
+  filter: blur(2.5px);
+  transform: translateX(-50%);
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  animation: vf-runner-shadow-pulse 0.52s ease-in-out infinite;
+}
+
+.vf-auth-chase-shadow--cat {
+  animation-duration: 0.46s;
+  animation-delay: -0.14s;
+}
+
+.vf-auth-chase-dust {
+  position: absolute;
+  border-radius: 50%;
+  background: #ecebe4;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.vf-auth-chase-dust--1 {
+  left: 2px;
+  bottom: 3px;
+  width: 3.5px;
+  height: 3.5px;
+  animation: vf-runner-dust-drift 0.52s ease-out infinite;
+}
+
+.vf-auth-chase-dust--2 {
+  left: 11px;
+  bottom: 2px;
+  width: 2.5px;
+  height: 2.5px;
+  animation: vf-runner-dust-drift 0.52s ease-out -0.26s infinite;
 }
 
 /* ==========================================================================
@@ -3008,6 +3805,415 @@ a:hover {
   }
 }
 
+/* Auth Gate Keyframes (GPU-composited transform & opacity only) */
+
+@keyframes vfAuthRiseIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes vfEmblemFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate3d(0, -3.5px, 0) rotate(2.6deg);
+  }
+}
+
+@keyframes vfMascotFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-1.6deg);
+  }
+  50% {
+    transform: translate3d(0, -3.5px, 0) rotate(2deg);
+  }
+}
+
+@keyframes vfBubblePop {
+  0% {
+    opacity: 0;
+    transform: translate3d(-4px, 2px, 0) scale(0.88);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes vfPanelSwap {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes vfFieldSlideIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes vfModalShimmerSlide {
+  from {
+    transform: translate3d(0%, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes vfPrimarySheen {
+  0% {
+    opacity: 0;
+    transform: translate3d(-140%, 0, 0) skewX(-18deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(320%, 0, 0) skewX(-18deg);
+  }
+}
+
+@keyframes vfGlowBreatheA {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.82;
+  }
+  50% {
+    transform: translate3d(28px, 18px, 0) scale(1.09);
+    opacity: 1;
+  }
+}
+
+@keyframes vfGlowBreatheB {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.78;
+  }
+  50% {
+    transform: translate3d(-26px, 22px, 0) scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes vfGlowBreatheC {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.76;
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scale(1.07);
+    opacity: 1;
+  }
+}
+
+@keyframes vfAuthCloudParallaxA {
+  0%,
+  100% {
+    transform: translate3d(-10px, 0, 0);
+  }
+  50% {
+    transform: translate3d(22px, -6px, 0);
+  }
+}
+
+@keyframes vfAuthCloudParallaxB {
+  0%,
+  100% {
+    transform: translate3d(12px, 0, 0);
+  }
+  50% {
+    transform: translate3d(-24px, 6px, 0);
+  }
+}
+
+@keyframes vfLanternSwingLeft {
+  0%,
+  100% {
+    transform: rotate(-3.2deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes vfLanternSwingRight {
+  0%,
+  100% {
+    transform: rotate(3deg);
+  }
+  50% {
+    transform: rotate(-3.4deg);
+  }
+}
+
+@keyframes vfLanternTasselSwing {
+  0%,
+  100% {
+    transform: rotate(-4.5deg);
+  }
+  50% {
+    transform: rotate(4.5deg);
+  }
+}
+
+@keyframes vfLanternGlowPulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.09);
+    opacity: 1;
+  }
+}
+
+@keyframes vfLeafDriftA {
+  0% {
+    transform: translate3d(0, -4vh, 0) rotate(12deg) scaleY(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.62;
+  }
+  35% {
+    transform: translate3d(34px, 34vh, 0) rotate(98deg) scaleY(0.62);
+    opacity: 0.56;
+  }
+  68% {
+    transform: translate3d(-18px, 68vh, 0) rotate(196deg) scaleY(0.92);
+    opacity: 0.48;
+  }
+  92% {
+    opacity: 0.16;
+  }
+  100% {
+    transform: translate3d(24px, 102vh, 0) rotate(290deg) scaleY(0.74);
+    opacity: 0;
+  }
+}
+
+@keyframes vfLeafDriftB {
+  0% {
+    transform: translate3d(0, -4vh, 0) rotate(-18deg) scaleY(0.9);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.56;
+  }
+  40% {
+    transform: translate3d(-32px, 38vh, 0) rotate(-112deg) scaleY(0.6);
+    opacity: 0.52;
+  }
+  72% {
+    transform: translate3d(22px, 72vh, 0) rotate(-210deg) scaleY(0.95);
+    opacity: 0.42;
+  }
+  92% {
+    opacity: 0.14;
+  }
+  100% {
+    transform: translate3d(-20px, 102vh, 0) rotate(-305deg) scaleY(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes vfFireflyPathA {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  25% {
+    transform: translate3d(18px, -22px, 0);
+  }
+  55% {
+    transform: translate3d(-12px, -36px, 0);
+  }
+  80% {
+    transform: translate3d(-22px, -10px, 0);
+  }
+}
+
+@keyframes vfFireflyPathB {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  30% {
+    transform: translate3d(-22px, -18px, 0);
+  }
+  62% {
+    transform: translate3d(14px, -32px, 0);
+  }
+  86% {
+    transform: translate3d(20px, -6px, 0);
+  }
+}
+
+@keyframes vfFireflyPathC {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  34% {
+    transform: translate3d(14px, 16px, 0);
+  }
+  66% {
+    transform: translate3d(-18px, -18px, 0);
+  }
+}
+
+@keyframes vfFireflyTwinkle {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scale(0.76);
+  }
+  45% {
+    opacity: 0.94;
+    transform: scale(1.18);
+  }
+  70% {
+    opacity: 0.44;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes vfLotusBob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-1.2deg);
+  }
+  50% {
+    transform: translate3d(0, -7px, 0) rotate(1.4deg);
+  }
+}
+
+@keyframes vfWaterRipple {
+  0% {
+    transform: scale(0.68);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.54;
+  }
+  100% {
+    transform: scale(1.42);
+    opacity: 0;
+  }
+}
+
+@keyframes vfMedallionBob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(2.4deg);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0) rotate(-1.2deg);
+  }
+}
+
+@keyframes vfCharmFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@keyframes vfGrassSwayBack {
+  0%,
+  100% {
+    transform: translate3d(-6px, 0, 0) skewX(-2deg);
+  }
+  50% {
+    transform: translate3d(8px, 0, 0) skewX(2.4deg);
+  }
+}
+
+@keyframes vfGrassSwayFront {
+  0%,
+  100% {
+    transform: translate3d(6px, 0, 0) skewX(2.6deg);
+  }
+  50% {
+    transform: translate3d(-9px, 0, 0) skewX(-2.8deg);
+  }
+}
+
+@keyframes vfAuthChasePatrolDesktop {
+  0% {
+    transform: translate3d(16px, 0, 0);
+  }
+  48.5%,
+  50% {
+    transform: translate3d(calc(100vw - 150px), 0, 0);
+  }
+  98.5%,
+  100% {
+    transform: translate3d(16px, 0, 0);
+  }
+}
+
+@keyframes vfAuthChasePatrolMobile {
+  0% {
+    transform: translate3d(12px, 0, 0);
+  }
+  48.5%,
+  50% {
+    transform: translate3d(calc(100vw - 114px), 0, 0);
+  }
+  98.5%,
+  100% {
+    transform: translate3d(12px, 0, 0);
+  }
+}
+
+@keyframes vfAuthChaseFlip {
+  0%,
+  49.2% {
+    transform: scaleX(1);
+  }
+  49.3%,
+  99.2% {
+    transform: scaleX(-1);
+  }
+  99.3%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+
 /* ==========================================================================
    Responsive Breakpoints
    ========================================================================== */
@@ -3049,11 +4255,62 @@ a:hover {
     top: 86px;
     right: -12px;
   }
+
+  .vf-app--auth-gate .vf-bamboo-side {
+    width: clamp(118px, 12vw, 174px);
+    height: min(68vh, 580px);
+    opacity: 0.52;
+  }
+
+  .vf-app--auth-gate .vf-cloud {
+    width: clamp(110px, 11vw, 162px);
+    opacity: 0.42;
+  }
 }
 
 @media (max-width: 1119px) {
   .vf-bamboo-frame,
   .vf-cloud {
+    display: none;
+  }
+
+  .vf-app--auth-gate .vf-bamboo-frame,
+  .vf-app--auth-gate .vf-cloud {
+    display: block;
+  }
+
+  .vf-app--auth-gate .vf-bamboo-side {
+    width: clamp(86px, 9.5vw, 122px);
+    height: min(56vh, 460px);
+    opacity: 0.36;
+  }
+
+  .vf-app--auth-gate .vf-cloud {
+    width: clamp(82px, 8.5vw, 112px);
+    opacity: 0.28;
+  }
+}
+
+@media (max-width: 1079px) {
+  .vf-auth-wing {
+    display: none;
+  }
+
+  .vf-auth-lantern--left {
+    left: 4%;
+    width: 56px;
+  }
+
+  .vf-auth-lantern--right {
+    right: 4%;
+    width: 52px;
+  }
+}
+
+@media (max-width: 959px) {
+  .vf-app--auth-gate .vf-bamboo-frame,
+  .vf-app--auth-gate .vf-cloud,
+  .vf-auth-clouds {
     display: none;
   }
 }
@@ -3167,6 +4424,35 @@ a:hover {
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 
+  .vf-auth-chase-stage {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    height: 36px;
+  }
+
+  .vf-auth-chase-track {
+    animation-name: vfAuthChasePatrolMobile;
+  }
+
+  .vf-auth-chase-flip {
+    gap: 10px;
+  }
+
+  .vf-auth-chase-viewport--dog {
+    height: 32px;
+  }
+
+  .vf-auth-chase-viewport--cat {
+    height: 30px;
+  }
+
+  .vf-auth-meadow {
+    height: 34px;
+  }
+
+  .vf-auth-lantern {
+    display: none;
+  }
+
   .vf-phrases-table {
     grid-template-columns: 1fr;
   }
@@ -3202,11 +4488,15 @@ a:hover {
 
   .vf-auth-gate {
     justify-content: flex-start;
-    padding: 24px 14px 88px;
+    padding: 22px 14px 112px;
   }
 
   .vf-auth-gate-inner {
-    gap: 16px;
+    gap: 14px;
+  }
+
+  .vf-auth-lantern {
+    display: none;
   }
 
   .vf-auth-gate-level {
@@ -3310,7 +4600,28 @@ a:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .vf-bamboo-stalk,
-  .vf-cloud {
+  .vf-cloud,
+  .vf-auth-glow,
+  .vf-auth-cloud,
+  .vf-auth-lantern,
+  .vf-auth-lantern-tassel,
+  .vf-auth-lantern-halo,
+  .vf-auth-leaf,
+  .vf-auth-firefly,
+  .vf-auth-firefly-dot,
+  .vf-auth-lotus-img,
+  .vf-auth-ripple,
+  .vf-auth-medallion,
+  .vf-auth-charm,
+  .vf-auth-grass-layer,
+  .vf-auth-gate-emblem--animated,
+  .vf-auth-rise,
+  .vf-auth-mascot--alive,
+  .vf-mascot-bubble,
+  .vf-auth-panel-swap,
+  .vf-field--slide-in,
+  .vf-modal-shimmer-track,
+  .vf-btn--primary::after {
     animation: none;
   }
 
@@ -3318,7 +4629,12 @@ a:hover {
   .vf-runner-flip,
   .vf-runner-sheet,
   .vf-runner-shadow,
-  .vf-runner-dust {
+  .vf-runner-dust,
+  .vf-auth-chase-track,
+  .vf-auth-chase-flip,
+  .vf-auth-chase-sheet,
+  .vf-auth-chase-shadow,
+  .vf-auth-chase-dust {
     animation: none;
   }
 
@@ -3326,7 +4642,31 @@ a:hover {
     transform: translate3d(16px, 0, 0);
   }
 
-  .vf-runner-dust {
+  .vf-auth-chase-track {
+    transform: translate3d(calc(100vw - 160px), 0, 0);
+  }
+
+  .vf-auth-chase-flip {
+    transform: scaleX(-1);
+  }
+
+  .vf-runner-dust,
+  .vf-auth-chase-dust,
+  .vf-auth-leaf,
+  .vf-auth-ripple {
     display: none;
+  }
+
+  .vf-auth-rise,
+  .vf-auth-panel-swap,
+  .vf-field--slide-in,
+  .vf-mascot-bubble {
+    opacity: 1;
+    transform: none;
+  }
+
+  .vf-auth-firefly-dot {
+    opacity: 0.55;
+    transform: none;
   }
 }

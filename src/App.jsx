@@ -34,6 +34,7 @@ import { isD1Configured } from "./lib/d1Client";
 import { stopSpeaking } from "./lib/speech";
 import Navbar from "./components/layout/Navbar";
 import BambooFrame from "./components/layout/BambooFrame";
+import AuthGateScene from "./components/layout/AuthGateScene";
 import BottomRunner from "./components/layout/BottomRunner";
 import Dashboard from "./components/layout/Dashboard";
 import TopicOverview from "./components/layout/TopicOverview";
@@ -667,6 +668,7 @@ export function App() {
     return (
       <div className="vf-app vf-app--auth-gate">
         <BambooFrame />
+        <AuthGateScene />
 
         <main className="vf-main vf-auth-gate-loading">
           <div className="vf-loading-screen" role="status" aria-live="polite">
@@ -686,35 +688,73 @@ export function App() {
     return (
       <div className="vf-app vf-app--auth-gate">
         <BambooFrame />
+        <AuthGateScene />
 
         <main className="vf-auth-gate" data-testid="auth-gate">
           <div className="vf-auth-gate-inner">
             <header className="vf-auth-gate-header">
-              <div className="vf-auth-gate-brand">
+              <div className="vf-auth-gate-brand vf-auth-rise vf-auth-rise--1">
                 <img
                   src={APP_ART.emblem.src}
                   alt={APP_ART.emblem.alt}
-                  className="vf-brand-emblem vf-auth-gate-emblem"
+                  className="vf-brand-emblem vf-auth-gate-emblem vf-auth-gate-emblem--animated"
                   decoding="async"
                 />
                 <span className="vf-brand-name vf-auth-gate-brand-name">munnn01</span>
                 <span className="vf-brand-level vf-auth-gate-level">A2–B1</span>
               </div>
-              <h1 className="vf-auth-gate-title">Bàn học tiếng Việt của bạn</h1>
-              <p className="vf-auth-gate-sub">
+              <h1 className="vf-auth-gate-title vf-auth-rise vf-auth-rise--2">
+                Bàn học tiếng Việt của bạn
+              </h1>
+              <p className="vf-auth-gate-sub vf-auth-rise vf-auth-rise--3">
                 Đăng nhập hoặc tạo tài khoản để luyện nghe, nói, đọc, phát âm và học flashcard cùng lớp.
               </p>
+              <ul
+                className="vf-auth-gate-pills vf-auth-rise vf-auth-rise--4"
+                aria-label="Kỹ năng luyện tập"
+              >
+                <li className="vf-auth-gate-pill">
+                  <span
+                    className="vf-auth-gate-pill-dot vf-auth-gate-pill-dot--terracotta"
+                    aria-hidden="true"
+                  />
+                  <span>Nghe</span>
+                </li>
+                <li className="vf-auth-gate-pill">
+                  <span
+                    className="vf-auth-gate-pill-dot vf-auth-gate-pill-dot--amber"
+                    aria-hidden="true"
+                  />
+                  <span>Nói &amp; Phát âm</span>
+                </li>
+                <li className="vf-auth-gate-pill">
+                  <span
+                    className="vf-auth-gate-pill-dot vf-auth-gate-pill-dot--sage"
+                    aria-hidden="true"
+                  />
+                  <span>Đọc hiểu</span>
+                </li>
+                <li className="vf-auth-gate-pill">
+                  <span
+                    className="vf-auth-gate-pill-dot vf-auth-gate-pill-dot--sky"
+                    aria-hidden="true"
+                  />
+                  <span>Flashcard</span>
+                </li>
+              </ul>
             </header>
 
-            <AuthModal
-              isOpen
-              inline
-              mandatory
-              user={null}
-              userProfile={null}
-              onAuthSuccess={handleAuthSuccess}
-              onNotify={notify}
-            />
+            <div className="vf-auth-gate-card-wrap vf-auth-rise vf-auth-rise--5">
+              <AuthModal
+                isOpen
+                inline
+                mandatory
+                user={null}
+                userProfile={null}
+                onAuthSuccess={handleAuthSuccess}
+                onNotify={notify}
+              />
+            </div>
           </div>
         </main>
 

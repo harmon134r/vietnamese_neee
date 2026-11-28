@@ -310,11 +310,25 @@ export function AuthModal({
     ? "Ví dụ: Cô Minh"
     : "Ví dụ: Nguyễn Anh Thư";
 
+  const mascotGreeting = isTeacherTab
+    ? mode === "signup"
+      ? "Mở lớp mới!"
+      : "Chào thầy cô!"
+    : mode === "signup"
+      ? "Cùng học nào!"
+      : "Chào bạn!";
+
+  const animateMascot = Boolean(inline || mandatory || (isSupabaseConfigured && !user));
+  const showMascotGreeting = Boolean(isSupabaseConfigured && !user);
+  const swapKey = `${role}-${mode}`;
+
   const modalContent = (
     <>
       <div className="vf-modal-header">
         <div className="vf-modal-header-main">
-          <div className="vf-art-frame vf-modal-mascot">
+          <div
+            className={`vf-art-frame vf-modal-mascot ${animateMascot ? "vf-auth-mascot--alive" : ""}`}
+          >
             <img
               src={APP_ART.mascot.src}
               alt={APP_ART.mascot.alt}
@@ -324,16 +338,30 @@ export function AuthModal({
           </div>
 
           <div className="vf-modal-header-copy">
-            <h2 id="vf-auth-modal-title" className="vf-modal-title">
-              {!isSupabaseConfigured
-                ? "Lưu dữ liệu cục bộ"
-                : user
-                  ? "Tài khoản & đồng bộ"
-                  : mode === "signup"
-                    ? "Tạo tài khoản"
-                    : "Đăng nhập"}
-            </h2>
-            <p className="vf-modal-subtitle">
+            <div className="vf-modal-title-row">
+              <h2 id="vf-auth-modal-title" className="vf-modal-title">
+                {!isSupabaseConfigured
+                  ? "Lưu dữ liệu cục bộ"
+                  : user
+                    ? "Tài khoản & đồng bộ"
+                    : mode === "signup"
+                      ? "Tạo tài khoản"
+                      : "Đăng nhập"}
+              </h2>
+              {showMascotGreeting && (
+                <span
+                  key={swapKey}
+                  className={`vf-mascot-bubble ${isTeacherTab ? "is-teacher" : ""}`}
+                  data-testid="auth-mascot-greeting"
+                >
+                  {mascotGreeting}
+                </span>
+              )}
+            </div>
+            <p
+              key={showMascotGreeting ? `sub-${swapKey}` : "sub-static"}
+              className={`vf-modal-subtitle ${showMascotGreeting ? "vf-auth-panel-swap" : ""}`}
+            >
               {!isSupabaseConfigured
                 ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
                 : user
@@ -601,7 +629,13 @@ export function AuthModal({
 
             <form className="vf-form" onSubmit={handleSubmit}>
               <div className="vf-field">
-                <label htmlFor="vf-auth-account-name">{nameFieldLabel}</label>
+                <label
+                  key={`label-${swapKey}`}
+                  htmlFor="vf-auth-account-name"
+                  className="vf-auth-panel-swap"
+                >
+                  {nameFieldLabel}
+                </label>
                 <input
                   id="vf-auth-account-name"
                   type="text"
@@ -640,7 +674,7 @@ export function AuthModal({
               </div>
 
               {isTeacherTab && mode === "signup" && (
-                <div className="vf-field">
+                <div className="vf-field vf-field--slide-in">
                   <label htmlFor="vf-auth-teacher-code">Mã giáo viên</label>
                   <input
                     id="vf-auth-teacher-code"
@@ -663,19 +697,21 @@ export function AuthModal({
                 className="vf-btn vf-btn--primary vf-btn--lg"
                 disabled={busy}
               >
-                {busy
-                  ? "Đang xử lý..."
-                  : mode === "signin"
-                    ? isTeacherTab
-                      ? "Đăng nhập giáo viên"
-                      : "Đăng nhập"
-                    : isTeacherTab
-                      ? "Tạo tài khoản giáo viên"
-                      : "Tạo tài khoản"}
+                <span key={`submit-${swapKey}`} className="vf-auth-panel-swap">
+                  {busy
+                    ? "Đang xử lý..."
+                    : mode === "signin"
+                      ? isTeacherTab
+                        ? "Đăng nhập giáo viên"
+                        : "Đăng nhập"
+                      : isTeacherTab
+                        ? "Tạo tài khoản giáo viên"
+                        : "Tạo tài khoản"}
+                </span>
               </button>
             </form>
 
-            <p className="vf-auth-footer-note">
+            <p key={`note-${swapKey}`} className="vf-auth-footer-note vf-auth-panel-swap">
               {mandatory
                 ? isTeacherTab
                   ? "Giáo viên tạo tài khoản bằng mã lớp để tải PDF, tạo flashcard và giao bài thẳng cho học sinh."
@@ -692,9 +728,13 @@ export function AuthModal({
     return (
       <div
         className="vf-modal vf-modal--inline"
+        data-auth-role={role}
         role="region"
         aria-label="Đăng nhập hoặc đăng ký tài khoản"
       >
+        <span className="vf-modal-shimmer" aria-hidden="true">
+          <span className="vf-modal-shimmer-track" />
+        </span>
         {modalContent}
       </div>
     );

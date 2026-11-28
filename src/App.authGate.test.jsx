@@ -385,4 +385,73 @@ describe("Mandatory Auth Gate (App + AuthModal)", () => {
 
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("renders decorative AuthGateScene with aria-hidden on loading & Auth Gate, and removes it once signed in", async () => {
+    const { App } = await mountApp({ isSupabaseConfigured: true });
+    const sessionDeferred = createDeferred();
+    getSessionMock.mockReturnValueOnce(sessionDeferred.promise);
+    getUserProfileMock.mockResolvedValue(STUDENT_PROFILE);
+    signInMock.mockResolvedValueOnce({
+      session: { user: STUDENT_USER },
+      user: STUDENT_USER,
+      profile: STUDENT_PROFILE,
+    });
+
+    const { container } = render(React.createElement(App));
+
+    // Present during auth-check loading gate
+    const loadingScene = screen.getByTestId("auth-gate-scene");
+    expect(loadingScene).toBeInTheDocument();
+    expect(loadingScene).toHaveAttribute("aria-hidden", "true");
+
+    // Still present once Auth Gate appears
+    await act(async () => {
+      sessionDeferred.resolve({ session: null, user: null, error: null });
+    });
+    await screen.findByTestId("auth-gate");
+
+    const gateScene = screen.getByTestId("auth-gate-scene");
+    expect(gateScene).toBeInTheDocument();
+    expect(gateScene).toHaveAttribute("aria-hidden", "true");
+
+    // Sign in -> AuthGateScene must NOT render inside the Dashboard
+    fireEvent.change(screen.getByLabelText("Tên học sinh"), {
+      target: { value: "Nguyễn Anh Thư" },
+    });
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), {
+      target: { value: "matkhau123" },
+    });
+    fireEvent.submit(container.querySelector("form"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nguyễn Anh Thư, hôm nay luyện gì/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("auth-gate-scene")).not.toBeInTheDocument();
+  });
+
+  it("updates the reactive mascot greeting pill cleanly across role and mode switches", async () => {
+    const { App } = await mountApp({ isSupabaseConfigured: true });
+    render(React.createElement(App));
+
+    await screen.findByTestId("auth-gate");
+
+    // Student + Login
+    expect(screen.getByTestId("auth-mascot-greeting")).toHaveTextContent("Chào bạn!");
+
+    // Student + Signup
+    fireEvent.click(screen.getByRole("tab", { name: "Tạo tài khoản" }));
+    expect(screen.getByTestId("auth-mascot-greeting")).toHaveTextContent("Cùng học nào!");
+
+    // Teacher + Signup
+    fireEvent.click(screen.getByRole("tab", { name: "Giáo viên" }));
+    expect(screen.getByTestId("auth-mascot-greeting")).toHaveTextContent("Mở lớp mới!");
+
+    // Teacher + Login
+    fireEvent.click(screen.getByRole("tab", { name: "Đăng nhập" }));
+    expect(screen.getByTestId("auth-mascot-greeting")).toHaveTextContent("Chào thầy cô!");
+
+    // Back to Student + Login
+    fireEvent.click(screen.getByRole("tab", { name: "Học sinh" }));
+    expect(screen.getByTestId("auth-mascot-greeting")).toHaveTextContent("Chào bạn!");
+  });
 });
