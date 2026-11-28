@@ -73,6 +73,9 @@ export function AuthModal({
   onAuthSuccess,
   onSynced,
   onNotify,
+  onToast,
+  inline = false,
+  mandatory = false,
 }) {
   const [role, setRole] = useState("student"); // "student" | "teacher"
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
@@ -88,18 +91,21 @@ export function AuthModal({
   const [d1Stats, setD1Stats] = useState(null);
 
   const d1Active = isD1Configured();
+  const notifyUser = onNotify || onToast;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
     setErrorMsg("");
     setInfoMsg("");
 
+    if (mandatory) return undefined;
+
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onClose?.();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, mandatory, onClose]);
 
   useEffect(() => {
     if (!isOpen || !user || !d1Active) {
@@ -154,7 +160,7 @@ export function AuthModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      onNotify?.("Không thể sao chép tự động, bạn hãy bôi đen đoạn mã nhé.", "error");
+      notifyUser?.("Không thể sao chép tự động, bạn hãy bôi đen đoạn mã nhé.", "error");
     }
   };
 
@@ -200,7 +206,7 @@ export function AuthModal({
           cleanName
         );
         onAuthSuccess?.(result.user, result.profile);
-        onNotify?.(
+        notifyUser?.(
           isTeacherTab
             ? `Chào ${displayName}! Đã đăng nhập tài khoản giáo viên.`
             : `Chào ${displayName}! Đã đăng nhập và bắt đầu đồng bộ dữ liệu.`,
@@ -208,7 +214,7 @@ export function AuthModal({
         );
         setPassword("");
         setTeacherCode("");
-        onClose();
+        onClose?.();
       } else {
         const result = await signUp({
           studentName: cleanName,
@@ -228,13 +234,13 @@ export function AuthModal({
             cleanName
           );
           onAuthSuccess?.(result.user, result.profile);
-          onNotify?.(
+          notifyUser?.(
             isTeacherTab
               ? `Chào mừng ${displayName}! Đã tạo tài khoản giáo viên và đăng nhập.`
               : `Chào mừng ${displayName}! Đã tạo tài khoản và đăng nhập.`,
             "success"
           );
-          onClose();
+          onClose?.();
         }
         setPassword("");
         setTeacherCode("");
@@ -260,7 +266,7 @@ export function AuthModal({
       if (parts.length > 0) {
         const msg = `Đã đồng bộ ${parts.join(", ")} từ máy lên tài khoản.`;
         setInfoMsg(msg);
-        onNotify?.(msg, "success");
+        notifyUser?.(msg, "success");
       } else {
         setInfoMsg("Dữ liệu trên trình duyệt đã khớp hoàn toàn với tài khoản.");
       }
@@ -278,8 +284,8 @@ export function AuthModal({
     try {
       await signOut();
       onAuthSuccess?.(null, null);
-      onNotify?.("Đã đăng xuất. Ứng dụng chuyển về lưu trên trình duyệt.", "info");
-      onClose();
+      notifyUser?.("Đã đăng xuất thành công.", "info");
+      onClose?.();
     } catch (err) {
       setErrorMsg(err?.message || "Không thể đăng xuất lúc này.");
     } finally {
@@ -304,12 +310,404 @@ export function AuthModal({
     ? "Ví dụ: Cô Minh"
     : "Ví dụ: Nguyễn Anh Thư";
 
+  const modalContent = (
+    <>
+      <div className="vf-modal-header">
+        <div className="vf-modal-header-main">
+          <div className="vf-art-frame vf-modal-mascot">
+            <img
+              src={APP_ART.mascot.src}
+              alt={APP_ART.mascot.alt}
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+
+          <div className="vf-modal-header-copy">
+            <h2 id="vf-auth-modal-title" className="vf-modal-title">
+              {!isSupabaseConfigured
+                ? "Lưu dữ liệu cục bộ"
+                : user
+                  ? "Tài khoản & đồng bộ"
+                  : mode === "signup"
+                    ? "Tạo tài khoản"
+                    : "Đăng nhập"}
+            </h2>
+            <p className="vf-modal-subtitle">
+              {!isSupabaseConfigured
+                ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
+                : user
+                  ? signedInIsTeacher
+                    ? d1Active
+                      ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Cloudflare D1."
+                      : "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Supabase."
+                    : d1Active
+                      ? "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Cloudflare D1."
+                      : "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Supabase."
+                  : isTeacherTab
+                    ? "Tạo và giao bộ thẻ Flashcard từ file PDF cho toàn lớp học."
+                    : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
+            </p>
+          </div>
+        </div>
+
+        {!mandatory && (
+          <button
+            type="button"
+            className="vf-modal-close"
+            onClick={() => onClose?.()}
+            aria-label="Đóng hộp thoại"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      <div className="vf-modal-body">
+        {/* Case 1: Supabase not configured */}
+        {!isSupabaseConfigured && (
+          <>
+            <div className="vf-alert vf-alert--info">
+              <HardDrive size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                Bạn có thể học đầy đủ mà không cần tài khoản. Mọi thẻ tự tạo và điểm 4 kỹ năng đều
+                được lưu tự động trong <code>localStorage</code> của trình duyệt.
+              </div>
+            </div>
+
+            <div>
+              <p style={{ margin: "0 0 6px", fontSize: "0.85rem", fontWeight: 500 }}>
+                Bật đồng bộ tài khoản Học sinh &amp; Giáo viên với Supabase
+              </p>
+              <p style={{ margin: "0 0 10px", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                Thêm 2 biến môi trường sau vào <code>.env.local</code> hoặc cấu hình deploy:
+              </p>
+
+              <div className="vf-code-box">
+                <button
+                  type="button"
+                  className="vf-copy-btn"
+                  onClick={handleCopyEnv}
+                >
+                  {copied ? <Check size={12} /> : <Copy size={12} />}
+                  <span>{copied ? "Đã chép" : "Sao chép"}</span>
+                </button>
+                <pre>{ENV_SNIPPET}</pre>
+              </div>
+            </div>
+
+            <ol className="vf-steps-list">
+              <li>
+                Tạo project trên Supabase, chạy các file migration trong{" "}
+                <code>supabase/migrations/</code> (bao gồm{" "}
+                <code>003_teacher_student_roles.sql</code>) trong SQL Editor và tắt{" "}
+                <strong>Confirm email</strong> trong cài đặt Supabase Auth.
+              </li>
+              <li>
+                Vào <strong>Project Settings → API</strong> để lấy Project URL và{" "}
+                <code>anon public</code> key.
+              </li>
+              <li>
+                Cập nhật 2 biến trên và deploy lại để bật đăng nhập Học sinh / Giáo viên và giao
+                bộ thẻ PDF cho toàn lớp.
+              </li>
+            </ol>
+
+            {!mandatory && (
+              <button
+                type="button"
+                className="vf-btn vf-btn--primary"
+                onClick={() => onClose?.()}
+              >
+                Tiếp tục học cục bộ
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Case 2: Signed In */}
+        {isSupabaseConfigured && user && (
+          <>
+            <div className="vf-profile-card">
+              <div
+                className={`vf-avatar ${signedInIsTeacher ? "is-teacher" : ""}`}
+                aria-hidden="true"
+              >
+                {initials}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p className="vf-profile-name">{resolvedName}</p>
+                <p className="vf-profile-email">
+                  {signedInIsTeacher
+                    ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp"
+                    : "Đồng bộ tiến độ & bài Flashcard giáo viên giao"}
+                </p>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  <span
+                    className={`vf-tag ${signedInIsTeacher ? "vf-tag--teacher" : "vf-tag--good"}`}
+                  >
+                    {signedInIsTeacher ? "Giáo viên" : "Học sinh"}
+                  </span>
+                  {d1Active ? (
+                    <span className="vf-tag vf-tag--good" data-testid="d1-capacity-pill">
+                      <Database size={11} aria-hidden="true" />
+                      <span>Cloudflare D1 · 5 GB</span>
+                    </span>
+                  ) : (
+                    <span className="vf-tag vf-tag--good">Đang đồng bộ</span>
+                  )}
+                  {!signedInIsTeacher && (
+                    <span className="vf-tag">{userProfile?.cefrLevel || "A2–B1"}</span>
+                  )}
+                </div>
+                {d1Active && d1Stats && formatD1UsageSummary(d1Stats) && (
+                  <p
+                    data-testid="d1-health-stats"
+                    style={{
+                      margin: "6px 0 0",
+                      fontSize: "0.75rem",
+                      color: "var(--text-muted)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {formatD1UsageSummary(d1Stats)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {errorMsg && (
+              <div className="vf-alert vf-alert--error" role="alert">
+                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {infoMsg && (
+              <div className="vf-alert vf-alert--success">
+                <Check size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{infoMsg}</span>
+              </div>
+            )}
+
+            <div className="vf-sync-panel">
+              <span style={{ fontSize: "0.86rem", fontWeight: 500 }}>
+                Gộp dữ liệu từ trình duyệt
+              </span>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.81rem",
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.5,
+                }}
+              >
+                Nếu bạn từng tạo thẻ hoặc làm bài trước khi đăng nhập, nhấn nút dưới để đẩy toàn
+                bộ dữ liệu trên máy lên tài khoản.
+              </p>
+              <button
+                type="button"
+                className="vf-btn vf-btn--good"
+                onClick={handleSyncLocal}
+                disabled={syncing || busy}
+              >
+                <RefreshCw size={14} className={syncing ? "vf-spin" : ""} />
+                <span>
+                  {syncing
+                    ? "Đang đồng bộ..."
+                    : d1Active
+                      ? "Đồng bộ dữ liệu cục bộ lên Cloudflare D1"
+                      : "Đồng bộ dữ liệu cục bộ lên Supabase"}
+                </span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="vf-btn vf-btn--danger"
+              onClick={handleSignOut}
+              disabled={busy || syncing}
+            >
+              <LogOut size={15} />
+              <span>{busy ? "Đang đăng xuất..." : "Đăng xuất"}</span>
+            </button>
+          </>
+        )}
+
+        {/* Case 3: Guest / Mandatory Sign In & Sign Up */}
+        {isSupabaseConfigured && !user && (
+          <>
+            <div
+              className="vf-role-switcher"
+              role="tablist"
+              aria-label="Chọn vai trò tài khoản"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={role === "student"}
+                className={`vf-role-pill ${role === "student" ? "is-active" : ""}`}
+                onClick={() => handleRoleChange("student")}
+              >
+                <BookOpen size={14} aria-hidden="true" />
+                <span>Học sinh</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={role === "teacher"}
+                className={`vf-role-pill is-teacher ${role === "teacher" ? "is-active" : ""}`}
+                onClick={() => handleRoleChange("teacher")}
+              >
+                <GraduationCap size={14} aria-hidden="true" />
+                <span>Giáo viên</span>
+              </button>
+            </div>
+
+            <div className="vf-auth-tabs" role="tablist" aria-label="Chế độ xác thực">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "signin"}
+                className={`vf-auth-tab ${mode === "signin" ? "is-active" : ""}`}
+                onClick={() => handleModeChange("signin")}
+              >
+                Đăng nhập
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "signup"}
+                className={`vf-auth-tab ${mode === "signup" ? "is-active" : ""}`}
+                onClick={() => handleModeChange("signup")}
+              >
+                Tạo tài khoản
+              </button>
+            </div>
+
+            {errorMsg && (
+              <div className="vf-alert vf-alert--error" role="alert">
+                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {infoMsg && (
+              <div className="vf-alert vf-alert--success">
+                <Check size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{infoMsg}</span>
+              </div>
+            )}
+
+            <form className="vf-form" onSubmit={handleSubmit}>
+              <div className="vf-field">
+                <label htmlFor="vf-auth-account-name">{nameFieldLabel}</label>
+                <input
+                  id="vf-auth-account-name"
+                  type="text"
+                  className="vf-input"
+                  placeholder={nameFieldPlaceholder}
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  autoComplete="username"
+                  required
+                />
+              </div>
+
+              <div className="vf-field">
+                <label htmlFor="vf-auth-password">Mật khẩu</label>
+                <div className="vf-input-wrap">
+                  <input
+                    id="vf-auth-password"
+                    type={showPassword ? "text" : "password"}
+                    className="vf-input vf-input--password"
+                    placeholder="Tối thiểu 6 ký tự"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                    minLength={6}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="vf-input-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {isTeacherTab && mode === "signup" && (
+                <div className="vf-field">
+                  <label htmlFor="vf-auth-teacher-code">Mã giáo viên</label>
+                  <input
+                    id="vf-auth-teacher-code"
+                    type="text"
+                    className="vf-input vf-input--code"
+                    placeholder="Nhập mã giáo viên"
+                    value={teacherCode}
+                    onChange={(e) => setTeacherCode(e.target.value)}
+                    autoComplete="off"
+                    required
+                  />
+                  <p className="vf-field-helper">
+                    Dùng để xác nhận quyền giáo viên khi giao bài PDF cho học sinh.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="vf-btn vf-btn--primary vf-btn--lg"
+                disabled={busy}
+              >
+                {busy
+                  ? "Đang xử lý..."
+                  : mode === "signin"
+                    ? isTeacherTab
+                      ? "Đăng nhập giáo viên"
+                      : "Đăng nhập"
+                    : isTeacherTab
+                      ? "Tạo tài khoản giáo viên"
+                      : "Tạo tài khoản"}
+              </button>
+            </form>
+
+            <p className="vf-auth-footer-note">
+              {mandatory
+                ? isTeacherTab
+                  ? "Giáo viên tạo tài khoản bằng mã lớp để tải PDF, tạo flashcard và giao bài thẳng cho học sinh."
+                  : "Học sinh tạo tài khoản miễn phí chỉ với tên và mật khẩu — không cần email. Tiến độ và flashcard được lưu tự động."
+                : "Bạn vẫn có thể học không cần đăng nhập — dữ liệu hiện tại được giữ trên trình duyệt và có thể đồng bộ bất cứ lúc nào."}
+            </p>
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div
+        className="vf-modal vf-modal--inline"
+        role="region"
+        aria-label="Đăng nhập hoặc đăng ký tài khoản"
+      >
+        {modalContent}
+      </div>
+    );
+  }
+
   return (
     <div
       className="vf-modal-backdrop"
       role="presentation"
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (!mandatory && event.target === event.currentTarget) {
+          onClose?.();
+        }
       }}
     >
       <div
@@ -318,376 +716,7 @@ export function AuthModal({
         aria-modal="true"
         aria-labelledby="vf-auth-modal-title"
       >
-        <div className="vf-modal-header">
-          <div className="vf-modal-header-main">
-            <div className="vf-art-frame vf-modal-mascot">
-              <img
-                src={APP_ART.mascot.src}
-                alt={APP_ART.mascot.alt}
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-
-            <div className="vf-modal-header-copy">
-              <h2 id="vf-auth-modal-title" className="vf-modal-title">
-                {!isSupabaseConfigured
-                  ? "Lưu dữ liệu cục bộ"
-                  : user
-                    ? "Tài khoản & đồng bộ"
-                    : mode === "signup"
-                      ? "Tạo tài khoản"
-                      : "Đăng nhập"}
-              </h2>
-              <p className="vf-modal-subtitle">
-                {!isSupabaseConfigured
-                  ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
-                  : user
-                    ? signedInIsTeacher
-                      ? d1Active
-                        ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Cloudflare D1."
-                        : "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Supabase."
-                      : d1Active
-                        ? "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Cloudflare D1."
-                        : "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Supabase."
-                    : isTeacherTab
-                      ? "Tạo và giao bộ thẻ Flashcard từ file PDF cho toàn lớp học."
-                      : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="vf-modal-close"
-            onClick={onClose}
-            aria-label="Đóng hộp thoại"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="vf-modal-body">
-          {/* Case 1: Supabase not configured */}
-          {!isSupabaseConfigured && (
-            <>
-              <div className="vf-alert vf-alert--info">
-                <HardDrive size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  Bạn có thể học đầy đủ mà không cần tài khoản. Mọi thẻ tự tạo và điểm 4 kỹ năng đều
-                  được lưu tự động trong <code>localStorage</code> của trình duyệt.
-                </div>
-              </div>
-
-              <div>
-                <p style={{ margin: "0 0 6px", fontSize: "0.85rem", fontWeight: 500 }}>
-                  Bật đồng bộ tài khoản Học sinh &amp; Giáo viên với Supabase
-                </p>
-                <p style={{ margin: "0 0 10px", fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                  Thêm 2 biến môi trường sau vào <code>.env.local</code> hoặc cấu hình deploy:
-                </p>
-
-                <div className="vf-code-box">
-                  <button
-                    type="button"
-                    className="vf-copy-btn"
-                    onClick={handleCopyEnv}
-                  >
-                    {copied ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copied ? "Đã chép" : "Sao chép"}</span>
-                  </button>
-                  <pre>{ENV_SNIPPET}</pre>
-                </div>
-              </div>
-
-              <ol className="vf-steps-list">
-                <li>
-                  Tạo project trên Supabase, chạy các file migration trong{" "}
-                  <code>supabase/migrations/</code> (bao gồm{" "}
-                  <code>003_teacher_student_roles.sql</code>) trong SQL Editor và tắt{" "}
-                  <strong>Confirm email</strong> trong cài đặt Supabase Auth.
-                </li>
-                <li>
-                  Vào <strong>Project Settings → API</strong> để lấy Project URL và{" "}
-                  <code>anon public</code> key.
-                </li>
-                <li>
-                  Cập nhật 2 biến trên và deploy lại để bật đăng nhập Học sinh / Giáo viên và giao
-                  bộ thẻ PDF cho toàn lớp.
-                </li>
-              </ol>
-
-              <button type="button" className="vf-btn vf-btn--primary" onClick={onClose}>
-                Tiếp tục học cục bộ
-              </button>
-            </>
-          )}
-
-          {/* Case 2: Signed In */}
-          {isSupabaseConfigured && user && (
-            <>
-              <div className="vf-profile-card">
-                <div
-                  className={`vf-avatar ${signedInIsTeacher ? "is-teacher" : ""}`}
-                  aria-hidden="true"
-                >
-                  {initials}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <p className="vf-profile-name">{resolvedName}</p>
-                  <p className="vf-profile-email">
-                    {signedInIsTeacher
-                      ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp"
-                      : "Đồng bộ tiến độ & bài Flashcard giáo viên giao"}
-                  </p>
-                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                    <span
-                      className={`vf-tag ${signedInIsTeacher ? "vf-tag--teacher" : "vf-tag--good"}`}
-                    >
-                      {signedInIsTeacher ? "Giáo viên" : "Học sinh"}
-                    </span>
-                    {d1Active ? (
-                      <span className="vf-tag vf-tag--good" data-testid="d1-capacity-pill">
-                        <Database size={11} aria-hidden="true" />
-                        <span>Cloudflare D1 · 5 GB</span>
-                      </span>
-                    ) : (
-                      <span className="vf-tag vf-tag--good">Đang đồng bộ</span>
-                    )}
-                    {!signedInIsTeacher && (
-                      <span className="vf-tag">{userProfile?.cefrLevel || "A2–B1"}</span>
-                    )}
-                  </div>
-                  {d1Active && d1Stats && formatD1UsageSummary(d1Stats) && (
-                    <p
-                      data-testid="d1-health-stats"
-                      style={{
-                        margin: "6px 0 0",
-                        fontSize: "0.75rem",
-                        color: "var(--text-muted)",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {formatD1UsageSummary(d1Stats)}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {errorMsg && (
-                <div className="vf-alert vf-alert--error" role="alert">
-                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              {infoMsg && (
-                <div className="vf-alert vf-alert--success">
-                  <Check size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span>{infoMsg}</span>
-                </div>
-              )}
-
-              <div className="vf-sync-panel">
-                <span style={{ fontSize: "0.86rem", fontWeight: 500 }}>
-                  Gộp dữ liệu từ trình duyệt
-                </span>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.81rem",
-                    color: "var(--text-secondary)",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Nếu bạn từng tạo thẻ hoặc làm bài trước khi đăng nhập, nhấn nút dưới để đẩy toàn
-                  bộ dữ liệu trên máy lên tài khoản.
-                </p>
-                <button
-                  type="button"
-                  className="vf-btn vf-btn--good"
-                  onClick={handleSyncLocal}
-                  disabled={syncing || busy}
-                >
-                  <RefreshCw size={14} className={syncing ? "vf-spin" : ""} />
-                  <span>
-                    {syncing
-                      ? "Đang đồng bộ..."
-                      : d1Active
-                        ? "Đồng bộ dữ liệu cục bộ lên Cloudflare D1"
-                        : "Đồng bộ dữ liệu cục bộ lên Supabase"}
-                  </span>
-                </button>
-              </div>
-
-              <button
-                type="button"
-                className="vf-btn vf-btn--danger"
-                onClick={handleSignOut}
-                disabled={busy || syncing}
-              >
-                <LogOut size={15} />
-                <span>{busy ? "Đang đăng xuất..." : "Đăng xuất"}</span>
-              </button>
-            </>
-          )}
-
-          {/* Case 3: Guest Sign In / Sign Up */}
-          {isSupabaseConfigured && !user && (
-            <>
-              <div
-                className="vf-role-switcher"
-                role="tablist"
-                aria-label="Chọn vai trò tài khoản"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={role === "student"}
-                  className={`vf-role-pill ${role === "student" ? "is-active" : ""}`}
-                  onClick={() => handleRoleChange("student")}
-                >
-                  <BookOpen size={14} aria-hidden="true" />
-                  <span>Học sinh</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={role === "teacher"}
-                  className={`vf-role-pill is-teacher ${role === "teacher" ? "is-active" : ""}`}
-                  onClick={() => handleRoleChange("teacher")}
-                >
-                  <GraduationCap size={14} aria-hidden="true" />
-                  <span>Giáo viên</span>
-                </button>
-              </div>
-
-              <div className="vf-auth-tabs" role="tablist" aria-label="Chế độ xác thực">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "signin"}
-                  className={`vf-auth-tab ${mode === "signin" ? "is-active" : ""}`}
-                  onClick={() => handleModeChange("signin")}
-                >
-                  Đăng nhập
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "signup"}
-                  className={`vf-auth-tab ${mode === "signup" ? "is-active" : ""}`}
-                  onClick={() => handleModeChange("signup")}
-                >
-                  Tạo tài khoản
-                </button>
-              </div>
-
-              {errorMsg && (
-                <div className="vf-alert vf-alert--error" role="alert">
-                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              {infoMsg && (
-                <div className="vf-alert vf-alert--success">
-                  <Check size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span>{infoMsg}</span>
-                </div>
-              )}
-
-              <form className="vf-form" onSubmit={handleSubmit}>
-                <div className="vf-field">
-                  <label htmlFor="vf-auth-account-name">{nameFieldLabel}</label>
-                  <input
-                    id="vf-auth-account-name"
-                    type="text"
-                    className="vf-input"
-                    placeholder={nameFieldPlaceholder}
-                    value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                    autoComplete="username"
-                    required
-                  />
-                </div>
-
-                <div className="vf-field">
-                  <label htmlFor="vf-auth-password">Mật khẩu</label>
-                  <div className="vf-input-wrap">
-                    <input
-                      id="vf-auth-password"
-                      type={showPassword ? "text" : "password"}
-                      className="vf-input vf-input--password"
-                      placeholder="Tối thiểu 6 ký tự"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                      minLength={6}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="vf-input-toggle"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                    >
-                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-
-                {isTeacherTab && mode === "signup" && (
-                  <div className="vf-field">
-                    <label htmlFor="vf-auth-teacher-code">Mã giáo viên</label>
-                    <input
-                      id="vf-auth-teacher-code"
-                      type="text"
-                      className="vf-input vf-input--code"
-                      placeholder="Nhập mã giáo viên"
-                      value={teacherCode}
-                      onChange={(e) => setTeacherCode(e.target.value)}
-                      autoComplete="off"
-                      required
-                    />
-                    <p className="vf-field-helper">
-                      Dùng để xác nhận quyền giáo viên khi giao bài PDF cho học sinh.
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="vf-btn vf-btn--primary vf-btn--lg"
-                  disabled={busy}
-                >
-                  {busy
-                    ? "Đang xử lý..."
-                    : mode === "signin"
-                      ? isTeacherTab
-                        ? "Đăng nhập giáo viên"
-                        : "Đăng nhập"
-                      : isTeacherTab
-                        ? "Tạo tài khoản giáo viên"
-                        : "Tạo tài khoản"}
-                </button>
-              </form>
-
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.78rem",
-                  color: "var(--text-muted)",
-                  textAlign: "center",
-                  lineHeight: 1.5,
-                }}
-              >
-                Bạn vẫn có thể học không cần đăng nhập — dữ liệu hiện tại được giữ trên trình duyệt
-                và có thể đồng bộ bất cứ lúc nào.
-              </p>
-            </>
-          )}
-        </div>
+        {modalContent}
       </div>
     </div>
   );

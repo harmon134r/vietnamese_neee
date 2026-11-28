@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { TOPICS, STARTER_DECKS, getTopicById, getContentStats } from "./data";
+import { APP_ART } from "./data/illustrations";
 import {
   GAME_TYPES,
   createEmptySkillProgress,
@@ -54,6 +55,7 @@ export function App() {
   const [activeDeckId, setActiveDeckId] = useState("");
   const [skillProgress, setSkillProgress] = useState(() => createEmptySkillProgress());
   const [gameHistory, setGameHistory] = useState([]);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(isSupabaseConfigured);
   const [isLoading, setIsLoading] = useState(true);
 
   const [user, setUser] = useState(null);
@@ -65,7 +67,8 @@ export function App() {
   const toastTimerRef = useRef(new Map());
   const hydrateInFlightRef = useRef(null);
   const hydrateQueuedRef = useRef(false);
-  const lastAuthUserIdRef = useRef(undefined);
+  const hydratedUserIdRef = useRef(null);
+  const authRevisionRef = useRef(0);
   const decksRef = useRef(decks);
   decksRef.current = decks;
 
@@ -125,7 +128,33 @@ export function App() {
     };
   }, []);
 
+  const resetForSignOut = useCallback(() => {
+    stopSpeaking();
+    authRevisionRef.current += 1;
+    hydratedUserIdRef.current = null;
+    hydrateQueuedRef.current = false;
+    setUser(null);
+    setUserProfile(null);
+    setDecks([]);
+    setActiveDeckId("");
+    setSkillProgress(createEmptySkillProgress());
+    setGameHistory([]);
+    setStorageMode("local");
+    setActiveView("dashboard");
+    setActiveTopicId(null);
+    setOverviewTopicId("self");
+    setInitialGame("hub");
+    setFlashcardTopicFilter("all");
+    setFlashcardInitialTab("study");
+    setFlashcardCreatorTab("single");
+    setFlashcardCreateNewDeck(false);
+    setAuthModalOpen(false);
+    setIsCheckingAuth(false);
+    setIsLoading(false);
+  }, []);
+
   const runHydrateOnce = useCallback(async () => {
+    const revision = authRevisionRef.current;
     try {
       const [loadedDecks, loadedProgress, loadedHistory, mode] = await Promise.all([
         loadDecks(STARTER_DECKS),
@@ -133,6 +162,9 @@ export function App() {
         loadGameHistory({ limit: 25 }),
         getStorageMode(),
       ]);
+
+      if (revision !== authRevisionRef.current) return;
+      if (isSupabaseConfigured && !hydratedUserIdRef.current) return;
 
       setDecks(loadedDecks);
       setActiveDeckId((prev) => {
@@ -143,10 +175,13 @@ export function App() {
       setGameHistory(loadedHistory);
       setStorageMode(mode);
     } catch (err) {
+      if (revision !== authRevisionRef.current) return;
       console.error("Failed to load munnn01 data:", err);
       notify("Không thể tải đầy đủ dữ liệu. Đã dùng bộ khởi tạo mặc định.", "error");
     } finally {
-      setIsLoading(false);
+      if (revision === authRevisionRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [notify]);
 
@@ -171,27 +206,64 @@ export function App() {
     return execute;
   }, [runHydrateOnce]);
 
+  const hydrateForSignedInUser = useCallback(
+    async (userId) => {
+      if (!userId) return;
+      if (hydratedUserIdRef.current === userId) return;
+      hydratedUserIdRef.current = userId;
+      setIsLoading(true);
+      await hydrateData();
+    },
+    [hydrateData]
+  );
+
   useEffect(() => {
     let active = true;
 
     async function bootstrap() {
-      let initialUserId = null;
+      if (!isSupabaseConfigured) {
+        setIsCheckingAuth(false);
+        await hydrateData();
+        return;
+      }
+
+      let sessionUser = null;
       try {
-        const { user: sessionUser } = await getSession();
+        const res = await getSession();
         if (!active) return;
-        initialUserId = sessionUser?.id || null;
-        setUser(sessionUser);
-        if (sessionUser) {
-          const profile = await getUserProfile(sessionUser.id);
-          if (active) setUserProfile(profile);
-        } else {
-          setUserProfile(null);
+        sessionUser = res?.user || null;
+      } catch {
+        sessionUser = null;
+      }
+
+      if (!active) return;
+
+      if (!sessionUser) {
+        hydratedUserIdRef.current = null;
+        setUser(null);
+        setUserProfile(null);
+        setIsCheckingAuth(false);
+        setIsLoading(false);
+        return;
+      }
+
+      hydratedUserIdRef.current = sessionUser.id;
+      setUser(sessionUser);
+      setIsLoading(true);
+      setIsCheckingAuth(false);
+
+      try {
+        const profile = await getUserProfile(sessionUser.id);
+        if (active && hydratedUserIdRef.current === sessionUser.id) {
+          setUserProfile(profile);
         }
       } catch {
-        // graceful local fallback
+        if (active && hydratedUserIdRef.current === sessionUser.id) {
+          setUserProfile(null);
+        }
       }
-      if (active) {
-        lastAuthUserIdRef.current = initialUserId;
+
+      if (active && hydratedUserIdRef.current === sessionUser.id) {
         await hydrateData();
       }
     }
@@ -204,31 +276,55 @@ export function App() {
       if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
         return;
       }
+
       const nextUser = session?.user || null;
       const nextUserId = nextUser?.id || null;
-      setUser(nextUser);
-      if (nextUser) {
-        try {
-          const profile = await getUserProfile(nextUser.id);
-          if (active) setUserProfile(profile);
-        } catch {
-          if (active) setUserProfile(null);
+
+      if (!nextUser || event === "SIGNED_OUT") {
+        if (isSupabaseConfigured) {
+          resetForSignOut();
+        } else {
+          setUser(null);
+          setUserProfile(null);
+          hydratedUserIdRef.current = null;
+          await hydrateData();
         }
-      } else {
-        setUserProfile(null);
-      }
-      if (event === "SIGNED_IN" && nextUserId === lastAuthUserIdRef.current) {
         return;
       }
-      lastAuthUserIdRef.current = nextUserId;
-      await hydrateData();
+
+      const needsHydrate = hydratedUserIdRef.current !== nextUserId;
+      if (event === "SIGNED_IN" && !needsHydrate) {
+        return;
+      }
+
+      if (needsHydrate) {
+        hydratedUserIdRef.current = nextUserId;
+        setIsLoading(true);
+      }
+      setIsCheckingAuth(false);
+      setUser(nextUser);
+
+      try {
+        const profile = await getUserProfile(nextUser.id);
+        if (active && hydratedUserIdRef.current === nextUserId) {
+          setUserProfile(profile);
+        }
+      } catch {
+        if (active && hydratedUserIdRef.current === nextUserId) {
+          setUserProfile(null);
+        }
+      }
+
+      if (active && needsHydrate && hydratedUserIdRef.current === nextUserId) {
+        await hydrateData();
+      }
     });
 
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [hydrateData]);
+  }, [hydrateData, resetForSignOut]);
 
   // Stop any playing Vietnamese TTS whenever switching top-level views
   useEffect(() => {
@@ -515,23 +611,119 @@ export function App() {
 
   const handleAuthSuccess = useCallback(
     (nextUser, nextProfile) => {
+      if (!nextUser) {
+        if (isSupabaseConfigured) {
+          resetForSignOut();
+        } else {
+          setUser(null);
+          setUserProfile(null);
+          setStorageMode("local");
+          hydrateData();
+        }
+        return;
+      }
+
+      const nextUserId = nextUser.id;
       setUser(nextUser);
       setUserProfile(nextProfile || null);
+      setAuthModalOpen(false);
+      setIsCheckingAuth(false);
       setStorageMode(
-        nextUser
-          ? isD1Configured()
-            ? "cloudflare-d1"
-            : isSupabaseConfigured
-              ? "supabase"
-              : "local"
-          : "local"
+        isD1Configured()
+          ? "cloudflare-d1"
+          : isSupabaseConfigured
+            ? "supabase"
+            : "local"
       );
-      if (!isSupabaseConfigured) {
+
+      if (isSupabaseConfigured) {
+        hydrateForSignedInUser(nextUserId);
+      } else {
         hydrateData();
       }
     },
-    [hydrateData]
+    [hydrateData, hydrateForSignedInUser, resetForSignOut]
   );
+
+  const toastStack = toasts.length > 0 && (
+    <div className="vf-toast-stack" role="region" aria-label="Thông báo" aria-live="polite">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`vf-toast vf-toast--${toast.type}`}>
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            className="vf-toast-close"
+            onClick={() => dismissToast(toast.id)}
+            aria-label="Đóng thông báo"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+
+  if (isSupabaseConfigured && isCheckingAuth) {
+    return (
+      <div className="vf-app vf-app--auth-gate">
+        <BambooFrame />
+
+        <main className="vf-main vf-auth-gate-loading">
+          <div className="vf-loading-screen" role="status" aria-live="polite">
+            <div className="vf-spinner" />
+            <span>Đang kiểm tra tài khoản...</span>
+          </div>
+        </main>
+
+        <BottomRunner />
+        <div className="vf-credit">@thembanhkhoai</div>
+        {toastStack}
+      </div>
+    );
+  }
+
+  if (isSupabaseConfigured && !user) {
+    return (
+      <div className="vf-app vf-app--auth-gate">
+        <BambooFrame />
+
+        <main className="vf-auth-gate" data-testid="auth-gate">
+          <div className="vf-auth-gate-inner">
+            <header className="vf-auth-gate-header">
+              <div className="vf-auth-gate-brand">
+                <img
+                  src={APP_ART.emblem.src}
+                  alt={APP_ART.emblem.alt}
+                  className="vf-brand-emblem vf-auth-gate-emblem"
+                  decoding="async"
+                />
+                <span className="vf-brand-name vf-auth-gate-brand-name">munnn01</span>
+                <span className="vf-brand-level vf-auth-gate-level">A2–B1</span>
+              </div>
+              <h1 className="vf-auth-gate-title">Bàn học tiếng Việt của bạn</h1>
+              <p className="vf-auth-gate-sub">
+                Đăng nhập hoặc tạo tài khoản để luyện nghe, nói, đọc, phát âm và học flashcard cùng lớp.
+              </p>
+            </header>
+
+            <AuthModal
+              isOpen
+              inline
+              mandatory
+              user={null}
+              userProfile={null}
+              onAuthSuccess={handleAuthSuccess}
+              onNotify={notify}
+            />
+          </div>
+        </main>
+
+        <BottomRunner />
+        <div className="vf-credit">@thembanhkhoai</div>
+        {toastStack}
+      </div>
+    );
+  }
 
   return (
     <div className="vf-app">
@@ -649,23 +841,7 @@ export function App() {
         onNotify={notify}
       />
 
-      {toasts.length > 0 && (
-        <div className="vf-toast-stack" role="region" aria-label="Thông báo" aria-live="polite">
-          {toasts.map((toast) => (
-            <div key={toast.id} className={`vf-toast vf-toast--${toast.type}`}>
-              <span>{toast.message}</span>
-              <button
-                type="button"
-                className="vf-toast-close"
-                onClick={() => dismissToast(toast.id)}
-                aria-label="Đóng thông báo"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {toastStack}
     </div>
   );
 }

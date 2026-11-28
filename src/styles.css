@@ -2628,6 +2628,112 @@ a:hover {
 }
 
 /* ==========================================================================
+   Mandatory Auth Gate — Calm Warm-Stone Editorial Entry Screen
+   ========================================================================== */
+
+.vf-auth-gate-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vf-auth-gate {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px 96px;
+  animation: vfFadeIn 180ms ease-out;
+}
+
+.vf-auth-gate-inner {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.vf-auth-gate-header {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.vf-auth-gate-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+
+.vf-auth-gate-emblem {
+  height: 26px;
+}
+
+.vf-auth-gate-brand-name {
+  font-size: 1.38rem;
+}
+
+.vf-auth-gate-level {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin-top: 0;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.vf-auth-gate-title {
+  margin: 2px 0 0;
+  font-family: var(--font-serif);
+  font-size: clamp(1.5rem, 2.8vw, 1.85rem);
+  font-weight: 400;
+  letter-spacing: -0.022em;
+  line-height: 1.24;
+  color: var(--text-primary);
+}
+
+.vf-auth-gate-sub {
+  margin: 0;
+  max-width: 42ch;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.58;
+  color: var(--text-secondary);
+}
+
+.vf-modal--inline {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  max-height: none;
+  overflow: visible;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+}
+
+.vf-auth-footer-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.55;
+}
+
+/* ==========================================================================
    Toast Notifications & Loading State
    ========================================================================== */
 
@@ -3049,6 +3155,18 @@ a:hover {
     right: 14px;
   }
 
+  .vf-app--auth-gate .vf-runner-stage {
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .vf-app--auth-gate .vf-credit {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .vf-app--auth-gate .vf-toast-stack {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
   .vf-phrases-table {
     grid-template-columns: 1fr;
   }
@@ -3080,6 +3198,27 @@ a:hover {
 
   .vf-brand-level {
     display: none;
+  }
+
+  .vf-auth-gate {
+    justify-content: flex-start;
+    padding: 24px 14px 88px;
+  }
+
+  .vf-auth-gate-inner {
+    gap: 16px;
+  }
+
+  .vf-auth-gate-level {
+    display: inline-flex;
+  }
+
+  .vf-modal--inline .vf-modal-header {
+    padding: 18px 18px 14px;
+  }
+
+  .vf-modal--inline .vf-modal-body {
+    padding: 18px 18px 20px;
   }
 
   .vf-nav-meta {
