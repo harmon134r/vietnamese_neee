@@ -99,6 +99,8 @@ function buildRound(
 export function ListeningGame({
   activeTopicId = "all",
   onCompleteSession,
+  onAutoSyncStep,
+  onSavePartialSession,
   onBack,
 }) {
   const {
@@ -146,6 +148,21 @@ export function ListeningGame({
 
   const startTimeRef = useRef(Date.now());
   const reportedRef = useRef(false);
+  const stepSyncedXpRef = useRef(0);
+  const answersRef = useRef([]);
+  const bestStreakRef = useRef(0);
+  const totalReplaysRef = useRef(0);
+  const exercisesLengthRef = useRef(0);
+  const activeTopicIdRef = useRef(activeTopicId);
+  const onAutoSyncStepRef = useRef(onAutoSyncStep);
+  const onSavePartialSessionRef = useRef(onSavePartialSession);
+
+  bestStreakRef.current = bestStreak;
+  totalReplaysRef.current = totalReplays;
+  exercisesLengthRef.current = exercises.length;
+  activeTopicIdRef.current = activeTopicId;
+  onAutoSyncStepRef.current = onAutoSyncStep;
+  onSavePartialSessionRef.current = onSavePartialSession;
 
   const currentExercise = exercises[currentIndex] || null;
   const topicMeta = currentExercise
@@ -164,6 +181,8 @@ export function ListeningGame({
     setBestStreak(0);
     setXpEarned(0);
     setAnswers([]);
+    answersRef.current = [];
+    stepSyncedXpRef.current = 0;
     setCompleted(false);
     startTimeRef.current = Date.now();
     reportedRef.current = false;
@@ -205,6 +224,46 @@ export function ListeningGame({
     return () => {
       stopSpeak();
       speechApi.stopSpeaking?.();
+      const ans = answersRef.current;
+      if (
+        !reportedRef.current &&
+        ans.length > 0 &&
+        typeof onSavePartialSessionRef.current === "function"
+      ) {
+        reportedRef.current = true;
+        const correctCount = ans.filter((a) => a.isCorrect).length;
+        const answeredCount = ans.length;
+        const accuracy = Math.round((correctCount / answeredCount) * 100);
+        const durationSec = Math.max(
+          1,
+          Math.round((Date.now() - startTimeRef.current) / 1000)
+        );
+        const hasStepSync = typeof onAutoSyncStepRef.current === "function";
+        onSavePartialSessionRef.current({
+          gameType: GAME_TYPES.LISTEN_MATCH,
+          topicId:
+            activeTopicIdRef.current === "all" ? null : activeTopicIdRef.current,
+          skillTags: ["listening", "reading"],
+          score: correctCount,
+          maxScore: Math.max(
+            answeredCount,
+            exercisesLengthRef.current || answeredCount
+          ),
+          accuracy,
+          durationSec,
+          durationSeconds: durationSec,
+          details: {
+            partial: true,
+            answeredCount,
+            bestStreak: bestStreakRef.current,
+            totalReplays: totalReplaysRef.current,
+            xpEarned: stepSyncedXpRef.current,
+          },
+          ...(hasStepSync
+            ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+            : {}),
+        });
+      }
     };
   }, [stopSpeak]);
 
@@ -237,8 +296,8 @@ export function ListeningGame({
     setStreak(nextStreak);
     setBestStreak(nextBestStreak);
     setXpEarned((prev) => prev + gainedXp);
-    setAnswers((prev) => [
-      ...prev,
+    const nextAnswers = [
+      ...answersRef.current,
       {
         exerciseId: currentExercise.id,
         titleVi: currentExercise.titleVi,
@@ -247,7 +306,21 @@ export function ListeningGame({
         correctOptionId: currentExercise.correctOptionId,
         isCorrect,
       },
-    ]);
+    ];
+    answersRef.current = nextAnswers;
+    setAnswers(nextAnswers);
+
+    if (typeof onAutoSyncStep === "function") {
+      stepSyncedXpRef.current += gainedXp;
+      onAutoSyncStep({
+        skillTags: ["listening", "reading"],
+        accuracy: isCorrect ? 100 : 35,
+        topicId:
+          currentExercise.topicId ||
+          (activeTopicId === "all" ? null : activeTopicId),
+        xpDelta: gainedXp,
+      });
+    }
   };
 
   const finishRound = () => {
@@ -276,6 +349,9 @@ export function ListeningGame({
           totalReplays,
           xpEarned,
         },
+        ...(typeof onAutoSyncStep === "function"
+          ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+          : {}),
       });
     }
   };

@@ -193,6 +193,8 @@ export function ReadingVocabGame({
   activeTopicId = "all",
   initialSubMode = "reading",
   onCompleteSession,
+  onAutoSyncStep,
+  onSavePartialSession,
   onBack,
 }) {
   const { isSpeaking, voice, speak, stopSpeak } = useVietnameseSpeech({
@@ -238,9 +240,15 @@ export function ReadingVocabGame({
   const [readingAnswers, setReadingAnswers] = useState({});
   const readingStartRef = useRef(Date.now());
   const readingReportedIdRef = useRef(null);
+  const readingStepXpRef = useRef(0);
+  const readingAnswersRef = useRef({});
+  const currentPassageRef = useRef(null);
+  const lookedUpCountRef = useRef(0);
 
   const currentPassage =
     filteredPassages[passageIndex] || filteredPassages[0] || null;
+  currentPassageRef.current = currentPassage;
+  lookedUpCountRef.current = lookedUpWords.length;
 
   // ---------- Sub-mode B: Sentence Builder Sprint ----------
   const allBuildersForScope = useMemo(() => {
@@ -284,25 +292,135 @@ export function ReadingVocabGame({
 
   const builderStartRef = useRef(Date.now());
   const builderReportedRef = useRef(false);
+  const builderStepXpRef = useRef(0);
+  const builderAttemptedRef = useRef(0);
+  const builderScoreRef = useRef(0);
+  const builderBestComboRef = useRef(0);
+  const sentenceRoundLenRef = useRef(sentenceRound.length);
+  const activeTopicIdRef = useRef(activeTopicId);
+  const onAutoSyncStepRef = useRef(onAutoSyncStep);
+  const onSavePartialSessionRef = useRef(onSavePartialSession);
+
+  sentenceRoundLenRef.current = sentenceRound.length;
+  activeTopicIdRef.current = activeTopicId;
+  onAutoSyncStepRef.current = onAutoSyncStep;
+  onSavePartialSessionRef.current = onSavePartialSession;
+
+  const flushPartialReading = () => {
+    const p = currentPassageRef.current;
+    const ans = readingAnswersRef.current;
+    const answered = Object.keys(ans || {}).length;
+    const totalQ = p?.questions?.length || 0;
+    if (
+      !p ||
+      totalQ === 0 ||
+      answered === 0 ||
+      answered >= totalQ ||
+      readingReportedIdRef.current === p.id ||
+      typeof onSavePartialSessionRef.current !== "function"
+    ) {
+      return;
+    }
+    readingReportedIdRef.current = p.id;
+    const correctCount = p.questions.filter(
+      (q) => ans[q.id] === q.correctIndex
+    ).length;
+    const accuracy = Math.round((correctCount / answered) * 100);
+    const durationSec = Math.max(
+      1,
+      Math.round((Date.now() - readingStartRef.current) / 1000)
+    );
+    const hasStepSync = typeof onAutoSyncStepRef.current === "function";
+    onSavePartialSessionRef.current({
+      gameType: GAME_TYPES.READING_COMPREHENSION,
+      topicId: p.topicId || null,
+      skillTags: ["reading", "listening"],
+      score: correctCount,
+      maxScore: totalQ,
+      accuracy,
+      durationSec,
+      durationSeconds: durationSec,
+      details: {
+        partial: true,
+        mode: "reading_passage",
+        passageId: p.id,
+        answeredCount: answered,
+        lookedUpWordsCount: lookedUpCountRef.current,
+        xpEarned: readingStepXpRef.current,
+      },
+      ...(hasStepSync
+        ? { stepSynced: true, stepSyncedXp: readingStepXpRef.current }
+        : {}),
+    });
+  };
+
+  const flushPartialBuilder = () => {
+    if (
+      builderReportedRef.current ||
+      builderAttemptedRef.current <= 0 ||
+      typeof onSavePartialSessionRef.current !== "function"
+    ) {
+      return;
+    }
+    builderReportedRef.current = true;
+    const attemptedCount = builderAttemptedRef.current;
+    const accuracy = Math.round(
+      (builderScoreRef.current / Math.max(1, attemptedCount)) * 100
+    );
+    const durationSec = Math.max(
+      1,
+      Math.round((Date.now() - builderStartRef.current) / 1000)
+    );
+    const hasStepSync = typeof onAutoSyncStepRef.current === "function";
+    onSavePartialSessionRef.current({
+      gameType: GAME_TYPES.READING_COMPREHENSION,
+      topicId:
+        activeTopicIdRef.current === "all" ? null : activeTopicIdRef.current,
+      skillTags: ["reading", "listening"],
+      score: builderScoreRef.current,
+      maxScore: Math.max(attemptedCount, sentenceRoundLenRef.current || attemptedCount),
+      accuracy,
+      durationSec,
+      durationSeconds: durationSec,
+      details: {
+        partial: true,
+        mode: "sentence_builder",
+        attemptedCount,
+        bestCombo: builderBestComboRef.current,
+        xpEarned: builderStepXpRef.current,
+      },
+      ...(hasStepSync
+        ? { stepSynced: true, stepSyncedXp: builderStepXpRef.current }
+        : {}),
+    });
+  };
 
   const currentBuilderItem = sentenceRound[builderIndex] || null;
 
   useEffect(() => {
+    flushPartialReading();
     setReadingTopicFilter("all");
     setPassageIndex(0);
     setSelectedGlossaryKey(null);
     setLookedUpWords([]);
     setReadingAnswers({});
+    readingAnswersRef.current = {};
+    readingStepXpRef.current = 0;
     readingStartRef.current = Date.now();
     readingReportedIdRef.current = null;
   }, [activeTopicId]);
 
   useEffect(() => {
+    flushPartialBuilder();
     setBuilderIndex(0);
     setBuilderScore(0);
+    builderScoreRef.current = 0;
     setBuilderCombo(0);
     setBuilderBestCombo(0);
+    builderBestComboRef.current = 0;
     setBuilderXp(0);
+    builderStepXpRef.current = 0;
+    builderAttemptedRef.current = 0;
     setBuilderCompleted(false);
     builderStartRef.current = Date.now();
     builderReportedRef.current = false;
@@ -340,31 +458,40 @@ export function ReadingVocabGame({
     return () => {
       stopSpeak();
       speechApi.stopSpeaking?.();
+      flushPartialReading();
+      flushPartialBuilder();
     };
   }, [stopSpeak]);
 
   // Reading handlers
   const handleSelectPassage = (idx) => {
+    flushPartialReading();
     const safeIdx = Math.max(0, Math.min(filteredPassages.length - 1, idx));
     stopSpeak();
     setPassageIndex(safeIdx);
     setSelectedGlossaryKey(null);
     setReadingAnswers({});
+    readingAnswersRef.current = {};
+    readingStepXpRef.current = 0;
     readingStartRef.current = Date.now();
     readingReportedIdRef.current = null;
   };
 
   const handleSelectReadingTopicFilter = (topicId) => {
+    flushPartialReading();
     stopSpeak();
     setReadingTopicFilter(topicId);
     setPassageIndex(0);
     setSelectedGlossaryKey(null);
     setReadingAnswers({});
+    readingAnswersRef.current = {};
+    readingStepXpRef.current = 0;
     readingStartRef.current = Date.now();
     readingReportedIdRef.current = null;
   };
 
   const handleRestartBuilder = () => {
+    flushPartialBuilder();
     if (!activeTopicId || activeTopicId === "all") {
       for (const item of sentenceRound) {
         seenBuilderIdsRef.current.add(item.id);
@@ -384,9 +511,22 @@ export function ReadingVocabGame({
   };
 
   const handleReadingAnswer = (question, optIdx) => {
-    if (!currentPassage || readingAnswers[question.id] !== undefined) return;
-    const nextAnswers = { ...readingAnswers, [question.id]: optIdx };
+    if (!currentPassage || readingAnswersRef.current[question.id] !== undefined) return;
+    const nextAnswers = { ...readingAnswersRef.current, [question.id]: optIdx };
+    readingAnswersRef.current = nextAnswers;
     setReadingAnswers(nextAnswers);
+
+    const isCorrect = optIdx === question.correctIndex;
+    const qXp = isCorrect ? 12 : 4;
+    if (typeof onAutoSyncStep === "function") {
+      readingStepXpRef.current += qXp;
+      onAutoSyncStep({
+        skillTags: ["reading", "listening"],
+        accuracy: isCorrect ? 100 : 30,
+        topicId: currentPassage.topicId || null,
+        xpDelta: qXp,
+      });
+    }
 
     const totalQ = currentPassage.questions?.length || 0;
     if (
@@ -418,6 +558,9 @@ export function ReadingVocabGame({
             passageId: currentPassage.id,
             lookedUpWordsCount: lookedUpWords.length,
           },
+          ...(typeof onAutoSyncStep === "function"
+            ? { stepSynced: true, stepSyncedXp: readingStepXpRef.current }
+            : {}),
         });
       }
     }
@@ -456,6 +599,7 @@ export function ReadingVocabGame({
 
   const handleCheckSentence = () => {
     if (!currentBuilderItem || placedTiles.length === 0) return;
+    if (builderStatus === "correct" || builderStatus === "revealed") return;
     const assembled = placedTiles.map((t) => t.text).join(" ");
     const isExactMatch =
       normalizeForSentenceCompare(assembled) ===
@@ -463,12 +607,31 @@ export function ReadingVocabGame({
 
     if (isExactMatch) {
       const nextCombo = builderCombo + 1;
+      const gainedXp = 15 + Math.min(nextCombo, 4) * 5;
+      const nextScore = builderScoreRef.current + 1;
+      const nextBestCombo = Math.max(builderBestComboRef.current, nextCombo);
+      builderScoreRef.current = nextScore;
+      builderBestComboRef.current = nextBestCombo;
+      builderAttemptedRef.current += 1;
+
       setBuilderStatus("correct");
-      setBuilderScore((prev) => prev + 1);
+      setBuilderScore(nextScore);
       setBuilderCombo(nextCombo);
-      setBuilderBestCombo((prev) => Math.max(prev, nextCombo));
-      setBuilderXp((prev) => prev + 15 + Math.min(nextCombo, 4) * 5);
+      setBuilderBestCombo(nextBestCombo);
+      setBuilderXp((prev) => prev + gainedXp);
       speak(currentBuilderItem.targetSentenceVi, { rate: 0.95 });
+
+      if (typeof onAutoSyncStep === "function") {
+        builderStepXpRef.current += gainedXp;
+        onAutoSyncStep({
+          skillTags: ["reading", "listening"],
+          accuracy: 100,
+          topicId:
+            currentBuilderItem.topicId ||
+            (activeTopicId === "all" ? null : activeTopicId),
+          xpDelta: gainedXp,
+        });
+      }
     } else {
       setBuilderStatus("wrong");
       setBuilderCombo(0);
@@ -477,9 +640,24 @@ export function ReadingVocabGame({
 
   const handleRevealSentence = () => {
     if (!currentBuilderItem) return;
+    if (builderStatus === "correct" || builderStatus === "revealed") return;
     setBuilderStatus("revealed");
     setBuilderCombo(0);
+    builderAttemptedRef.current += 1;
     speak(currentBuilderItem.targetSentenceVi, { rate: 0.92 });
+
+    if (typeof onAutoSyncStep === "function") {
+      const gainedXp = 3;
+      builderStepXpRef.current += gainedXp;
+      onAutoSyncStep({
+        skillTags: ["reading", "listening"],
+        accuracy: 25,
+        topicId:
+          currentBuilderItem.topicId ||
+          (activeTopicId === "all" ? null : activeTopicId),
+        xpDelta: gainedXp,
+      });
+    }
   };
 
   const handleNextBuilder = () => {
@@ -511,6 +689,9 @@ export function ReadingVocabGame({
             bestCombo: builderBestCombo,
             xpEarned: builderXp,
           },
+          ...(typeof onAutoSyncStep === "function"
+            ? { stepSynced: true, stepSyncedXp: builderStepXpRef.current }
+            : {}),
         });
       }
       return;
@@ -544,6 +725,7 @@ export function ReadingVocabGame({
             }`}
             onClick={() => {
               stopSpeak();
+              flushPartialBuilder();
               setSubMode("reading");
             }}
             data-testid="reading-tab-passage"
@@ -559,6 +741,7 @@ export function ReadingVocabGame({
             }`}
             onClick={() => {
               stopSpeak();
+              flushPartialReading();
               setSubMode("builder");
             }}
             data-testid="reading-tab-builder"

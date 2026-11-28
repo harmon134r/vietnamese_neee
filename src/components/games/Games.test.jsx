@@ -956,6 +956,105 @@ describe("SynonymAntonymChase", () => {
   });
 });
 
+describe("Real-Time Step Auto-Sync & Partial Session Save", () => {
+  afterEach(() => {
+    window.localStorage?.clear?.();
+  });
+
+  it("syncs ListeningGame immediately after a single answer and saves partial session on mid-round unmount", () => {
+    const onAutoSyncStep = vi.fn();
+    const onSavePartialSession = vi.fn();
+    const onCompleteSession = vi.fn();
+    const selfExercises = LISTENING_EXERCISES.filter((e) => e.topicId === "self");
+
+    const { unmount } = render(
+      <ListeningGame
+        activeTopicId="self"
+        onAutoSyncStep={onAutoSyncStep}
+        onSavePartialSession={onSavePartialSession}
+        onCompleteSession={onCompleteSession}
+      />
+    );
+
+    const firstEx = selfExercises[0];
+    fireEvent.click(screen.getByTestId(`listening-option-${firstEx.correctOptionId}`));
+
+    expect(onAutoSyncStep).toHaveBeenCalledTimes(1);
+    expect(onAutoSyncStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillTags: ["listening", "reading"],
+        accuracy: 100,
+        topicId: "self",
+      })
+    );
+    expect(onCompleteSession).not.toHaveBeenCalled();
+
+    unmount();
+    expect(onSavePartialSession).toHaveBeenCalledTimes(1);
+    expect(onSavePartialSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gameType: GAME_TYPES.LISTEN_MATCH,
+        topicId: "self",
+        stepSynced: true,
+        score: 1,
+        accuracy: 100,
+      })
+    );
+  });
+
+  it("syncs ReadingVocabGame MCQ and SynonymAntonymChase answers immediately on each step", () => {
+    const onAutoSyncStepReading = vi.fn();
+    const selfPassage = READING_PASSAGES.find((p) => p.topicId === "self");
+
+    const { unmount: unmountReading } = render(
+      <ReadingVocabGame
+        activeTopicId="self"
+        onAutoSyncStep={onAutoSyncStepReading}
+      />
+    );
+    fireEvent.click(
+      screen.getByTestId(`reading-q-0-opt-${selfPassage.questions[0].correctIndex}`)
+    );
+    expect(onAutoSyncStepReading).toHaveBeenCalledTimes(1);
+    expect(onAutoSyncStepReading).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillTags: ["reading", "listening"],
+        accuracy: 100,
+        topicId: "self",
+      })
+    );
+    unmountReading();
+
+    const onAutoSyncStepChase = vi.fn();
+    const onSavePartialChase = vi.fn();
+    const { unmount: unmountChase } = render(
+      <SynonymAntonymChase
+        activeTopicId="all"
+        onAutoSyncStep={onAutoSyncStepChase}
+        onSavePartialSession={onSavePartialChase}
+      />
+    );
+    fireEvent.click(screen.getByTestId("chase-start-btn"));
+    fireEvent.click(screen.getByTestId("chase-lane-top"));
+
+    expect(onAutoSyncStepChase).toHaveBeenCalledTimes(1);
+    expect(onAutoSyncStepChase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillTags: ["reading", "listening"],
+      })
+    );
+
+    unmountChase();
+    expect(onSavePartialChase).toHaveBeenCalledTimes(1);
+    expect(onSavePartialChase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gameType: GAME_TYPES.SYNONYM_ANTONYM_CHASE,
+        stepSynced: true,
+      })
+    );
+  });
+});
+
 describe("4-Skill Curriculum Data Integrity & Coverage", () => {
   const validTopicIds = new Set(TOPICS.map((t) => t.id));
   const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

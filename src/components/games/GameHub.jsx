@@ -139,6 +139,8 @@ export function GameHub({
   onSelectTopic,
   initialGame = "hub",
   onCompleteSession,
+  onAutoSyncStep,
+  onSavePartialSession,
   skillProgress,
   onNavigateFlashcards,
 }) {
@@ -264,6 +266,8 @@ export function GameHub({
           <ListeningGame
             activeTopicId={selectedTopic}
             onCompleteSession={onCompleteSession}
+            onAutoSyncStep={onAutoSyncStep}
+            onSavePartialSession={onSavePartialSession}
             onBack={handleBackToHub}
           />
         )}
@@ -272,6 +276,8 @@ export function GameHub({
             activeTopicId={selectedTopic}
             initialSubMode={subModeHint || "minimal-pairs"}
             onCompleteSession={onCompleteSession}
+            onAutoSyncStep={onAutoSyncStep}
+            onSavePartialSession={onSavePartialSession}
             onBack={handleBackToHub}
           />
         )}
@@ -279,6 +285,8 @@ export function GameHub({
           <DialogueRoleplay
             activeTopicId={selectedTopic}
             onCompleteSession={onCompleteSession}
+            onAutoSyncStep={onAutoSyncStep}
+            onSavePartialSession={onSavePartialSession}
             onBack={handleBackToHub}
           />
         )}
@@ -287,6 +295,8 @@ export function GameHub({
             activeTopicId={selectedTopic}
             initialSubMode={subModeHint || "reading"}
             onCompleteSession={onCompleteSession}
+            onAutoSyncStep={onAutoSyncStep}
+            onSavePartialSession={onSavePartialSession}
             onBack={handleBackToHub}
           />
         )}
@@ -294,6 +304,8 @@ export function GameHub({
           <SynonymAntonymChase
             activeTopicId={selectedTopic}
             onCompleteSession={onCompleteSession}
+            onAutoSyncStep={onAutoSyncStep}
+            onSavePartialSession={onSavePartialSession}
             onBack={handleBackToHub}
           />
         )}

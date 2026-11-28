@@ -44,6 +44,8 @@ function getInitials(name = "") {
 export function DialogueRoleplay({
   activeTopicId = "all",
   onCompleteSession,
+  onAutoSyncStep,
+  onSavePartialSession,
   onBack,
 }) {
   const {
@@ -110,6 +112,61 @@ export function DialogueRoleplay({
   const chatEndRef = useRef(null);
   const voicePendingRef = useRef(null);
   const chainTimerRef = useRef(null);
+  const stepSyncedXpRef = useRef(0);
+  const turnRecordsRef = useRef([]);
+  const activeScenarioRef = useRef(null);
+  const onAutoSyncStepRef = useRef(onAutoSyncStep);
+  const onSavePartialSessionRef = useRef(onSavePartialSession);
+
+  activeScenarioRef.current = activeScenario;
+  onAutoSyncStepRef.current = onAutoSyncStep;
+  onSavePartialSessionRef.current = onSavePartialSession;
+
+  const flushPartialDialogue = () => {
+    const scenario = activeScenarioRef.current;
+    const recs = turnRecordsRef.current;
+    if (
+      reportedRef.current ||
+      !scenario ||
+      recs.length === 0 ||
+      typeof onSavePartialSessionRef.current !== "function"
+    ) {
+      return;
+    }
+    reportedRef.current = true;
+    const count = recs.length;
+    const avgScore = Math.round(recs.reduce((s, r) => s + r.score, 0) / count);
+    const avgTone = Math.round(
+      recs.reduce((s, r) => s + r.toneAccuracy, 0) / count
+    );
+    const voiceTurns = recs.filter((r) => r.via === "voice").length;
+    const durationSec = Math.max(
+      1,
+      Math.round((Date.now() - startTimeRef.current) / 1000)
+    );
+    const hasStepSync = typeof onAutoSyncStepRef.current === "function";
+    onSavePartialSessionRef.current({
+      gameType: GAME_TYPES.DIALOGUE_BUILDER,
+      topicId: scenario.topicId || null,
+      skillTags: ["speaking", "listening", "pronunciation"],
+      score: avgScore,
+      maxScore: 100,
+      accuracy: avgScore,
+      durationSec,
+      durationSeconds: durationSec,
+      details: {
+        partial: true,
+        scenarioId: scenario.id,
+        turnsCompleted: count,
+        avgTone,
+        voiceTurns,
+        xpEarned: stepSyncedXpRef.current,
+      },
+      ...(hasStepSync
+        ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+        : {}),
+    });
+  };
 
   const currentTurn = useMemo(() => {
     if (!activeScenario || !currentTurnId) return null;
@@ -199,6 +256,7 @@ export function DialogueRoleplay({
       stopSpeak();
       speechApi.stopSpeaking?.();
       stopListening();
+      flushPartialDialogue();
     };
   }, [stopSpeak, stopListening]);
 
@@ -252,9 +310,12 @@ export function DialogueRoleplay({
     }
 
     setActiveScenario(scenario);
+    activeScenarioRef.current = scenario;
     setCurrentTurnId(firstTurn ? firstTurn.id : null);
     setMessages(initialMessages);
     setTurnRecords([]);
+    turnRecordsRef.current = [];
+    stepSyncedXpRef.current = 0;
     setTypedReply("");
     setTargetedOption(null);
     setCompleted(!firstTurn);
@@ -305,6 +366,9 @@ export function DialogueRoleplay({
           voiceTurns,
           xpEarned,
         },
+        ...(typeof onAutoSyncStep === "function"
+          ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+          : {}),
       });
     }
   };
@@ -330,8 +394,21 @@ export function DialogueRoleplay({
       via,
     };
 
-    const nextRecords = [...turnRecords, record];
+    const nextRecords = [...turnRecordsRef.current, record];
+    turnRecordsRef.current = nextRecords;
     setTurnRecords(nextRecords);
+
+    if (typeof onAutoSyncStep === "function") {
+      const turnScore = Math.round(score || 0);
+      const turnXp = Math.max(6, Math.round(8 + turnScore * 0.1));
+      stepSyncedXpRef.current += turnXp;
+      onAutoSyncStep({
+        skillTags: ["speaking", "listening", "pronunciation"],
+        accuracy: turnScore,
+        topicId: activeScenario.topicId || null,
+        xpDelta: turnXp,
+      });
+    }
 
     const nextMessages = [
       {
@@ -777,6 +854,7 @@ export function DialogueRoleplay({
             onClick={() => {
               stopSpeak();
               stopListening();
+              flushPartialDialogue();
               setActiveScenario(null);
             }}
           >

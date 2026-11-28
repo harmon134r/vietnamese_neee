@@ -1722,12 +1722,14 @@ export async function saveGameSession(resultInput) {
     writeLocalJson(STORAGE_KEYS.SESSIONS, next);
   }
 
-  const progress = await recordSkillGain({
-    skillTags: savedSession.skillTags.length > 0 ? savedSession.skillTags : [],
-    accuracy: savedSession.accuracy,
-    topicId: savedSession.topicId,
-    xpDelta: resultInput?.xpDelta,
-  });
+  const progress = resultInput?.skipSkillGain
+    ? await loadSkillProgress()
+    : await recordSkillGain({
+        skillTags: savedSession.skillTags.length > 0 ? savedSession.skillTags : [],
+        accuracy: savedSession.accuracy,
+        topicId: savedSession.topicId,
+        xpDelta: resultInput?.xpDelta,
+      });
 
   return { session: savedSession, progress };
 }

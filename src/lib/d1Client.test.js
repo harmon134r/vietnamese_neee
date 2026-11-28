@@ -706,6 +706,63 @@ describe("src/lib/storage.js with Cloudflare D1 enabled", () => {
       `${TEST_D1_URL}/api/game-sessions?limit=10&topicId=food&gameType=listen_match`
     );
 
+    // saveGameSession with skipSkillGain: true saves session without double-updating skill_progress
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse(
+          {
+            ok: true,
+            session: {
+              id: "eeee1111-1111-4111-8111-111111111112",
+              game_type: "listen_match",
+              topic_id: "food",
+              skill_tags: ["listening"],
+              score: 10,
+              max_score: 10,
+              accuracy: 100,
+              duration_seconds: 40,
+            },
+          },
+          201
+        )
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          ok: true,
+          progress: {
+            listening: 74.5,
+            speaking: 50,
+            reading: 70,
+            pronunciation: 60,
+            xp: 226,
+            streak_days: 4,
+            last_active_date: "2026-06-03",
+            topic_mastery: { food: 80.04 },
+          },
+        })
+      );
+
+    const callCountBeforeSkip = fetchMock.mock.calls.length;
+    const stepSyncedRes = await storage.saveGameSession({
+      gameType: "listen_match",
+      topicId: "food",
+      skillTags: ["listening"],
+      score: 10,
+      maxScore: 10,
+      durationSeconds: 40,
+      skipSkillGain: true,
+    });
+    expect(stepSyncedRes.session.accuracy).toBe(100);
+    expect(stepSyncedRes.progress.xp).toBe(226);
+    expect(fetchMock.mock.calls.length - callCountBeforeSkip).toBe(2);
+    expect(fetchMock.mock.calls[callCountBeforeSkip][0]).toBe(
+      `${TEST_D1_URL}/api/game-sessions`
+    );
+    expect(fetchMock.mock.calls[callCountBeforeSkip + 1][0]).toBe(
+      `${TEST_D1_URL}/api/skill-progress`
+    );
+    expect(fetchMock.mock.calls[callCountBeforeSkip + 1][1].method).toBe("GET");
+
     // syncLocalToCloud pushes local-only deck into D1
     setUser(null);
     await storage.createDeck({
@@ -937,8 +994,12 @@ describe("Navbar & AuthModal Cloudflare D1 UI indicators", () => {
 
     expect(screen.getByTestId("d1-capacity-pill")).toHaveTextContent("Cloudflare D1 · 5 GB");
     expect(
-      screen.getByRole("button", { name: /Đồng bộ dữ liệu cục bộ lên Cloudflare D1/i })
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /Đồng bộ dữ liệu cục bộ/i })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gộp dữ liệu từ trình duyệt/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("auto-sync-note")).toHaveTextContent(
+      /Tự động đẩy thẻ mới và lưu tiến độ ngay sau từng câu luyện tập lên Cloudflare D1/i
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("d1-health-stats")).toHaveTextContent(

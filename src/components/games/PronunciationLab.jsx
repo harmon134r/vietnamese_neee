@@ -192,6 +192,8 @@ export function PronunciationLab({
   activeTopicId = "all",
   initialSubMode = "minimal-pairs",
   onCompleteSession,
+  onAutoSyncStep,
+  onSavePartialSession,
   onBack,
 }) {
   const speech = useVietnameseSpeech({ defaultRate: 0.95 });
@@ -256,6 +258,21 @@ export function PronunciationLab({
   const startTimeRef = useRef(Date.now());
   const listeningTargetRef = useRef(null);
   const pairSequenceTimerRef = useRef(null);
+  const stepSyncedXpRef = useRef(0);
+  const summaryReportedRef = useRef(false);
+  const pairEvalsRef = useRef(pairEvaluations);
+  const sentenceEvalsRef = useRef(sentenceEvals);
+  const subModeRef = useRef(subMode);
+  const activeTopicIdRef = useRef(activeTopicId);
+  const onAutoSyncStepRef = useRef(onAutoSyncStep);
+  const onSavePartialSessionRef = useRef(onSavePartialSession);
+
+  pairEvalsRef.current = pairEvaluations;
+  sentenceEvalsRef.current = sentenceEvals;
+  subModeRef.current = subMode;
+  activeTopicIdRef.current = activeTopicId;
+  onAutoSyncStepRef.current = onAutoSyncStep;
+  onSavePartialSessionRef.current = onSavePartialSession;
 
   const currentPair = pairs[pairIndex] || pairs[0] || null;
   const currentSentence = sentences[sentenceIndex] || sentences[0] || null;
@@ -264,6 +281,8 @@ export function PronunciationLab({
     setPairIndex(0);
     setSentenceIndex(0);
     setSessionSummary(null);
+    stepSyncedXpRef.current = 0;
+    summaryReportedRef.current = false;
     startTimeRef.current = Date.now();
   }, [activeTopicId]);
 
@@ -308,36 +327,116 @@ export function PronunciationLab({
       stopSpeak();
       speechApi.stopSpeaking?.();
       stopListening();
+
+      const combinedEntries = [
+        ...Object.values(pairEvalsRef.current || {}),
+        ...Object.values(sentenceEvalsRef.current || {}),
+      ];
+      if (
+        !summaryReportedRef.current &&
+        combinedEntries.length > 0 &&
+        typeof onSavePartialSessionRef.current === "function"
+      ) {
+        summaryReportedRef.current = true;
+        const practicedCount = combinedEntries.length;
+        const avgScore = Math.round(
+          combinedEntries.reduce(
+            (sum, item) => sum + (item.evaluation?.score || 0),
+            0
+          ) / practicedCount
+        );
+        const avgTone = Math.round(
+          combinedEntries.reduce(
+            (sum, item) => sum + (item.evaluation?.toneAccuracy || 0),
+            0
+          ) / practicedCount
+        );
+        const durationSec = Math.max(
+          1,
+          Math.round((Date.now() - startTimeRef.current) / 1000)
+        );
+        const hasStepSync = typeof onAutoSyncStepRef.current === "function";
+        onSavePartialSessionRef.current({
+          gameType:
+            subModeRef.current === "minimal-pairs"
+              ? GAME_TYPES.TONE_RADAR
+              : GAME_TYPES.PRONUNCIATION_LAB,
+          topicId:
+            activeTopicIdRef.current === "all" ? null : activeTopicIdRef.current,
+          skillTags: ["pronunciation", "speaking", "listening"],
+          score: avgScore,
+          maxScore: 100,
+          accuracy: avgScore,
+          durationSec,
+          durationSeconds: durationSec,
+          details: {
+            partial: true,
+            subMode: subModeRef.current,
+            practicedCount,
+            avgTone,
+            xpEarned: stepSyncedXpRef.current,
+          },
+          ...(hasStepSync
+            ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+            : {}),
+        });
+      }
     };
   }, [stopSpeak, stopListening]);
+
+  const syncPronunciationStep = (evaluation, itemTopicId) => {
+    if (typeof onAutoSyncStepRef.current !== "function") return;
+    const evalScore = Math.round(evaluation?.score || 0);
+    const stepXp = Math.max(4, Math.round(6 + evalScore * 0.08));
+    stepSyncedXpRef.current += stepXp;
+    summaryReportedRef.current = false;
+    onAutoSyncStepRef.current({
+      skillTags: ["pronunciation", "speaking", "listening"],
+      accuracy: evalScore,
+      topicId:
+        itemTopicId ||
+        (activeTopicIdRef.current === "all" ? null : activeTopicIdRef.current),
+      xpDelta: stepXp,
+    });
+  };
 
   useEffect(() => {
     if (!finalTranscript || !listeningTargetRef.current) return;
     const target = listeningTargetRef.current;
+    listeningTargetRef.current = null;
     const evaluation = scoreVietnamesePronunciation(
       target.expectedText,
       finalTranscript
     );
 
     if (target.mode === "pair") {
-      setPairEvaluations((prev) => ({
-        ...prev,
-        [target.key]: {
-          spoken: finalTranscript,
-          evaluation,
-        },
-      }));
+      setPairEvaluations((prev) => {
+        const next = {
+          ...prev,
+          [target.key]: {
+            spoken: finalTranscript,
+            evaluation,
+          },
+        };
+        pairEvalsRef.current = next;
+        return next;
+      });
       setActivePairWordIdx(null);
+      syncPronunciationStep(evaluation, target.topicId);
     } else if (target.mode === "sentence") {
-      setSentenceEvals((prev) => ({
-        ...prev,
-        [target.key]: {
-          spoken: finalTranscript,
-          evaluation,
-        },
-      }));
+      setSentenceEvals((prev) => {
+        const next = {
+          ...prev,
+          [target.key]: {
+            spoken: finalTranscript,
+            evaluation,
+          },
+        };
+        sentenceEvalsRef.current = next;
+        return next;
+      });
+      syncPronunciationStep(evaluation, target.topicId);
     }
-    listeningTargetRef.current = null;
   }, [finalTranscript]);
 
   const handlePlayTone = (tone) => {
@@ -383,18 +482,24 @@ export function PronunciationLab({
       mode: "pair",
       key,
       expectedText: item.vi,
+      topicId: currentPair.topicId || null,
     };
     startListening({
       maxDurationMs: 6000,
       onResult: (transcript) => {
         if (!transcript) return;
-        const evaluation = scoreVietnamesePronunciation(item.vi, transcript);
-        setPairEvaluations((prev) => ({
-          ...prev,
-          [key]: { spoken: transcript, evaluation },
-        }));
-        setActivePairWordIdx(null);
         listeningTargetRef.current = null;
+        const evaluation = scoreVietnamesePronunciation(item.vi, transcript);
+        setPairEvaluations((prev) => {
+          const next = {
+            ...prev,
+            [key]: { spoken: transcript, evaluation },
+          };
+          pairEvalsRef.current = next;
+          return next;
+        });
+        setActivePairWordIdx(null);
+        syncPronunciationStep(evaluation, currentPair.topicId || null);
       },
     });
   };
@@ -410,10 +515,15 @@ export function PronunciationLab({
       targetItem.vi,
       pairManualText.trim()
     );
-    setPairEvaluations((prev) => ({
-      ...prev,
-      [key]: { spoken: pairManualText.trim(), evaluation },
-    }));
+    setPairEvaluations((prev) => {
+      const next = {
+        ...prev,
+        [key]: { spoken: pairManualText.trim(), evaluation },
+      };
+      pairEvalsRef.current = next;
+      return next;
+    });
+    syncPronunciationStep(evaluation, currentPair.topicId || null);
   };
 
   const handleMicForSentence = () => {
@@ -428,20 +538,26 @@ export function PronunciationLab({
       mode: "sentence",
       key: currentSentence.id,
       expectedText: currentSentence.textVi,
+      topicId: currentSentence.topicId || null,
     };
     startListening({
       maxDurationMs: 12000,
       onResult: (transcript) => {
         if (!transcript) return;
+        listeningTargetRef.current = null;
         const evaluation = scoreVietnamesePronunciation(
           currentSentence.textVi,
           transcript
         );
-        setSentenceEvals((prev) => ({
-          ...prev,
-          [currentSentence.id]: { spoken: transcript, evaluation },
-        }));
-        listeningTargetRef.current = null;
+        setSentenceEvals((prev) => {
+          const next = {
+            ...prev,
+            [currentSentence.id]: { spoken: transcript, evaluation },
+          };
+          sentenceEvalsRef.current = next;
+          return next;
+        });
+        syncPronunciationStep(evaluation, currentSentence.topicId || null);
       },
     });
   };
@@ -453,15 +569,21 @@ export function PronunciationLab({
       currentSentence.textVi,
       manualText.trim()
     );
-    setSentenceEvals((prev) => ({
-      ...prev,
-      [currentSentence.id]: { spoken: manualText.trim(), evaluation },
-    }));
+    setSentenceEvals((prev) => {
+      const next = {
+        ...prev,
+        [currentSentence.id]: { spoken: manualText.trim(), evaluation },
+      };
+      sentenceEvalsRef.current = next;
+      return next;
+    });
+    syncPronunciationStep(evaluation, currentSentence.topicId || null);
   };
 
   const handleFinishSession = () => {
     stopSpeak();
     stopListening();
+    summaryReportedRef.current = true;
     const evalMap =
       subMode === "minimal-pairs" ? pairEvaluations : sentenceEvals;
     const entries = Object.values(evalMap);
@@ -519,6 +641,9 @@ export function PronunciationLab({
           avgTone,
           xpEarned,
         },
+        ...(typeof onAutoSyncStep === "function"
+          ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+          : {}),
       });
     }
   };
@@ -566,6 +691,8 @@ export function PronunciationLab({
             className="vf-g-btn vf-g-btn--primary"
             onClick={() => {
               setSessionSummary(null);
+              summaryReportedRef.current = false;
+              stepSyncedXpRef.current = 0;
               startTimeRef.current = Date.now();
             }}
           >

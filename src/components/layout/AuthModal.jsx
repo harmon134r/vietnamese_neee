@@ -10,7 +10,6 @@ import {
   GraduationCap,
   HardDrive,
   LogOut,
-  RefreshCw,
   X,
 } from "lucide-react";
 import {
@@ -23,7 +22,6 @@ import {
   signUp,
 } from "../../lib/supabase";
 import { d1Health, isD1Configured } from "../../lib/d1Client";
-import { syncLocalToCloud } from "../../lib/storage";
 import { APP_ART } from "../../data/illustrations";
 
 const ENV_SNIPPET = `VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
@@ -71,7 +69,6 @@ export function AuthModal({
   userProfile,
   isTeacher: isTeacherProp,
   onAuthSuccess,
-  onSynced,
   onNotify,
   onToast,
   inline = false,
@@ -84,7 +81,6 @@ export function AuthModal({
   const [teacherCode, setTeacherCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [infoMsg, setInfoMsg] = useState("");
   const [copied, setCopied] = useState(false);
@@ -249,32 +245,6 @@ export function AuthModal({
       setErrorMsg(err?.message || "Đã xảy ra lỗi xác thực. Vui lòng thử lại.");
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleSyncLocal = async () => {
-    setSyncing(true);
-    setErrorMsg("");
-    setInfoMsg("");
-    try {
-      const { syncedDecks = 0, syncedCards = 0, syncedSessions = 0 } =
-        await syncLocalToCloud();
-      const parts = [];
-      if (syncedDecks > 0) parts.push(`${syncedDecks} bộ thẻ`);
-      if (syncedCards > 0) parts.push(`${syncedCards} flashcard`);
-      if (syncedSessions > 0) parts.push(`${syncedSessions} bài luyện`);
-      if (parts.length > 0) {
-        const msg = `Đã đồng bộ ${parts.join(", ")} từ máy lên tài khoản.`;
-        setInfoMsg(msg);
-        notifyUser?.(msg, "success");
-      } else {
-        setInfoMsg("Dữ liệu trên trình duyệt đã khớp hoàn toàn với tài khoản.");
-      }
-      await onSynced?.();
-    } catch (err) {
-      setErrorMsg(err?.message || "Không thể đồng bộ dữ liệu lúc này.");
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -501,6 +471,19 @@ export function AuthModal({
                     {formatD1UsageSummary(d1Stats)}
                   </p>
                 )}
+                <p
+                  data-testid="auto-sync-note"
+                  style={{
+                    margin: "6px 0 0",
+                    fontSize: "0.76rem",
+                    color: "var(--text-secondary)",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {d1Active
+                    ? "Tự động đẩy thẻ mới và lưu tiến độ ngay sau từng câu luyện tập lên Cloudflare D1."
+                    : "Tự động đẩy thẻ mới và lưu tiến độ ngay sau từng câu luyện tập."}
+                </p>
               </div>
             </div>
 
@@ -518,43 +501,11 @@ export function AuthModal({
               </div>
             )}
 
-            <div className="vf-sync-panel">
-              <span style={{ fontSize: "0.86rem", fontWeight: 500 }}>
-                Gộp dữ liệu từ trình duyệt
-              </span>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.81rem",
-                  color: "var(--text-secondary)",
-                  lineHeight: 1.5,
-                }}
-              >
-                Nếu bạn từng tạo thẻ hoặc làm bài trước khi đăng nhập, nhấn nút dưới để đẩy toàn
-                bộ dữ liệu trên máy lên tài khoản.
-              </p>
-              <button
-                type="button"
-                className="vf-btn vf-btn--good"
-                onClick={handleSyncLocal}
-                disabled={syncing || busy}
-              >
-                <RefreshCw size={14} className={syncing ? "vf-spin" : ""} />
-                <span>
-                  {syncing
-                    ? "Đang đồng bộ..."
-                    : d1Active
-                      ? "Đồng bộ dữ liệu cục bộ lên Cloudflare D1"
-                      : "Đồng bộ dữ liệu cục bộ lên Supabase"}
-                </span>
-              </button>
-            </div>
-
             <button
               type="button"
               className="vf-btn vf-btn--danger"
               onClick={handleSignOut}
-              disabled={busy || syncing}
+              disabled={busy}
             >
               <LogOut size={15} />
               <span>{busy ? "Đang đăng xuất..." : "Đăng xuất"}</span>

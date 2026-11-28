@@ -443,6 +443,8 @@ function HurdleBarrier({ state, isWarning = false }) {
 export function SynonymAntonymChase({
   activeTopicId = "all",
   onCompleteSession,
+  onAutoSyncStep,
+  onSavePartialSession,
   onBack,
 }) {
   const scenes = useMemo(
@@ -510,11 +512,81 @@ export function SynonymAntonymChase({
   const phaseRef = useRef("setup");
   const roundPhaseRef = useRef("question");
   const activeTabRef = useRef("play");
+  const stepSyncedXpRef = useRef(0);
+  const historyLogRef = useRef([]);
+  const scoreRef = useRef(0);
+  const maxStreakRef = useRef(0);
+  const heartsRef = useRef(MAX_HEARTS);
+  const questionsLengthRef = useRef(0);
+  const visitedSceneIdsRef = useRef([]);
+  const activeTopicIdRef = useRef(activeTopicId);
+  const selectedModeRef = useRef(selectedMode);
+  const onAutoSyncStepRef = useRef(onAutoSyncStep);
+  const onSavePartialSessionRef = useRef(onSavePartialSession);
 
   feedbackRef.current = feedback;
   phaseRef.current = phase;
   roundPhaseRef.current = roundPhase;
   activeTabRef.current = activeTab;
+  scoreRef.current = score;
+  maxStreakRef.current = maxStreak;
+  heartsRef.current = hearts;
+  questionsLengthRef.current = questions.length;
+  visitedSceneIdsRef.current = visitedSceneIds;
+  activeTopicIdRef.current = activeTopicId;
+  selectedModeRef.current = selectedMode;
+  onAutoSyncStepRef.current = onAutoSyncStep;
+  onSavePartialSessionRef.current = onSavePartialSession;
+
+  const flushPartialChase = useCallback(() => {
+    const log = historyLogRef.current;
+    if (
+      phaseRef.current !== "playing" ||
+      reportedRef.current ||
+      log.length === 0 ||
+      typeof onSavePartialSessionRef.current !== "function"
+    ) {
+      return;
+    }
+    reportedRef.current = true;
+    const answeredCount = log.length;
+    const correctCount = log.filter((item) => item.isCorrect).length;
+    const accuracy = Math.round((correctCount / answeredCount) * 100);
+    const maxScore = Math.max(
+      scoreRef.current,
+      Math.max(answeredCount, questionsLengthRef.current) * 15
+    );
+    const durationSec = Math.max(
+      1,
+      Math.round((Date.now() - startTimeRef.current) / 1000)
+    );
+    const hasStepSync = typeof onAutoSyncStepRef.current === "function";
+    onSavePartialSessionRef.current({
+      gameType: GAME_TYPES.SYNONYM_ANTONYM_CHASE,
+      topicId:
+        activeTopicIdRef.current === "all" ? null : activeTopicIdRef.current,
+      skillTags: ["reading", "listening"],
+      score: scoreRef.current,
+      maxScore,
+      accuracy,
+      durationSec,
+      durationSeconds: durationSec,
+      details: {
+        partial: true,
+        mode: selectedModeRef.current,
+        maxStreak: maxStreakRef.current,
+        heartsLeft: heartsRef.current,
+        correctCount,
+        answeredCount,
+        totalQuestions: questionsLengthRef.current || answeredCount,
+        scenesVisited: visitedSceneIdsRef.current,
+        xpEarned: stepSyncedXpRef.current,
+      },
+      ...(hasStepSync
+        ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+        : {}),
+    });
+  }, []);
 
   const currentTrack = useMemo(
     () =>
@@ -556,6 +628,7 @@ export function SynonymAntonymChase({
   // Guaranteed cleanup on unmount so chill music & TTS NEVER leak
   useEffect(() => {
     return () => {
+      flushPartialChase();
       clearRunTimers();
       speechApi.stopSpeaking?.();
       if (audioEngineRef.current) {
@@ -563,7 +636,7 @@ export function SynonymAntonymChase({
         audioEngineRef.current = null;
       }
     };
-  }, [clearRunTimers]);
+  }, [clearRunTimers, flushPartialChase]);
 
   // Keep preview backdrop synced with chosen starting scene during setup
   useEffect(() => {
@@ -711,10 +784,13 @@ export function SynonymAntonymChase({
             totalQuestions: totalQuestionsCount,
             scenesVisited: visitedIds,
           },
+          ...(typeof onAutoSyncStep === "function"
+            ? { stepSynced: true, stepSyncedXp: stepSyncedXpRef.current }
+            : {}),
         });
       }
     },
-    [activeTopicId, clearRunTimers, onCompleteSession, selectedMode]
+    [activeTopicId, clearRunTimers, onAutoSyncStep, onCompleteSession, selectedMode]
   );
 
   const handleSelectTrack = useCallback(
@@ -796,6 +872,8 @@ export function SynonymAntonymChase({
     setDogAnim("run");
     setScorePop(null);
     setHistoryLog([]);
+    historyLogRef.current = [];
+    stepSyncedXpRef.current = 0;
     startTimeRef.current = Date.now();
     reportedRef.current = false;
     setActiveTab("play");
@@ -812,6 +890,7 @@ export function SynonymAntonymChase({
   ]);
 
   const handleReturnToSetup = useCallback(() => {
+    flushPartialChase();
     clearRunTimers();
     speechApi.stopSpeaking?.();
     audioEngineRef.current?.stopMusic?.();
@@ -823,7 +902,7 @@ export function SynonymAntonymChase({
     setSceneToast(null);
     setTrackToast(null);
     setPhase("setup");
-  }, [clearRunTimers]);
+  }, [clearRunTimers, flushPartialChase]);
 
   const handleToggleMute = useCallback(
     (event) => {
@@ -937,13 +1016,29 @@ export function SynonymAntonymChase({
         isTimeout,
         pointsGained,
       };
-      const nextHistory = [...historyLog, logEntry];
+      const nextHistory = [...historyLogRef.current, logEntry];
+      historyLogRef.current = nextHistory;
 
       setScore(nextScore);
+      scoreRef.current = nextScore;
       setStreak(nextStreak);
       setMaxStreak(nextMaxStreak);
+      maxStreakRef.current = nextMaxStreak;
       setHearts(nextHearts);
+      heartsRef.current = nextHearts;
       setHistoryLog(nextHistory);
+
+      if (typeof onAutoSyncStep === "function") {
+        const stepXp = isCorrect ? pointsGained : 2;
+        stepSyncedXpRef.current += stepXp;
+        onAutoSyncStep({
+          skillTags: ["reading", "listening"],
+          accuracy: isCorrect ? 100 : 20,
+          topicId:
+            q.topicId || (activeTopicId === "all" ? null : activeTopicId),
+          xpDelta: stepXp,
+        });
+      }
       setFeedback({
         isCorrect,
         isTimeout,

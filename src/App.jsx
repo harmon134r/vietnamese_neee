@@ -17,6 +17,7 @@ import {
   loadDecks,
   loadGameHistory,
   loadSkillProgress,
+  recordSkillGain,
   saveGameSession,
   setFlashcardMastery,
   updateDeck,
@@ -70,6 +71,7 @@ export function App() {
   const hydrateQueuedRef = useRef(false);
   const hydratedUserIdRef = useRef(null);
   const authRevisionRef = useRef(0);
+  const syncQueueRef = useRef(Promise.resolve());
   const decksRef = useRef(decks);
   decksRef.current = decks;
 
@@ -132,6 +134,7 @@ export function App() {
   const resetForSignOut = useCallback(() => {
     stopSpeaking();
     authRevisionRef.current += 1;
+    syncQueueRef.current = Promise.resolve();
     hydratedUserIdRef.current = null;
     hydrateQueuedRef.current = false;
     setUser(null);
@@ -522,52 +525,126 @@ export function App() {
     [notify]
   );
 
-  const handleUpdateMastery = useCallback(async (cardId, masteryLevel) => {
-    const targetDeck = (decksRef.current || []).find((d) =>
-      (d.cards || []).some((c) => c.id === cardId)
-    );
-    const isAssignedDeck = Boolean(
-      targetDeck?.isAssigned && targetDeck?.canEdit === false
-    );
-    const updated = await setFlashcardMastery(cardId, masteryLevel, {
-      deckId: targetDeck?.id,
-      isAssignedDeck,
-    });
-    setDecks((prev) =>
-      prev.map((d) => ({
-        ...d,
-        cards: d.cards.map((c) =>
-          c.id === cardId
-            ? {
-                ...c,
-                ...(updated && typeof updated === "object" ? updated : {}),
-                masteryLevel: updated?.masteryLevel ?? masteryLevel,
-              }
-            : c
-        ),
-      }))
-    );
-    return updated;
-  }, []);
+  const handleUpdateMastery = useCallback(
+    async (cardId, masteryLevel) => {
+      const targetDeck = (decksRef.current || []).find((d) =>
+        (d.cards || []).some((c) => c.id === cardId)
+      );
+      const isAssignedDeck = Boolean(
+        targetDeck?.isAssigned && targetDeck?.canEdit === false
+      );
+
+      setDecks((prev) =>
+        prev.map((d) => ({
+          ...d,
+          cards: d.cards.map((c) =>
+            c.id === cardId ? { ...c, masteryLevel } : c
+          ),
+        }))
+      );
+
+      try {
+        const updated = await setFlashcardMastery(cardId, masteryLevel, {
+          deckId: targetDeck?.id,
+          isAssignedDeck,
+        });
+        setDecks((prev) =>
+          prev.map((d) => ({
+            ...d,
+            cards: d.cards.map((c) =>
+              c.id === cardId
+                ? {
+                    ...c,
+                    ...(updated && typeof updated === "object" ? updated : {}),
+                    masteryLevel: updated?.masteryLevel ?? masteryLevel,
+                  }
+                : c
+            ),
+          }))
+        );
+        return updated;
+      } catch (err) {
+        console.error("Failed to sync flashcard mastery:", err);
+        notify("Không thể đồng bộ trạng thái thẻ lúc này.", "error");
+        return null;
+      }
+    },
+    [notify]
+  );
 
   // =========================================================================
-  // Game & Practice Session Persistence
+  // Game & Practice Session Persistence (Serialized Real-Time Auto-Sync)
   // =========================================================================
+
+  const handleAutoSyncStep = useCallback((stepPayload = {}) => {
+    const revision = authRevisionRef.current;
+    const queued = syncQueueRef.current.then(async () => {
+      if (revision !== authRevisionRef.current) return null;
+      const skillTags = Array.isArray(stepPayload.skillTags)
+        ? stepPayload.skillTags
+        : [];
+      const progress = await recordSkillGain({
+        skillTags,
+        accuracy: Number(stepPayload.accuracy ?? 0),
+        topicId: isValidTopicId(stepPayload.topicId) ? stepPayload.topicId : null,
+        xpDelta: stepPayload.xpDelta,
+      });
+      if (revision === authRevisionRef.current) {
+        setSkillProgress(progress);
+      }
+      return progress;
+    });
+    syncQueueRef.current = queued.catch((err) => {
+      console.warn("Could not auto-sync step progress:", err);
+    });
+    return queued;
+  }, []);
+
+  const handleSavePartialSession = useCallback((partialResult = {}) => {
+    const revision = authRevisionRef.current;
+    const queued = syncQueueRef.current.then(async () => {
+      if (revision !== authRevisionRef.current) return null;
+      const normalizedPayload = {
+        ...partialResult,
+        topicId: isValidTopicId(partialResult.topicId) ? partialResult.topicId : null,
+        durationSeconds:
+          partialResult.durationSeconds ?? partialResult.durationSec ?? 1,
+        skipSkillGain: Boolean(partialResult.stepSynced),
+      };
+      const { session, progress } = await saveGameSession(normalizedPayload);
+      if (revision === authRevisionRef.current) {
+        setSkillProgress(progress);
+        setGameHistory((prev) => [session, ...prev].slice(0, 25));
+      }
+      return { session, progress };
+    });
+    syncQueueRef.current = queued.catch((err) => {
+      console.warn("Could not save partial game session:", err);
+    });
+    return queued;
+  }, []);
 
   const handleCompleteSession = useCallback(
     async (result = {}) => {
-      try {
+      const revision = authRevisionRef.current;
+      const runTask = syncQueueRef.current.then(async () => {
+        if (revision !== authRevisionRef.current) return;
         const normalizedPayload = {
           ...result,
           topicId: isValidTopicId(result.topicId) ? result.topicId : null,
           durationSeconds: result.durationSeconds ?? result.durationSec ?? 0,
+          skipSkillGain: Boolean(result.stepSynced),
         };
         const prevXp = Number(skillProgress?.xp || 0);
         const { session, progress } = await saveGameSession(normalizedPayload);
+        if (revision !== authRevisionRef.current) return;
         setSkillProgress(progress);
         setGameHistory((prev) => [session, ...prev].slice(0, 25));
 
-        const earnedXp = Math.max(0, Math.round((progress?.xp || 0) - prevXp));
+        const earnedXp =
+          result.stepSynced && Number(result.stepSyncedXp) > 0
+            ? Math.round(Number(result.stepSyncedXp))
+            : Math.max(0, Math.round((progress?.xp || 0) - prevXp));
         const topic = session.topicId ? getTopicById?.(session.topicId) : null;
         notify(
           `Hoàn thành${topic ? ` (${topic.titleVi})` : ""}! +${earnedXp || 10} XP · ${Math.round(
@@ -575,7 +652,12 @@ export function App() {
           )}% chính xác.`,
           "success"
         );
+      });
+      syncQueueRef.current = runTask.catch(() => {});
+      try {
+        await runTask;
       } catch (err) {
+        if (revision !== authRevisionRef.current) return;
         console.error("Failed to save game session:", err);
         notify("Không thể lưu kết quả phiên luyện tập.", "error");
       }
@@ -818,6 +900,8 @@ export function App() {
                   }
                   initialGame={initialGame}
                   onCompleteSession={handleCompleteSession}
+                  onAutoSyncStep={handleAutoSyncStep}
+                  onSavePartialSession={handleSavePartialSession}
                   skillProgress={skillProgress}
                   onNavigateFlashcards={(topicId) =>
                     handleOpenFlashcards(topicId || activeTopicId, "study")
@@ -877,7 +961,6 @@ export function App() {
         userProfile={userProfile}
         isTeacher={isTeacher}
         onAuthSuccess={handleAuthSuccess}
-        onSynced={hydrateData}
         onNotify={notify}
       />
 
