@@ -1,7 +1,7 @@
 /**
  * Pronunciation Drills for Pre-Intermediate Adult Vietnamese Learners:
- * - TONE_MINIMAL_PAIRS: 12 practical minimal-pair & vowel-contrast sets (2 per topic)
- * - PRONUNCIATION_SENTENCES: 18 natural adult sentences (3 per topic)
+ * - TONE_MINIMAL_PAIRS: 30 practical minimal-pair & vowel-contrast sets (5 per topic)
+ * - PRONUNCIATION_SENTENCES: 42 natural adult sentences (7 per topic)
  */
 
 export const TONE_MINIMAL_PAIRS = [
@@ -51,6 +51,85 @@ export const TONE_MINIMAL_PAIRS = [
         tone: "Thanh huyền",
         meaningVi: "Tư thế ngồi (to sit)",
         exampleVi: "Chúng ta ra góc yên tĩnh kia ngồi nói chuyện nhé.",
+      },
+    ],
+  },
+  {
+    id: "mp-self-3",
+    topicId: "self",
+    focusLabel: "tỉnh / tĩnh (Thanh hỏi vs Thanh ngã)",
+    contrastType: "tone",
+    tipVi:
+      "«Tỉnh» mang thanh hỏi hạ giọng êm rồi nhích nhẹ cuối âm; «tĩnh» mang thanh ngã có điểm ngắt nhẹ ở cổ họng trước khi vút cao. Rất hay gặp khi nói về quê quán và tính cách.",
+    items: [
+      {
+        vi: "tỉnh",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Đơn vị hành chính địa phương; tỉnh táo (province / awake)",
+        exampleVi: "Quê mình ở một tỉnh ven biển miền Trung nên rất thích ăn hải sản.",
+      },
+      {
+        vi: "tĩnh",
+        ipa: "",
+        tone: "Thanh ngã",
+        meaningVi: "Yên ắng, điềm đạm — trong «yên tĩnh», «bình tĩnh» (quiet / calm)",
+        exampleVi: "Mình hay tìm một góc quán yên tĩnh để đọc sách vào cuối tuần.",
+      },
+    ],
+  },
+  {
+    id: "mp-self-4",
+    topicId: "self",
+    focusLabel: "thư / thu (Nguyên âm «ư» dẹt môi vs «u» tròn môi)",
+    contrastType: "vowel",
+    tipVi:
+      "Cả hai đều có phụ âm đầu bật hơi «th» và thanh ngang, nhưng «thư» giữ môi dẹt tự nhiên như mỉm cười nhẹ, còn «thu» phải chu tròn môi rõ ngay từ đầu.",
+    items: [
+      {
+        vi: "thư",
+        ipa: "",
+        tone: "Thanh ngang",
+        meaningVi: "Thư từ, email; thư thái — trong «thư giãn» (letter / relaxed)",
+        exampleVi: "Ngoài giờ làm mình thường nghe nhạc nhẹ để thư giãn đầu óc.",
+      },
+      {
+        vi: "thu",
+        ipa: "",
+        tone: "Thanh ngang",
+        meaningVi: "Mùa thu; tiếp nhận — trong «thu nhập» (autumn / income)",
+        exampleVi: "Thu nhập ở công việc mới ổn định hơn nên mình có kế hoạch tiết kiệm.",
+      },
+    ],
+  },
+  {
+    id: "mp-self-5",
+    topicId: "self",
+    focusLabel: "ban / bàn / bạn (Thanh ngang / huyền / nặng)",
+    contrastType: "tone",
+    tipVi:
+      "Giữ nguyên độ mở miệng của vần «an» và chỉ đổi cao độ: «ban» đi thẳng ngang, «bàn» hạ trầm êm ái, còn «bạn» rơi nhanh xuống thấp và dừng gọn ở cổ họng.",
+    items: [
+      {
+        vi: "ban",
+        ipa: "",
+        tone: "Thanh ngang",
+        meaningVi: "Bộ phận tổ chức — trong «phòng ban», «ban đầu» (department / initial)",
+        exampleVi: "Công ty tôi có năm phòng ban và môi trường làm việc khá cởi mở.",
+      },
+      {
+        vi: "bàn",
+        ipa: "",
+        tone: "Thanh huyền",
+        meaningVi: "Cái bàn; trao đổi ý kiến (desk / to discuss)",
+        exampleVi: "Sáng thứ hai cả nhóm thường ngồi lại bàn kế hoạch cho tuần mới.",
+      },
+      {
+        vi: "bạn",
+        ipa: "",
+        tone: "Thanh nặng",
+        meaningVi: "Người bạn thân thiết, đồng hành (friend)",
+        exampleVi: "Mình quen mấy người bạn thân nhất từ thời còn học đại học.",
       },
     ],
   },
@@ -111,6 +190,78 @@ export const TONE_MINIMAL_PAIRS = [
       },
     ],
   },
+  {
+    id: "mp-food-3",
+    topicId: "food",
+    focusLabel: "mở / mỡ (Thanh hỏi vs Thanh ngã)",
+    contrastType: "tone",
+    tipVi:
+      "Giữ nguyên âm «ơ» thoải mái không tròn môi: «mở» trầm đều rồi nhích nhẹ cuối âm, còn «mỡ» phải khựng nhẹ ở thanh quản giữa chừng rồi đẩy giọng lên cao.",
+    items: [
+      {
+        vi: "mở",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Mở cửa, bắt đầu bán hàng (to open)",
+        exampleVi: "Quán phở bò đầu phố chỉ mở cửa từ sáu giờ sáng đến trưa.",
+      },
+      {
+        vi: "mỡ",
+        ipa: "",
+        tone: "Thanh ngã",
+        meaningVi: "Chất béo động vật trong món ăn (fat / grease)",
+        exampleVi: "Mình thích ăn bún chả nạc hơn vì không chịu được nhiều mỡ.",
+      },
+    ],
+  },
+  {
+    id: "mp-food-4",
+    topicId: "food",
+    focusLabel: "phở / phổ (Nguyên âm «ơ» dẹt môi vs «ô» tròn môi)",
+    contrastType: "vowel",
+    tipVi:
+      "Cả hai từ đều có phụ âm đầu «ph» và thanh hỏi hạ êm rồi uốn nhẹ, nhưng «phở» thả lỏng môi tự nhiên với âm «ơ», còn «phổ» chu tròn môi rõ ở nguyên âm «ô».",
+    items: [
+      {
+        vi: "phở",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Món phở truyền thống của Việt Nam (pho noodle soup)",
+        exampleVi: "Sáng cuối tuần tôi hay ghé quán quen làm một bát phở tái chín.",
+      },
+      {
+        vi: "phổ",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Rộng rãi, quen thuộc — trong «phổ biến» (popular / common)",
+        exampleVi: "Cà phê sữa đá là thức uống phổ biến nhất ở khắp các thành phố Việt Nam.",
+      },
+    ],
+  },
+  {
+    id: "mp-food-5",
+    topicId: "food",
+    focusLabel: "trà / chả (Phụ âm «tr» – «ch» & Thanh huyền vs hỏi)",
+    contrastType: "tone",
+    tipVi:
+      "Luyện cùng lúc phụ âm đầu và thanh điệu: «trà» uốn nhẹ đầu lưỡi ở âm «tr» và hạ trầm êm theo thanh huyền; «chả» đặt mặt lưỡi gọn với «ch» rồi hạ sâu, uốn nhẹ cuối âm theo thanh hỏi.",
+    items: [
+      {
+        vi: "trà",
+        ipa: "",
+        tone: "Thanh huyền",
+        meaningVi: "Nước trà, thức uống quen thuộc (tea)",
+        exampleVi: "Ăn trưa xong mình hay gọi thêm một cốc trà đá mát lạnh.",
+      },
+      {
+        vi: "chả",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Món thịt xay nướng hoặc chiên — trong «bún chả», «chả giò» (pork patty / roll)",
+        exampleVi: "Quán bún chả gần công ty nướng chả rất thơm và vừa miệng.",
+      },
+    ],
+  },
 
   // ---- ROUTINE ----
   {
@@ -158,6 +309,85 @@ export const TONE_MINIMAL_PAIRS = [
         tone: "Thanh huyền",
         meaningVi: "Nhầm lẫn, sai sót (mistaken / error)",
         exampleVi: "Tôi nhìn lầm lịch họp nên đến sớm hẳn một tiếng.",
+      },
+    ],
+  },
+  {
+    id: "mp-routine-3",
+    topicId: "routine",
+    focusLabel: "đắt / đặt (Thanh sắc vs Thanh nặng với âm cuối «t»)",
+    contrastType: "tone",
+    tipVi:
+      "Những từ kết thúc bằng âm tắc «t» chỉ đi với thanh sắc hoặc thanh nặng. «Đắt» bật cao, gọn và sắc nét; «đặt» rơi nhanh xuống thấp và dừng đột ngột ở cuối.",
+    items: [
+      {
+        vi: "đắt",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Giá cả cao (expensive)",
+        exampleVi: "Đi xe công nghệ vào giờ cao điểm lúc trời mưa thường khá đắt.",
+      },
+      {
+        vi: "đặt",
+        ipa: "",
+        tone: "Thanh nặng",
+        meaningVi: "Đặt trước lịch, xe hoặc đồ ăn (to book / order / set)",
+        exampleVi: "Tối nào tôi cũng đặt báo thức lúc sáu giờ để kịp tập thể dục.",
+      },
+    ],
+  },
+  {
+    id: "mp-routine-4",
+    topicId: "routine",
+    focusLabel: "tắm / tấm / tám (Nguyên âm «ă» ngắn / «â» giữa / «a» dài)",
+    contrastType: "vowel",
+    tipVi:
+      "Cả ba từ đều mang thanh sắc và kết thúc bằng âm khép môi «m», chỉ khác độ dài và độ mở nguyên âm: «tắm» ngắn và gọn, «tấm» khép môi vừa ở vị trí giữa, còn «tám» mở miệng rộng và kéo dài hơi rõ nhất.",
+    items: [
+      {
+        vi: "tắm",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Tắm rửa, vệ sinh cá nhân (to shower / bathe)",
+        exampleVi: "Đi tập về mình tắm nước ấm rồi mới bắt đầu nấu bữa tối.",
+      },
+      {
+        vi: "tấm",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Đơn vị chỉ vật phẳng — trong «tấm thảm», «tấm lịch» (mat / sheet)",
+        exampleVi: "Tôi trải sẵn tấm thảm tập ở góc phòng để sáng dậy tập luôn.",
+      },
+      {
+        vi: "tám",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Số tám — dùng khi nói giờ giấc (eight)",
+        exampleVi: "Hầu như ngày nào mình cũng có mặt ở văn phòng trước tám giờ rưỡi.",
+      },
+    ],
+  },
+  {
+    id: "mp-routine-5",
+    topicId: "routine",
+    focusLabel: "rảnh / dành (Phụ âm «r» – «d» & Thanh hỏi vs huyền)",
+    contrastType: "tone",
+    tipVi:
+      "Phân biệt cả phụ âm đầu lẫn cao độ thanh điệu: «rảnh» rung nhẹ đầu lưỡi khi đọc rõ chữ kèm thanh hỏi hạ sâu rồi uốn lên, còn «dành» hạ giọng thấp êm đều theo thanh huyền.",
+    items: [
+      {
+        vi: "rảnh",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Có thời gian trống, không bận (free / available)",
+        exampleVi: "Tối thứ sáu này cậu có rảnh đi chạy bộ quanh hồ không?",
+      },
+      {
+        vi: "dành",
+        ipa: "",
+        tone: "Thanh huyền",
+        meaningVi: "Bỏ ra thời gian hoặc công sức cho việc gì (to devote / set aside)",
+        exampleVi: "Mỗi tối mình đều dành ba mươi phút đọc sách trước khi đi ngủ.",
       },
     ],
   },
@@ -211,6 +441,78 @@ export const TONE_MINIMAL_PAIRS = [
       },
     ],
   },
+  {
+    id: "mp-weather-3",
+    topicId: "weather",
+    focusLabel: "bão / bảo (Thanh ngã vs Thanh hỏi)",
+    contrastType: "tone",
+    tipVi:
+      "Phân biệt rõ cặp thanh ngã và thanh hỏi khi nghe bản tin thời tiết: «bão» có điểm ngắt nhẹ ở giữa rồi vút cao rõ, còn «bảo» hạ trầm đều xuống thấp và lên nhẹ cuối âm.",
+    items: [
+      {
+        vi: "bão",
+        ipa: "",
+        tone: "Thanh ngã",
+        meaningVi: "Cơn bão, gió lớn kèm mưa to (storm / typhoon)",
+        exampleVi: "Nghe tin cuối tuần có bão vào miền Trung nên chuyến bay có thể bị hoãn.",
+      },
+      {
+        vi: "bảo",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Nói, dặn hoặc cho biết (to tell / say)",
+        exampleVi: "Bản tin thời tiết bảo sáng mai trời sẽ giảm nhiệt khá nhiều.",
+      },
+    ],
+  },
+  {
+    id: "mp-weather-4",
+    topicId: "weather",
+    focusLabel: "sớm / xóm (Phụ âm «s» – «x» & Nguyên âm «ơ» vs «o»)",
+    contrastType: "vowel",
+    tipVi:
+      "Cả hai từ đều mang thanh sắc và kết thúc bằng âm khép môi «m». «Sớm» giữ môi dẹt tự nhiên với nguyên âm «ơ» và âm «s» uốn nhẹ lưỡi, còn «xóm» mở tròn môi rõ ở nguyên âm «o» với âm «x» nhẹ.",
+    items: [
+      {
+        vi: "sớm",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Đầu ngày, trước thời điểm thường lệ (early)",
+        exampleVi: "Sáng sớm nay ngoài trời có sương mù mỏng và hơi se lạnh.",
+      },
+      {
+        vi: "xóm",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Khu dân cư nhỏ, hàng xóm (neighborhood / lane)",
+        exampleVi: "Mưa lớn tối qua làm con ngõ nhỏ trong xóm mình bị ngập nhẹ.",
+      },
+    ],
+  },
+  {
+    id: "mp-weather-5",
+    topicId: "weather",
+    focusLabel: "đông / đồng (Thanh ngang vs Thanh huyền)",
+    contrastType: "tone",
+    tipVi:
+      "Giữ tròn môi ở nguyên âm «ô» và khép nhẹ cuối âm «ng»: «đông» duy trì giọng đều ngang phẳng, còn «đồng» buông lỏng cổ họng cho cao độ hạ trầm xuống nhẹ nhàng.",
+    items: [
+      {
+        vi: "đông",
+        ipa: "",
+        tone: "Thanh ngang",
+        meaningVi: "Mùa đông; hướng đông (winter / east)",
+        exampleVi: "Mùa đông ngoài Bắc có những đợt gió mùa khiến nhiệt độ giảm rất nhanh.",
+      },
+      {
+        vi: "đồng",
+        ipa: "",
+        tone: "Thanh huyền",
+        meaningVi: "Vùng đất rộng phẳng — trong «đồng bằng», «cánh đồng» (plain / field)",
+        exampleVi: "Khu vực đồng bằng thường nóng ẩm hơn so với vùng núi cao.",
+      },
+    ],
+  },
 
   // ---- EMOTIONS ----
   {
@@ -258,6 +560,85 @@ export const TONE_MINIMAL_PAIRS = [
         tone: "Thanh nặng",
         meaningVi: "Gấp gáp, hấp tấp (hurried / hasty)",
         exampleVi: "Cứ bình tĩnh xem kỹ hợp đồng, không cần phải vội đâu.",
+      },
+    ],
+  },
+  {
+    id: "mp-emotions-3",
+    topicId: "emotions",
+    focusLabel: "nhớ / nhờ / nhỡ (Thanh sắc / huyền / ngã)",
+    contrastType: "tone",
+    tipVi:
+      "Giữ cố định nguyên âm «ơ» tự nhiên và chỉ đổi đường nét thanh điệu: «nhớ» đi lên cao sắc nét, «nhờ» hạ thấp dịu êm, còn «nhỡ» khựng nhẹ ở cổ họng rồi vút cao.",
+    items: [
+      {
+        vi: "nhớ",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Nhớ nhung, ghi nhớ (to miss / remember)",
+        exampleVi: "Xa nhà lâu ngày nên cứ dịp lễ là mình lại nhớ gia đình lắm.",
+      },
+      {
+        vi: "nhờ",
+        ipa: "",
+        tone: "Thanh huyền",
+        meaningVi: "Nhờ vả; nhờ có sự giúp đỡ (to ask a favor / thanks to)",
+        exampleVi: "Nhờ có bạn bè lắng nghe mà mình đỡ căng thẳng hơn rất nhiều.",
+      },
+      {
+        vi: "nhỡ",
+        ipa: "",
+        tone: "Thanh ngã",
+        meaningVi: "Lỡ dịp hoặc phòng khi — trong «nhỡ hẹn» (to miss / in case)",
+        exampleVi: "Mình hơi ngại vì nhỡ hẹn với cậu tối qua do phải tăng ca đột xuất.",
+      },
+    ],
+  },
+  {
+    id: "mp-emotions-4",
+    topicId: "emotions",
+    focusLabel: "thứ / thú (Nguyên âm «ư» dẹt môi vs «u» tròn môi)",
+    contrastType: "vowel",
+    tipVi:
+      "Cả hai đều có âm đầu bật hơi «th» và thanh sắc vút cao, nên chìa khóa là khẩu hình môi: «thứ» kéo nhẹ khóe miệng sang hai bên không chu môi, còn «thú» chu tròn môi rõ.",
+    items: [
+      {
+        vi: "thứ",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Bỏ qua lỗi lầm — trong «tha thứ»; thứ tự (to forgive / order)",
+        exampleVi: "Khi đã hiểu rõ hiểu lầm thì việc tha thứ cho nhau cũng nhẹ nhàng hơn.",
+      },
+      {
+        vi: "thú",
+        ipa: "",
+        tone: "Thanh sắc",
+        meaningVi: "Hào hứng, say mê — trong «thú vị», «hứng thú» (interesting / keen)",
+        exampleVi: "Dạo này mình thấy rất hứng thú với lớp học gốm vào cuối tuần.",
+      },
+    ],
+  },
+  {
+    id: "mp-emotions-5",
+    topicId: "emotions",
+    focusLabel: "mơ / mô (Nguyên âm «ơ» dẹt môi vs «ô» tròn môi)",
+    contrastType: "vowel",
+    tipVi:
+      "Cả hai đều mang thanh ngang bằng phẳng, giúp bạn tập trung hoàn toàn vào khẩu hình: «mơ» giữ môi tự nhiên không chu, còn «mô» khép tròn môi rõ và ổn định suốt âm tiết.",
+    items: [
+      {
+        vi: "mơ",
+        ipa: "",
+        tone: "Thanh ngang",
+        meaningVi: "Ước vọng, giấc mơ — trong «ước mơ» (dream / aspiration)",
+        exampleVi: "Được làm công việc đúng đam mê luôn là ước mơ lớn nhất của mình.",
+      },
+      {
+        vi: "mô",
+        ipa: "",
+        tone: "Thanh ngang",
+        meaningVi: "Diễn tả, tái hiện — trong «mô tả» (to describe / model)",
+        exampleVi: "Có những lúc mệt mỏi đến mức mình chẳng biết mô tả cảm xúc thế nào.",
       },
     ],
   },
@@ -311,6 +692,78 @@ export const TONE_MINIMAL_PAIRS = [
       },
     ],
   },
+  {
+    id: "mp-opinions-3",
+    topicId: "opinions",
+    focusLabel: "cải / cãi (Thanh hỏi vs Thanh ngã)",
+    contrastType: "tone",
+    tipVi:
+      "Cả hai đều có vần «ai», nhưng «cải» mang thanh hỏi hạ giọng êm rồi nhích nhẹ cuối âm, còn «cãi» mang thanh ngã có độ khựng nhẹ ở cổ họng trước khi đẩy lên cao.",
+    items: [
+      {
+        vi: "cải",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Làm cho tốt hơn — trong «cải thiện» (to improve)",
+        exampleVi: "Theo tôi thì giao thông công cộng cần được cải thiện thêm về độ đúng giờ.",
+      },
+      {
+        vi: "cãi",
+        ipa: "",
+        tone: "Thanh ngã",
+        meaningVi: "Tranh luận gay gắt — trong «tranh cãi» (to argue / debate)",
+        exampleVi: "Chủ đề làm việc từ xa vẫn luôn gây ra nhiều tranh cãi ở các công ty lớn.",
+      },
+    ],
+  },
+  {
+    id: "mp-opinions-4",
+    topicId: "opinions",
+    focusLabel: "cân / cần (Thanh ngang vs Thanh huyền)",
+    contrastType: "tone",
+    tipVi:
+      "Giữ nguyên âm «â» gọn ở giữa khoang miệng: «cân» giữ đều một cao độ ngang phẳng, còn «cần» thả lỏng giọng cho rơi thấp nhẹ xuống cuối âm.",
+    items: [
+      {
+        vi: "cân",
+        ipa: "",
+        tone: "Thanh ngang",
+        meaningVi: "Xem xét kỹ lưỡng — trong «cân nhắc», «cân bằng» (to weigh / balance)",
+        exampleVi: "Trước khi đổi việc, mình nghĩ ai cũng nên cân nhắc kỹ lộ trình lâu dài.",
+      },
+      {
+        vi: "cần",
+        ipa: "",
+        tone: "Thanh huyền",
+        meaningVi: "Đòi hỏi, thiết yếu (to need / necessary)",
+        exampleVi: "Tôi thấy đề xuất này rất khả thi nhưng cần thêm số liệu để thuyết phục hơn.",
+      },
+    ],
+  },
+  {
+    id: "mp-opinions-5",
+    topicId: "opinions",
+    focusLabel: "cửa / của (Nguyên âm đôi «ưa» vs «ua»)",
+    contrastType: "vowel",
+    tipVi:
+      "Cả hai từ đều mang thanh hỏi nhưng khẩu hình môi hoàn toàn khác: «cửa» giữ môi dẹt không chu môi khi đọc «ưa», còn «của» chu tròn môi rõ ngay từ âm «u» rồi mở nhẹ sang «a».",
+    items: [
+      {
+        vi: "cửa",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Lối ra vào; cơ hội mở ra — trong «cánh cửa» (door / gateway)",
+        exampleVi: "Học thêm ngoại ngữ mở ra rất nhiều cánh cửa nghề nghiệp mới cho người trẻ.",
+      },
+      {
+        vi: "của",
+        ipa: "",
+        tone: "Thanh hỏi",
+        meaningVi: "Thuộc về ai đó — dùng khi nêu quan điểm (of / belonging to)",
+        exampleVi: "Tôi hoàn toàn tôn trọng quan điểm của bạn dù hai bên có cách nhìn khác nhau.",
+      },
+    ],
+  },
 ];
 
 export const PRONUNCIATION_SENTENCES = [
@@ -342,6 +795,42 @@ export const PRONUNCIATION_SENTENCES = [
     focusNoteVi: "Ngắt nhịp nhẹ sau «của tôi» và «tiếng Việt»; chú ý âm cuối khép môi ở «mục» và «công».",
     difficultWords: ["trình độ", "trao đổi", "tự nhiên"],
   },
+  {
+    id: "ps-self-4",
+    topicId: "self",
+    textVi: "Quê gốc của tôi ở Đà Nẵng nhưng tôi chuyển vào Sài Gòn từ hồi sinh viên.",
+    ipaGuide: "",
+    meaningEn: "My hometown is Da Nang, though I moved to Saigon back when I was a university student.",
+    focusNoteVi: "Phân biệt rõ thanh hỏi ở «của», «ở», «chuyển» với thanh ngã ở «Nẵng» để câu giới thiệu nghe tự nhiên.",
+    difficultWords: ["Quê gốc", "Đà Nẵng", "sinh viên"],
+  },
+  {
+    id: "ps-self-5",
+    topicId: "self",
+    textVi: "Dạo này mình đang cố gắng cân bằng giữa công việc văn phòng và sức khỏe.",
+    ipaGuide: "",
+    meaningEn: "Lately I've been trying to balance my office job and my health.",
+    focusNoteVi: "Chú ý thanh ngã có độ khựng nhẹ ở «giữa» và thanh hỏi trầm êm ở «khỏe», đừng đọc liền giọng.",
+    difficultWords: ["cố gắng", "giữa", "sức khỏe"],
+  },
+  {
+    id: "ps-self-6",
+    topicId: "self",
+    textVi: "Ngoài giờ làm, tôi thường học thêm nhiếp ảnh và gặp gỡ vài người bạn mới.",
+    ipaGuide: "",
+    meaningEn: "Outside of work, I usually study photography and meet up with a few new friends.",
+    focusNoteVi: "Đọc bật hơi rõ ở «thường», «thêm» và giữ thanh ngã chắc giọng ở «gỡ» trong cụm «gặp gỡ».",
+    difficultWords: ["Ngoài giờ làm", "nhiếp ảnh", "gặp gỡ"],
+  },
+  {
+    id: "ps-self-7",
+    topicId: "self",
+    textVi: "Đồng nghiệp hay nhận xét tôi khá cẩn thận và giữ được bình tĩnh trước áp lực.",
+    ipaGuide: "",
+    meaningEn: "Colleagues often describe me as quite careful and able to stay calm under pressure.",
+    focusNoteVi: "Phân biệt thanh hỏi ở «cẩn» với thanh ngã ở «giữ», «tĩnh» và ngắt gọn các âm cuối «áp lực».",
+    difficultWords: ["cẩn thận", "bình tĩnh", "áp lực"],
+  },
 
   // ---- FOOD ----
   {
@@ -370,6 +859,42 @@ export const PRONUNCIATION_SENTENCES = [
     meaningEn: "On weekends I enjoy going to the market myself to cook a light home-cooked meal.",
     focusNoteVi: "Giữ âm «ưa» không tròn môi kèm thanh ngã trong «bữa» (/ɓɯə˧ˀ˥/), tránh đọc thành «bưa» hay «bửa».",
     difficultWords: ["bữa cơm", "thanh đạm", "đi chợ"],
+  },
+  {
+    id: "ps-food-4",
+    topicId: "food",
+    textVi: "Mình bị dị ứng hải sản nên khi đi ăn nhóm thường gọi thêm món chay.",
+    ipaGuide: "",
+    meaningEn: "I'm allergic to seafood, so when eating out in a group I usually order an extra vegetarian dish.",
+    focusNoteVi: "Đọc dứt khoát hai thanh nặng «bị dị» rồi chuyển sang chuỗi thanh hỏi «hải sản» trầm đều và rõ.",
+    difficultWords: ["dị ứng", "hải sản", "món chay"],
+  },
+  {
+    id: "ps-food-5",
+    topicId: "food",
+    textVi: "Món bún chả này ăn kèm rau sống và nước chấm chua ngọt thì đậm đà lắm.",
+    ipaGuide: "",
+    meaningEn: "This bun cha tastes wonderfully rich when eaten with fresh herbs and sweet-and-sour dipping sauce.",
+    focusNoteVi: "Giữ nguyên âm đôi «ua» tròn môi ở «chua», nguyên âm «ươ» dẹt môi ở «nước» và thanh nặng chắc ở «đậm».",
+    difficultWords: ["bún chả", "nước chấm", "đậm đà"],
+  },
+  {
+    id: "ps-food-6",
+    topicId: "food",
+    textVi: "Quán vỉa hè này hơi nhỏ nhưng đồ ăn lúc nào cũng nóng hổi và vừa miệng.",
+    ipaGuide: "",
+    meaningEn: "This street-side eatery is a bit small, yet the food is always piping hot and well-seasoned.",
+    focusNoteVi: "Chú ý thanh hỏi trong «vỉa», «nhỏ», «hổi» tương phản với thanh ngã ở «cũng» và thanh nặng ở «miệng».",
+    difficultWords: ["vỉa hè", "nóng hổi", "vừa miệng"],
+  },
+  {
+    id: "ps-food-7",
+    topicId: "food",
+    textVi: "Anh cho em ít ớt tươi thôi nhé vì em không ăn được đồ quá cay.",
+    ipaGuide: "",
+    meaningEn: "Please give me just a little fresh chili since I can't handle overly spicy food.",
+    focusNoteVi: "Phân biệt nguyên âm «ươ» không tròn môi ở «tươi» và «được», đồng thời giữ hai thanh sắc gọn ở «ít ớt».",
+    difficultWords: ["ớt tươi", "không ăn được", "quá cay"],
   },
 
   // ---- ROUTINE ----
@@ -400,6 +925,42 @@ export const PRONUNCIATION_SENTENCES = [
     focusNoteVi: "Phân biệt thanh hỏi ở «bảy» và thanh ngã ở «rưỡi» (/zɯəj˧ˀ˥/) — rất hay dùng khi nói giờ giấc.",
     difficultWords: ["bảy giờ rưỡi", "tắc đường", "giờ cao điểm"],
   },
+  {
+    id: "ps-routine-4",
+    topicId: "routine",
+    textVi: "Hôm nào lịch họp dày đặc thì mình tranh thủ ăn trưa nhanh ngay tại bàn.",
+    ipaGuide: "",
+    meaningEn: "On days when my meeting schedule is packed, I squeeze in a quick lunch right at my desk.",
+    focusNoteVi: "Đọc gọn hai thanh nặng «lịch họp» và «đặc», giữ môi dẹt không tròn ở nguyên âm «ưa» trong «trưa».",
+    difficultWords: ["lịch họp", "dày đặc", "ăn trưa"],
+  },
+  {
+    id: "ps-routine-5",
+    topicId: "routine",
+    textVi: "Sau giờ tan tầm, tôi ghé phòng tập gần nhà khoảng bốn mươi phút rồi về.",
+    ipaGuide: "",
+    meaningEn: "After finishing work, I stop by the gym near home for about forty minutes before heading back.",
+    focusNoteVi: "Chú ý thanh hỏi dài hơi ở «khoảng», nguyên âm «ươ» dẹt môi trong «mươi» và thanh sắc dứt khoát ở «phút».",
+    difficultWords: ["tan tầm", "phòng tập", "bốn mươi phút"],
+  },
+  {
+    id: "ps-routine-6",
+    topicId: "routine",
+    textVi: "Dạo trước mình hay thức khuya làm việc nhưng giờ đã tập ngủ sớm hơn rồi.",
+    ipaGuide: "",
+    meaningEn: "I used to stay up late working, but now I've trained myself to go to bed earlier.",
+    focusNoteVi: "Luyện tổ hợp tròn môi «khuya» kết hợp thanh ngang, rồi phân biệt thanh ngã «đã» với thanh hỏi «ngủ».",
+    difficultWords: ["thức khuya", "đã tập", "ngủ sớm"],
+  },
+  {
+    id: "ps-routine-7",
+    topicId: "routine",
+    textVi: "Sáng chủ nhật tôi thích dọn dẹp phòng ốc nhẹ nhàng rồi ra quán đọc sách.",
+    ipaGuide: "",
+    meaningEn: "On Sunday mornings I like tidying up my room at an easy pace before heading to a cafe to read.",
+    focusNoteVi: "Giữ nhịp chuyển rõ qua cặp thanh nặng «dọn dẹp» và tròn môi gọn ở từ «ốc» trước khi sang «nhẹ nhàng».",
+    difficultWords: ["chủ nhật", "dọn dẹp", "nhẹ nhàng"],
+  },
 
   // ---- WEATHER ----
   {
@@ -428,6 +989,42 @@ export const PRONUNCIATION_SENTENCES = [
     meaningEn: "Sudden showers are forecast this afternoon, so remember to pack a raincoat so you don't get soaked.",
     focusNoteVi: "Giữ rõ nguyên âm «ưa» trong «mưa» và thanh hỏi dứt khoát ở «kẻo» (/kɛw˧˩˧/).",
     difficultWords: ["dự báo", "bất chợt", "kẻo ướt"],
+  },
+  {
+    id: "ps-weather-4",
+    topicId: "weather",
+    textVi: "Trời hôm nay oi bức quá, chắc chiều tối sẽ có một trận mưa dông lớn.",
+    ipaGuide: "",
+    meaningEn: "It's so muggy and sweltering today; there'll probably be a heavy thunderstorm by evening.",
+    focusNoteVi: "Phân biệt thanh ngã vút cao ở «sẽ» với thanh nặng rơi gọn ở «trận» và giữ âm «ưa» dẹt môi trong «mưa».",
+    difficultWords: ["oi bức", "mưa dông", "sẽ có"],
+  },
+  {
+    id: "ps-weather-5",
+    topicId: "weather",
+    textVi: "Mùa thu Hà Nội có gió heo may dịu nhẹ nên đi dạo buổi tối rất thích.",
+    ipaGuide: "",
+    meaningEn: "Hanoi's autumn brings a gentle crisp breeze, making evening strolls really enjoyable.",
+    focusNoteVi: "Tròn môi rõ ở «mùa thu», thả giọng êm qua cặp thanh nặng «dịu nhẹ» và giữ thanh hỏi rõ ở «buổi».",
+    difficultWords: ["heo may", "dịu nhẹ", "buổi tối"],
+  },
+  {
+    id: "ps-weather-6",
+    topicId: "weather",
+    textVi: "Cuối tuần dự báo nắng gắt nên nhóm mình dời chuyến dã ngoại sang tuần sau.",
+    ipaGuide: "",
+    meaningEn: "Scorching sun is forecast for the weekend, so our group pushed the picnic to next week.",
+    focusNoteVi: "Đọc bật cao cặp thanh sắc «nắng gắt», sau đó chú ý thanh ngã «dã» đi liền thanh nặng «ngoại».",
+    difficultWords: ["nắng gắt", "dã ngoại", "dời chuyến"],
+  },
+  {
+    id: "ps-weather-7",
+    topicId: "weather",
+    textVi: "Ngoài trời bắt đầu trở gió rồi, cậu mặc thêm áo khoác mỏng kẻo bị cảm lạnh.",
+    ipaGuide: "",
+    meaningEn: "It's starting to get windy outside, so put on a light jacket lest you catch a cold.",
+    focusNoteVi: "Giữ đều ba thanh hỏi «trở», «mỏng», «cảm» và bật hơi nhẹ âm «kh» ở «khoác» để phát âm rõ ràng.",
+    difficultWords: ["trở gió", "áo khoác mỏng", "cảm lạnh"],
   },
 
   // ---- EMOTIONS ----
@@ -458,6 +1055,42 @@ export const PRONUNCIATION_SENTENCES = [
     focusNoteVi: "Giữ âm điệu ấm áp ở cuối câu với «đã nhé» (ngã → sắc nhẹ) thay vì lên giọng quá gắt.",
     difficultWords: ["đồng cảm", "bức bối", "đã nhé"],
   },
+  {
+    id: "ps-emotions-4",
+    topicId: "emotions",
+    textVi: "Dù hơi hồi hộp nhưng tôi vẫn rất hào hứng trước thử thách ở vị trí mới.",
+    ipaGuide: "",
+    meaningEn: "Even though I'm a bit nervous, I'm still really excited about the challenge in this new role.",
+    focusNoteVi: "Chú ý thanh ngã chắc giọng ở «vẫn», nguyên âm «ư» dẹt môi trong «hứng», «thử» và nhịp tròn môi ở «hồi hộp».",
+    difficultWords: ["hồi hộp", "hào hứng", "thử thách"],
+  },
+  {
+    id: "ps-emotions-5",
+    topicId: "emotions",
+    textVi: "Nhận được tin nhắn hỏi thăm bất ngờ của bạn cũ làm mình thấy ấm lòng ghê.",
+    ipaGuide: "",
+    meaningEn: "Getting an unexpected check-in message from an old friend really warmed my heart.",
+    focusNoteVi: "Phân biệt rõ thanh hỏi ở «hỏi», «của» với thanh ngã có điểm ngắt ở «cũ» để không bị lẫn hai thanh.",
+    difficultWords: ["hỏi thăm", "bất ngờ", "ấm lòng"],
+  },
+  {
+    id: "ps-emotions-6",
+    topicId: "emotions",
+    textVi: "Đừng tự tạo áp lực quá nhé, cứ nghỉ một hôm cho đầu óc thư thả đã.",
+    ipaGuide: "",
+    meaningEn: "Don't put too much pressure on yourself; just take a day off to let your mind unwind first.",
+    focusNoteVi: "Giữ môi dẹt ở «đừng», «tự», «thư» và phân biệt thanh hỏi ở «nghỉ», «thả» với thanh ngã ở «đã» cuối câu.",
+    difficultWords: ["tự tạo áp lực", "đầu óc", "thư thả"],
+  },
+  {
+    id: "ps-emotions-7",
+    topicId: "emotions",
+    textVi: "Mình hơi bối rối khi phải từ chối lời mời của bạn nhưng tuần này quá bận.",
+    ipaGuide: "",
+    meaningEn: "I feel a bit awkward having to turn down your invitation, but this week is way too busy.",
+    focusNoteVi: "Tròn môi gọn ở vần «ôi» trong «bối rối», «chối» và hạ giọng trầm êm ở cặp thanh huyền «lời mời».",
+    difficultWords: ["bối rối", "từ chối", "lời mời"],
+  },
 
   // ---- OPINIONS ----
   {
@@ -486,5 +1119,41 @@ export const PRONUNCIATION_SENTENCES = [
     meaningEn: "I completely agree with this proposal; however, we should consider the budget more carefully.",
     focusNoteVi: "Đọc mượt chuỗi bốn thanh huyền «hoàn toàn đồng tình» rồi chuyển giọng rõ sang «tuy nhiên».",
     difficultWords: ["đồng tình", "tuy nhiên", "cân nhắc"],
+  },
+  {
+    id: "ps-opinions-4",
+    topicId: "opinions",
+    textVi: "Tôi hiểu góc nhìn của bạn, nhưng sống ở thành phố vẫn có nhiều cơ hội hơn.",
+    ipaGuide: "",
+    meaningEn: "I understand your perspective, but living in the city still offers more opportunities.",
+    focusNoteVi: "Đọc rõ thanh hỏi ở «hiểu», «của», «ở» rồi nhấn nhẹ thanh ngã «vẫn» để thể hiện phản biện lịch sự.",
+    difficultWords: ["góc nhìn", "vẫn có", "cơ hội"],
+  },
+  {
+    id: "ps-opinions-5",
+    topicId: "opinions",
+    textVi: "Nói chung là phương án nào cũng có ưu điểm, quan trọng là phù hợp hoàn cảnh.",
+    ipaGuide: "",
+    meaningEn: "Overall, every option has its merits; what matters is fitting the situation.",
+    focusNoteVi: "Ngắt nhịp gọn tại dấu phẩy sau «ưu điểm», giữ rõ thanh ngã «cũng» và thanh hỏi «điểm», «cảnh».",
+    difficultWords: ["phương án", "ưu điểm", "hoàn cảnh"],
+  },
+  {
+    id: "ps-opinions-6",
+    topicId: "opinions",
+    textVi: "Theo mình thì học ngoại ngữ đều đặn mỗi ngày hiệu quả hơn nhồi nhét cuối tuần.",
+    ipaGuide: "",
+    meaningEn: "In my opinion, studying a foreign language steadily every day is more effective than cramming on weekends.",
+    focusNoteVi: "Chú ý thanh ngã bật rõ ở «ngữ» và «mỗi», đồng thời phân biệt thanh nặng «đặn» với thanh hỏi «quả».",
+    difficultWords: ["ngoại ngữ", "đều đặn", "hiệu quả"],
+  },
+  {
+    id: "ps-opinions-7",
+    topicId: "opinions",
+    textVi: "Chúng ta nên lắng nghe phản hồi từ người dùng trước khi quyết định thay đổi lớn.",
+    ipaGuide: "",
+    meaningEn: "We should listen to user feedback before deciding on a major change.",
+    focusNoteVi: "Giữ thanh hỏi rõ ở «phản» và «đổi», đồng thời tròn môi gọn khi phát âm vần «uyê» trong «quyết».",
+    difficultWords: ["phản hồi", "quyết định", "thay đổi"],
   },
 ];

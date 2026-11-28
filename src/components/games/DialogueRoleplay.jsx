@@ -16,7 +16,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { DIALOGUE_SCENARIOS, getTopicById } from "../../data";
+import { DIALOGUE_SCENARIOS, TOPICS, getTopicById } from "../../data";
 import { GAME_TYPES, TOPIC_META } from "../../lib/contracts";
 import {
   matchDialogueIntent,
@@ -24,6 +24,15 @@ import {
 } from "../../lib/pronunciation";
 import * as speechApi from "../../lib/speech";
 import { useVietnameseSpeech } from "../../hooks/useVietnameseSpeech";
+
+const TOPIC_SHORT_LABELS = {
+  self: "Bản thân",
+  food: "Ẩm thực",
+  routine: "Sinh hoạt",
+  weather: "Thời tiết",
+  emotions: "Cảm xúc",
+  opinions: "Quan điểm",
+};
 
 function getInitials(name = "") {
   const parts = String(name).trim().split(/\s+/).filter(Boolean);
@@ -59,14 +68,30 @@ export function DialogueRoleplay({
     []
   );
 
+  const topicsList = useMemo(() => {
+    if (Array.isArray(TOPICS) && TOPICS.length > 0) return TOPICS;
+    return Object.values(TOPIC_META);
+  }, []);
+
   const [showAllTopics, setShowAllTopics] = useState(false);
+  const [pickerTopicFilter, setPickerTopicFilter] = useState("all");
+
+  const isBrowsingAll =
+    showAllTopics || !activeTopicId || activeTopicId === "all";
+
   const visibleScenarios = useMemo(() => {
-    if (showAllTopics || !activeTopicId || activeTopicId === "all") {
+    if (isBrowsingAll) {
+      if (pickerTopicFilter && pickerTopicFilter !== "all") {
+        const filtered = allScenarios.filter(
+          (s) => s.topicId === pickerTopicFilter
+        );
+        return filtered.length > 0 ? filtered : allScenarios;
+      }
       return allScenarios;
     }
     const filtered = allScenarios.filter((s) => s.topicId === activeTopicId);
     return filtered.length > 0 ? filtered : allScenarios;
-  }, [allScenarios, activeTopicId, showAllTopics]);
+  }, [allScenarios, activeTopicId, isBrowsingAll, pickerTopicFilter]);
 
   const [activeScenario, setActiveScenario] = useState(null);
   const [currentTurnId, setCurrentTurnId] = useState(null);
@@ -103,6 +128,7 @@ export function DialogueRoleplay({
 
   useEffect(() => {
     setShowAllTopics(false);
+    setPickerTopicFilter("all");
   }, [activeTopicId]);
 
   useEffect(() => {
@@ -467,28 +493,19 @@ export function DialogueRoleplay({
   if (!activeScenario) {
     return (
       <div className="vf-g-panel" data-testid="dialogue-picker">
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: "12px",
-            marginBottom: "20px",
-          }}
-        >
+        <div className="vf-g-picker-header">
           <div>
-            <h3
-              className="vf-g-serif"
-              style={{
-                margin: "0 0 4px",
-                fontSize: "1.28rem",
-                fontWeight: 500,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Chọn tình huống hội thoại
-            </h3>
+            <div className="vf-g-picker-heading-row">
+              <h3 className="vf-g-serif vf-g-picker-title">
+                Chọn tình huống hội thoại
+              </h3>
+              <span
+                className="vf-g-count-badge vf-g-mono"
+                data-testid="dialogue-scenario-count"
+              >
+                {visibleScenarios.length} tình huống
+              </span>
+            </div>
             <p
               style={{
                 margin: 0,
@@ -503,14 +520,70 @@ export function DialogueRoleplay({
             <button
               type="button"
               className="vf-g-btn vf-g-btn--sm"
-              onClick={() => setShowAllTopics((prev) => !prev)}
+              onClick={() => {
+                setShowAllTopics((prev) => {
+                  const next = !prev;
+                  if (!next) setPickerTopicFilter("all");
+                  return next;
+                });
+              }}
+              data-testid="dialogue-toggle-all-btn"
             >
               {showAllTopics
                 ? "Chỉ xem chủ đề đang chọn"
-                : "Xem cả 6 tình huống"}
+                : `Xem cả ${allScenarios.length} tình huống`}
             </button>
           )}
         </div>
+
+        {isBrowsingAll && allScenarios.length > 6 && (
+          <div
+            className="vf-g-inline-filter"
+            role="tablist"
+            aria-label="Lọc tình huống theo chủ đề"
+            data-testid="dialogue-topic-filter"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={pickerTopicFilter === "all"}
+              className={`vf-g-filter-pill ${
+                pickerTopicFilter === "all" ? "vf-g-filter-pill--active" : ""
+              }`}
+              onClick={() => setPickerTopicFilter("all")}
+              data-testid="dialogue-filter-all"
+            >
+              <span>Tất cả</span>{" "}
+              <span className="vf-g-filter-pill__count vf-g-mono">
+                {allScenarios.length}
+              </span>
+            </button>
+            {topicsList.map((topic) => {
+              const count = allScenarios.filter(
+                (s) => s.topicId === topic.id
+              ).length;
+              const isSelected = pickerTopicFilter === topic.id;
+              return (
+                <button
+                  key={topic.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  className={`vf-g-filter-pill ${
+                    isSelected ? "vf-g-filter-pill--active" : ""
+                  }`}
+                  onClick={() => setPickerTopicFilter(topic.id)}
+                  data-testid={`dialogue-filter-${topic.id}`}
+                >
+                  <span>{TOPIC_SHORT_LABELS[topic.id] || topic.titleVi}</span>{" "}
+                  <span className="vf-g-filter-pill__count vf-g-mono">
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="vf-g-scenario-grid">
           {visibleScenarios.map((sc) => {

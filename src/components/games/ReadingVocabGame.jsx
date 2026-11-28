@@ -12,7 +12,12 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { READING_PASSAGES, SENTENCE_BUILDERS, getTopicById } from "../../data";
+import {
+  READING_PASSAGES,
+  SENTENCE_BUILDERS,
+  TOPICS,
+  getTopicById,
+} from "../../data";
 import { GAME_TYPES, TOPIC_META } from "../../lib/contracts";
 import * as speechApi from "../../lib/speech";
 import { useVietnameseSpeech } from "../../hooks/useVietnameseSpeech";
@@ -111,20 +116,68 @@ function createShuffledTiles(item) {
   return shuffled;
 }
 
-function buildSentenceRound(allItems, activeTopicId) {
+const ALL_BUILDER_ROUND_SIZE = 8;
+
+function shuffleList(items) {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function buildSentenceRound(
+  allItems,
+  activeTopicId,
+  seed = 0,
+  seenIds = new Set()
+) {
   const safe = Array.isArray(allItems) ? allItems : [];
+  if (safe.length === 0) return [];
+
   if (activeTopicId && activeTopicId !== "all") {
     const filtered = safe.filter((item) => item.topicId === activeTopicId);
-    if (filtered.length > 0) return filtered;
+    if (filtered.length > 0) {
+      return seed > 0 ? shuffleList(filtered) : filtered;
+    }
   }
+
+  const seen = seenIds instanceof Set ? seenIds : new Set();
+  const unseenShuffled = shuffleList(safe.filter((item) => !seen.has(item.id)));
+  const seenShuffled = shuffleList(safe.filter((item) => seen.has(item.id)));
+  const prioritized = [...unseenShuffled, ...seenShuffled];
+
+  // Deal 1 balanced sentence per topic first (prioritizing unseen)
   const byTopic = new Map();
-  for (const item of safe) {
+  for (const item of prioritized) {
     if (!byTopic.has(item.topicId)) {
       byTopic.set(item.topicId, item);
     }
   }
   const picked = Array.from(byTopic.values());
-  return picked.length > 0 ? picked.slice(0, 6) : safe.slice(0, 6);
+  const pickedIds = new Set(picked.map((x) => x.id));
+
+  // Add bonus sentences (up to 8 total) from distinct topics
+  const bonusTopics = new Set();
+  for (const item of prioritized) {
+    if (picked.length >= ALL_BUILDER_ROUND_SIZE) break;
+    if (!pickedIds.has(item.id) && !bonusTopics.has(item.topicId)) {
+      picked.push(item);
+      pickedIds.add(item.id);
+      bonusTopics.add(item.topicId);
+    }
+  }
+
+  for (const item of prioritized) {
+    if (picked.length >= ALL_BUILDER_ROUND_SIZE) break;
+    if (!pickedIds.has(item.id)) {
+      picked.push(item);
+      pickedIds.add(item.id);
+    }
+  }
+
+  return shuffleList(picked);
 }
 
 const PASSAGE_SHORT_LABELS = {
@@ -150,7 +203,13 @@ export function ReadingVocabGame({
     initialSubMode === "builder" ? "builder" : "reading"
   );
 
+  const topicsList = useMemo(() => {
+    if (Array.isArray(TOPICS) && TOPICS.length > 0) return TOPICS;
+    return Object.values(TOPIC_META);
+  }, []);
+
   // ---------- Sub-mode A: Reading Comprehension ----------
+  const isAllPassagesScope = !activeTopicId || activeTopicId === "all";
   const passages = useMemo(() => {
     const list = Array.isArray(READING_PASSAGES) ? READING_PASSAGES : [];
     if (activeTopicId && activeTopicId !== "all") {
@@ -160,6 +219,19 @@ export function ReadingVocabGame({
     return list;
   }, [activeTopicId]);
 
+  const [readingTopicFilter, setReadingTopicFilter] = useState("all");
+  const filteredPassages = useMemo(() => {
+    if (
+      isAllPassagesScope &&
+      readingTopicFilter &&
+      readingTopicFilter !== "all"
+    ) {
+      const filtered = passages.filter((p) => p.topicId === readingTopicFilter);
+      if (filtered.length > 0) return filtered;
+    }
+    return passages;
+  }, [passages, isAllPassagesScope, readingTopicFilter]);
+
   const [passageIndex, setPassageIndex] = useState(0);
   const [selectedGlossaryKey, setSelectedGlossaryKey] = useState(null);
   const [lookedUpWords, setLookedUpWords] = useState([]);
@@ -167,12 +239,35 @@ export function ReadingVocabGame({
   const readingStartRef = useRef(Date.now());
   const readingReportedIdRef = useRef(null);
 
-  const currentPassage = passages[passageIndex] || passages[0] || null;
+  const currentPassage =
+    filteredPassages[passageIndex] || filteredPassages[0] || null;
 
   // ---------- Sub-mode B: Sentence Builder Sprint ----------
+  const allBuildersForScope = useMemo(() => {
+    const safe = Array.isArray(SENTENCE_BUILDERS) ? SENTENCE_BUILDERS : [];
+    if (activeTopicId && activeTopicId !== "all") {
+      const filtered = safe.filter((item) => item.topicId === activeTopicId);
+      if (filtered.length > 0) return filtered;
+    }
+    return safe;
+  }, [activeTopicId]);
+
   const [builderSeed, setBuilderSeed] = useState(0);
+  const seenBuilderIdsRef = useRef(new Set());
+  const prevBuilderTopicRef = useRef(activeTopicId);
+  if (prevBuilderTopicRef.current !== activeTopicId) {
+    prevBuilderTopicRef.current = activeTopicId;
+    seenBuilderIdsRef.current.clear();
+  }
+
   const sentenceRound = useMemo(
-    () => buildSentenceRound(SENTENCE_BUILDERS, activeTopicId),
+    () =>
+      buildSentenceRound(
+        SENTENCE_BUILDERS,
+        activeTopicId,
+        builderSeed,
+        seenBuilderIdsRef.current
+      ),
     [activeTopicId, builderSeed]
   );
 
@@ -193,13 +288,16 @@ export function ReadingVocabGame({
   const currentBuilderItem = sentenceRound[builderIndex] || null;
 
   useEffect(() => {
+    setReadingTopicFilter("all");
     setPassageIndex(0);
     setSelectedGlossaryKey(null);
     setLookedUpWords([]);
     setReadingAnswers({});
     readingStartRef.current = Date.now();
     readingReportedIdRef.current = null;
+  }, [activeTopicId]);
 
+  useEffect(() => {
     setBuilderIndex(0);
     setBuilderScore(0);
     setBuilderCombo(0);
@@ -247,12 +345,35 @@ export function ReadingVocabGame({
 
   // Reading handlers
   const handleSelectPassage = (idx) => {
+    const safeIdx = Math.max(0, Math.min(filteredPassages.length - 1, idx));
     stopSpeak();
-    setPassageIndex(idx);
+    setPassageIndex(safeIdx);
     setSelectedGlossaryKey(null);
     setReadingAnswers({});
     readingStartRef.current = Date.now();
     readingReportedIdRef.current = null;
+  };
+
+  const handleSelectReadingTopicFilter = (topicId) => {
+    stopSpeak();
+    setReadingTopicFilter(topicId);
+    setPassageIndex(0);
+    setSelectedGlossaryKey(null);
+    setReadingAnswers({});
+    readingStartRef.current = Date.now();
+    readingReportedIdRef.current = null;
+  };
+
+  const handleRestartBuilder = () => {
+    if (!activeTopicId || activeTopicId === "all") {
+      for (const item of sentenceRound) {
+        seenBuilderIdsRef.current.add(item.id);
+      }
+      if (seenBuilderIdsRef.current.size >= SENTENCE_BUILDERS.length) {
+        seenBuilderIdsRef.current = new Set(sentenceRound.map((item) => item.id));
+      }
+    }
+    setBuilderSeed((s) => s + 1);
   };
 
   const handleGlossaryClick = (glossaryKey) => {
@@ -427,7 +548,9 @@ export function ReadingVocabGame({
             }}
             data-testid="reading-tab-passage"
           >
-            <BookOpen size={15} /> Đọc hiểu
+            <BookOpen size={15} />
+            <span>Đọc hiểu</span>{" "}
+            <span className="vf-g-tab-count vf-g-mono">({passages.length})</span>
           </button>
           <button
             type="button"
@@ -440,42 +563,146 @@ export function ReadingVocabGame({
             }}
             data-testid="reading-tab-builder"
           >
-            <Puzzle size={15} /> Ghép câu
+            <Puzzle size={15} />
+            <span>Ghép câu</span>{" "}
+            <span className="vf-g-tab-count vf-g-mono">
+              ({allBuildersForScope.length})
+            </span>
           </button>
         </div>
       </div>
 
       {subMode === "reading" ? (
         <div className="vf-g-panel" data-testid="reading-passage-view">
-          {passages.length > 1 && (
+          {isAllPassagesScope && passages.length > 6 && (
             <div
-              className="vf-g-topic-bar"
-              style={{ marginBottom: "24px" }}
+              className="vf-g-inline-filter"
               role="tablist"
-              aria-label="Chọn bài đọc"
+              aria-label="Lọc bài đọc theo chủ đề"
+              data-testid="reading-topic-filter"
             >
-              {passages.map((p, idx) => {
-                const tMeta =
-                  getTopicById?.(p.topicId) || TOPIC_META[p.topicId];
-                const label =
-                  PASSAGE_SHORT_LABELS[p.topicId] ||
-                  tMeta?.titleVi ||
-                  p.titleVi;
+              <button
+                type="button"
+                role="tab"
+                aria-selected={readingTopicFilter === "all"}
+                className={`vf-g-filter-pill ${
+                  readingTopicFilter === "all" ? "vf-g-filter-pill--active" : ""
+                }`}
+                onClick={() => handleSelectReadingTopicFilter("all")}
+                data-testid="reading-filter-all"
+              >
+                <span>Tất cả</span>{" "}
+                <span className="vf-g-filter-pill__count vf-g-mono">
+                  {passages.length}
+                </span>
+              </button>
+              {topicsList.map((topic) => {
+                const count = passages.filter(
+                  (p) => p.topicId === topic.id
+                ).length;
+                const isSelected = readingTopicFilter === topic.id;
                 return (
                   <button
-                    key={p.id}
+                    key={topic.id}
                     type="button"
                     role="tab"
-                    aria-selected={idx === passageIndex}
-                    className={`vf-g-topic-tab ${
-                      idx === passageIndex ? "vf-g-topic-tab--active" : ""
+                    aria-selected={isSelected}
+                    className={`vf-g-filter-pill ${
+                      isSelected ? "vf-g-filter-pill--active" : ""
                     }`}
-                    onClick={() => handleSelectPassage(idx)}
+                    onClick={() => handleSelectReadingTopicFilter(topic.id)}
+                    data-testid={`reading-filter-${topic.id}`}
                   >
-                    {label}
+                    <span>
+                      {PASSAGE_SHORT_LABELS[topic.id] || topic.titleVi}
+                    </span>{" "}
+                    <span className="vf-g-filter-pill__count vf-g-mono">
+                      {count}
+                    </span>
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {filteredPassages.length > 1 && (
+            <div className="vf-g-passage-nav">
+              <div className="vf-g-passage-nav-top">
+                <div className="vf-g-session-meta-group">
+                  <strong
+                    className="vf-g-mono"
+                    data-testid="reading-passage-counter"
+                  >
+                    Bài {passageIndex + 1} / {filteredPassages.length}
+                  </strong>
+                  {currentPassage && (
+                    <>
+                      <span className="vf-g-dot-sep">·</span>
+                      <span style={{ color: "var(--g-text-muted)", fontSize: "0.82rem" }}>
+                        {PASSAGE_SHORT_LABELS[currentPassage.topicId] ||
+                          getTopicById?.(currentPassage.topicId)?.titleVi ||
+                          TOPIC_META[currentPassage.topicId]?.titleVi}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <div className="vf-g-nav-controls">
+                  <button
+                    type="button"
+                    className="vf-g-btn vf-g-btn--sm"
+                    disabled={passageIndex <= 0}
+                    onClick={() => handleSelectPassage(passageIndex - 1)}
+                    data-testid="reading-passage-prev"
+                  >
+                    <ArrowLeft size={14} /> Bài trước
+                  </button>
+                  <button
+                    type="button"
+                    className="vf-g-btn vf-g-btn--sm"
+                    disabled={passageIndex >= filteredPassages.length - 1}
+                    onClick={() => handleSelectPassage(passageIndex + 1)}
+                    data-testid="reading-passage-next"
+                  >
+                    Bài tiếp <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className={`vf-g-passage-pills ${
+                  filteredPassages.length > 6
+                    ? "vf-g-passage-pills--scroll"
+                    : ""
+                }`}
+                role="tablist"
+                aria-label="Chọn bài đọc"
+                data-testid="reading-passage-tabs"
+              >
+                {filteredPassages.map((p, idx) => {
+                  const pillLabel = isAllPassagesScope
+                    ? `Bài ${idx + 1}: ${p.titleVi}`
+                    : `Bài ${idx + 1} · ${p.titleVi}`;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={idx === passageIndex}
+                      title={p.titleVi}
+                      className={`vf-g-passage-pill ${
+                        idx === passageIndex ? "vf-g-passage-pill--active" : ""
+                      }`}
+                      onClick={() => handleSelectPassage(idx)}
+                      data-testid={`reading-passage-tab-${idx}`}
+                    >
+                      <span className="vf-g-passage-pill__text">
+                        {pillLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -811,7 +1038,7 @@ export function ReadingVocabGame({
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                    {passageIndex + 1 < passages.length && (
+                    {passageIndex + 1 < filteredPassages.length && (
                       <button
                         type="button"
                         className="vf-g-btn vf-g-btn--primary vf-g-btn--sm"
@@ -873,7 +1100,7 @@ export function ReadingVocabGame({
             <button
               type="button"
               className="vf-g-btn vf-g-btn--primary"
-              onClick={() => setBuilderSeed((s) => s + 1)}
+              onClick={handleRestartBuilder}
             >
               <RotateCcw size={15} /> Luyện vòng mới
             </button>

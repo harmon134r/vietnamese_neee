@@ -10,7 +10,7 @@ import {
   PawPrint,
   Volume2,
 } from "lucide-react";
-import { TOPICS, getTopicById } from "../../data";
+import { TOPICS, getContentStats, getTopicById } from "../../data";
 import { GAME_ILLUSTRATIONS } from "../../data/illustrations";
 import { GAME_TYPES, SKILL_META, TOPIC_META } from "../../lib/contracts";
 import { speakVietnamese, stopSpeaking } from "../../lib/speech";
@@ -167,6 +167,38 @@ export function GameHub({
     if (Array.isArray(TOPICS) && TOPICS.length > 0) return TOPICS;
     return Object.values(TOPIC_META);
   }, []);
+
+  const contentStats = useMemo(() => getContentStats(), []);
+
+  const scopedStats = useMemo(() => {
+    if (
+      selectedTopic &&
+      selectedTopic !== "all" &&
+      contentStats.byTopic?.[selectedTopic]
+    ) {
+      return contentStats.byTopic[selectedTopic];
+    }
+    return contentStats;
+  }, [contentStats, selectedTopic]);
+
+  const getModeStatText = (modeId) => {
+    switch (modeId) {
+      case "listening":
+        return `${scopedStats.listeningExercises ?? 0} bài nghe`;
+      case "pronunciation":
+        return `${scopedStats.minimalPairs ?? 0} cặp từ · ${scopedStats.pronunciationSentences ?? 0} câu đọc`;
+      case "dialogue":
+        return `${scopedStats.dialogueScenarios ?? 0} tình huống`;
+      case "reading":
+        return `${scopedStats.readingPassages ?? 0} bài đọc · ${scopedStats.sentenceBuilders ?? 0} câu ghép`;
+      case "chase":
+        return `${scopedStats.synonymAntonymItems ?? 0} cặp từ`;
+      default:
+        return currentTopicObj
+          ? TOPIC_SHORT_LABELS[currentTopicObj.id] || currentTopicObj.titleVi
+          : "Cả 6 chủ đề";
+    }
+  };
 
   const currentTopicObj = useMemo(() => {
     if (!selectedTopic || selectedTopic === "all") return null;
@@ -500,10 +532,11 @@ export function GameHub({
               </div>
 
               <div className="vf-g-mode-footer">
-                <span className="vf-g-mode-stat">
-                  {currentTopicObj
-                    ? TOPIC_SHORT_LABELS[currentTopicObj.id] || currentTopicObj.titleVi
-                    : "Cả 6 chủ đề"}
+                <span
+                  className="vf-g-mode-stat"
+                  data-testid={`game-mode-stat-${mode.id}`}
+                >
+                  {getModeStatText(mode.id)}
                 </span>
 
                 <button

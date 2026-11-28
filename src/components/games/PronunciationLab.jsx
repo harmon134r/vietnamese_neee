@@ -9,6 +9,7 @@ import {
   Mic,
   MicOff,
   RotateCcw,
+  Shuffle,
   Volume2,
 } from "lucide-react";
 import {
@@ -117,6 +118,13 @@ function formatToneBadge(toneValue) {
   if (!str) return "Thanh điệu";
   if (/^thanh\s/i.test(str)) return str;
   return `Thanh ${getToneShortLabel(str)}`;
+}
+
+function pickDifferentIndex(currentIdx, total) {
+  if (total <= 1) return 0;
+  let next = Math.floor(Math.random() * (total - 1));
+  if (next >= currentIdx) next += 1;
+  return next;
 }
 
 function WordDiffStrip({ wordDiffs = [], onSpeakWord }) {
@@ -598,7 +606,9 @@ export function PronunciationLab({
             }}
             data-testid="pronunciation-tab-pairs"
           >
-            <AudioLines size={15} /> 6 thanh điệu & cặp từ
+            <AudioLines size={15} />
+            <span>6 thanh điệu & cặp từ</span>{" "}
+            <span className="vf-g-tab-count vf-g-mono">({pairs.length})</span>
           </button>
           <button
             type="button"
@@ -612,7 +622,9 @@ export function PronunciationLab({
             }}
             data-testid="pronunciation-tab-shadowing"
           >
-            <Mic size={15} /> Luyện đọc câu
+            <Mic size={15} />
+            <span>Luyện đọc câu</span>{" "}
+            <span className="vf-g-tab-count vf-g-mono">({sentences.length})</span>
           </button>
         </div>
 
@@ -744,22 +756,45 @@ export function PronunciationLab({
                   </span>
                 </div>
 
-                <div style={{ display: "flex", gap: "6px" }}>
+                <div className="vf-g-nav-controls">
                   <button
                     type="button"
                     className="vf-g-btn vf-g-btn--sm"
                     disabled={pairIndex === 0}
-                    onClick={() => setPairIndex((p) => Math.max(0, p - 1))}
+                    onClick={() => {
+                      stopSpeak();
+                      stopListening();
+                      setPairManualTargetIdx(0);
+                      setPairIndex((p) => Math.max(0, p - 1));
+                    }}
                   >
                     <ArrowLeft size={14} /> Trước
                   </button>
                   <button
                     type="button"
                     className="vf-g-btn vf-g-btn--sm"
+                    disabled={pairs.length <= 1}
+                    onClick={() => {
+                      stopSpeak();
+                      stopListening();
+                      setPairManualTargetIdx(0);
+                      setPairIndex((p) => pickDifferentIndex(p, pairs.length));
+                    }}
+                    data-testid="pronunciation-pair-random"
+                    title="Chuyển ngẫu nhiên sang cặp từ khác"
+                  >
+                    <Shuffle size={14} /> Ngẫu nhiên
+                  </button>
+                  <button
+                    type="button"
+                    className="vf-g-btn vf-g-btn--sm"
                     disabled={pairIndex >= pairs.length - 1}
-                    onClick={() =>
-                      setPairIndex((p) => Math.min(pairs.length - 1, p + 1))
-                    }
+                    onClick={() => {
+                      stopSpeak();
+                      stopListening();
+                      setPairManualTargetIdx(0);
+                      setPairIndex((p) => Math.min(pairs.length - 1, p + 1));
+                    }}
                   >
                     Tiếp <ArrowRight size={14} />
                   </button>
@@ -1050,7 +1085,7 @@ export function PronunciationLab({
                   </span>
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <div className="vf-g-nav-controls">
                   <div className="vf-g-speed-group">
                     {[0.75, 0.95, 1.1].map((sp) => (
                       <button
@@ -1077,6 +1112,22 @@ export function PronunciationLab({
                     aria-label="Câu trước"
                   >
                     <ArrowLeft size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="vf-g-btn vf-g-btn--sm"
+                    disabled={sentences.length <= 1}
+                    onClick={() => {
+                      stopSpeak();
+                      stopListening();
+                      setSentenceIndex((i) =>
+                        pickDifferentIndex(i, sentences.length)
+                      );
+                    }}
+                    data-testid="pronunciation-sentence-random"
+                    title="Chuyển ngẫu nhiên sang câu đọc khác"
+                  >
+                    <Shuffle size={14} /> Ngẫu nhiên
                   </button>
                   <button
                     type="button"

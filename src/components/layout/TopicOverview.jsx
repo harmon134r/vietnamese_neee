@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   Headphones,
@@ -8,6 +8,7 @@ import {
   Square,
   Volume2,
 } from "lucide-react";
+import { getContentStats } from "../../data";
 import * as speechApi from "../../lib/speech";
 import { APP_ART, TOPIC_ILLUSTRATIONS } from "../../data/illustrations";
 
@@ -39,6 +40,7 @@ export function TopicOverview({
   const [voiceId, setVoiceId] = useState(
     () => speechApi.getSelectedVoice?.() || speechApi.RANDOM_VOICE_ID || "random"
   );
+  const contentStats = useMemo(() => getContentStats(), []);
 
   const activeIndex = Math.max(
     0,
@@ -158,32 +160,41 @@ export function TopicOverview({
     return sum + matches;
   }, 0);
 
+  const topicStats = contentStats.byTopic?.[activeTopic.id] || {
+    listeningExercises: 0,
+    minimalPairs: 0,
+    pronunciationSentences: 0,
+    dialogueScenarios: 0,
+    readingPassages: 0,
+    sentenceBuilders: 0,
+  };
+
   const practiceLinks = [
     {
       id: "listening",
       title: "Nghe hiểu",
-      sub: "Hội thoại & câu hỏi theo ngữ cảnh",
+      sub: `${topicStats.listeningExercises} bài nghe hội thoại theo ngữ cảnh`,
       icon: Headphones,
       onClick: () => onLaunchGame("listening", activeTopic.id),
     },
     {
       id: "pronunciation",
       title: "Phát âm & thanh điệu",
-      sub: "Cặp từ dễ nhầm & đọc câu mẫu",
+      sub: `${topicStats.minimalPairs} cặp từ · ${topicStats.pronunciationSentences} câu đọc mẫu`,
       icon: Mic,
       onClick: () => onLaunchGame("pronunciation", activeTopic.id),
     },
     {
       id: "dialogue",
       title: "Đối thoại nhập vai",
-      sub: "Thực hành 4 lượt hỏi đáp",
+      sub: `${topicStats.dialogueScenarios} tình huống · 4 lượt hỏi đáp`,
       icon: MessageCircle,
       onClick: () => onLaunchGame("dialogue", activeTopic.id),
     },
     {
       id: "reading",
       title: "Đọc hiểu & ghép câu",
-      sub: "Đoạn văn ngắn kèm giải nghĩa",
+      sub: `${topicStats.readingPassages} bài đọc · ${topicStats.sentenceBuilders} câu ghép`,
       icon: BookOpen,
       onClick: () => onLaunchGame("reading", activeTopic.id),
     },

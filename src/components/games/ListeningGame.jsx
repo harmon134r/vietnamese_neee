@@ -41,28 +41,59 @@ function shuffleList(items) {
   return arr;
 }
 
-function buildRound(allExercises, activeTopicId) {
+const ALL_TOPICS_ROUND_SIZE = 8;
+
+function buildRound(
+  allExercises,
+  activeTopicId,
+  roundSeed = 0,
+  previouslySeenIds = new Set()
+) {
   const safeList = Array.isArray(allExercises) ? allExercises : [];
+  if (safeList.length === 0) return [];
+
   if (activeTopicId && activeTopicId !== "all") {
     const filtered = safeList.filter((item) => item.topicId === activeTopicId);
-    if (filtered.length > 0) return filtered;
+    if (filtered.length > 0) {
+      return roundSeed > 0 ? shuffleList(filtered) : filtered;
+    }
   }
+
+  const seen = previouslySeenIds instanceof Set ? previouslySeenIds : new Set();
+  const unseenShuffled = shuffleList(safeList.filter((ex) => !seen.has(ex.id)));
+  const seenShuffled = shuffleList(safeList.filter((ex) => seen.has(ex.id)));
+  const prioritized = [...unseenShuffled, ...seenShuffled];
+
+  // Deal 1 per topic first (preferring unseen exercises in each topic)
   const byTopic = new Map();
-  for (const ex of shuffleList(safeList)) {
+  for (const ex of prioritized) {
     if (!byTopic.has(ex.topicId)) {
       byTopic.set(ex.topicId, ex);
     }
   }
   const picked = Array.from(byTopic.values());
-  if (picked.length >= 6) return picked.slice(0, 6);
   const pickedIds = new Set(picked.map((x) => x.id));
-  for (const ex of safeList) {
-    if (!pickedIds.has(ex.id) && picked.length < 6) {
+
+  // Add bonus exercises (up to 8 total) preferring unseen exercises from distinct topics
+  const bonusTopics = new Set();
+  for (const ex of prioritized) {
+    if (picked.length >= ALL_TOPICS_ROUND_SIZE) break;
+    if (!pickedIds.has(ex.id) && !bonusTopics.has(ex.topicId)) {
+      picked.push(ex);
+      pickedIds.add(ex.id);
+      bonusTopics.add(ex.topicId);
+    }
+  }
+
+  for (const ex of prioritized) {
+    if (picked.length >= ALL_TOPICS_ROUND_SIZE) break;
+    if (!pickedIds.has(ex.id)) {
       picked.push(ex);
       pickedIds.add(ex.id);
     }
   }
-  return picked;
+
+  return shuffleList(picked);
 }
 
 export function ListeningGame({
@@ -83,8 +114,21 @@ export function ListeningGame({
   });
 
   const [roundSeed, setRoundSeed] = useState(0);
+  const seenIdsRef = useRef(new Set());
+  const prevTopicRef = useRef(activeTopicId);
+  if (prevTopicRef.current !== activeTopicId) {
+    prevTopicRef.current = activeTopicId;
+    seenIdsRef.current.clear();
+  }
+
   const exercises = useMemo(
-    () => buildRound(LISTENING_EXERCISES, activeTopicId),
+    () =>
+      buildRound(
+        LISTENING_EXERCISES,
+        activeTopicId,
+        roundSeed,
+        seenIdsRef.current
+      ),
     [activeTopicId, roundSeed]
   );
 
@@ -250,6 +294,14 @@ export function ListeningGame({
   };
 
   const handleRestart = () => {
+    if (!activeTopicId || activeTopicId === "all") {
+      for (const ex of exercises) {
+        seenIdsRef.current.add(ex.id);
+      }
+      if (seenIdsRef.current.size >= LISTENING_EXERCISES.length) {
+        seenIdsRef.current = new Set(exercises.map((ex) => ex.id));
+      }
+    }
     setRoundSeed((prev) => prev + 1);
   };
 

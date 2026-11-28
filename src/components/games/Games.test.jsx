@@ -98,7 +98,9 @@ import {
   READING_PASSAGES,
   SENTENCE_BUILDERS,
   SYNONYM_ANTONYM_ITEMS,
+  TONE_MINIMAL_PAIRS,
   TOPICS,
+  getContentStats,
 } from "../../data";
 
 beforeEach(() => {
@@ -187,6 +189,45 @@ describe("GameHub", () => {
     );
     expect(screen.getByTestId("synonym-antonym-chase")).toBeInTheDocument();
   });
+
+  it("displays live dynamic exercise counts for All topics and updates when selecting a topic", () => {
+    const stats = getContentStats();
+    render(<GameHub activeTopicId="all" />);
+
+    expect(screen.getByTestId("game-mode-stat-listening")).toHaveTextContent(
+      `${stats.listeningExercises} bài nghe`
+    );
+    expect(screen.getByTestId("game-mode-stat-pronunciation")).toHaveTextContent(
+      `${stats.minimalPairs} cặp từ · ${stats.pronunciationSentences} câu đọc`
+    );
+    expect(screen.getByTestId("game-mode-stat-dialogue")).toHaveTextContent(
+      `${stats.dialogueScenarios} tình huống`
+    );
+    expect(screen.getByTestId("game-mode-stat-reading")).toHaveTextContent(
+      `${stats.readingPassages} bài đọc · ${stats.sentenceBuilders} câu ghép`
+    );
+    expect(screen.getByTestId("game-mode-stat-chase")).toHaveTextContent(
+      `${stats.synonymAntonymItems} cặp từ`
+    );
+
+    fireEvent.click(screen.getByTestId("topic-pill-food"));
+    const foodStats = stats.byTopic.food;
+    expect(screen.getByTestId("game-mode-stat-listening")).toHaveTextContent(
+      `${foodStats.listeningExercises} bài nghe`
+    );
+    expect(screen.getByTestId("game-mode-stat-pronunciation")).toHaveTextContent(
+      `${foodStats.minimalPairs} cặp từ · ${foodStats.pronunciationSentences} câu đọc`
+    );
+    expect(screen.getByTestId("game-mode-stat-dialogue")).toHaveTextContent(
+      `${foodStats.dialogueScenarios} tình huống`
+    );
+    expect(screen.getByTestId("game-mode-stat-reading")).toHaveTextContent(
+      `${foodStats.readingPassages} bài đọc · ${foodStats.sentenceBuilders} câu ghép`
+    );
+    expect(screen.getByTestId("game-mode-stat-chase")).toHaveTextContent(
+      `${foodStats.synonymAntonymItems} cặp từ`
+    );
+  });
 });
 
 describe("ListeningGame", () => {
@@ -270,6 +311,29 @@ describe("ListeningGame", () => {
       { voice: "maianh" }
     );
   });
+
+  it("deals up to 8 balanced exercises when practicing all topics and avoids repeats on the next round", () => {
+    render(<ListeningGame activeTopicId="all" />);
+    const expectedLen = Math.min(8, LISTENING_EXERCISES.length);
+    expect(screen.getByText(`Câu 1 / ${expectedLen}`)).toBeInTheDocument();
+
+    const round1Titles = [];
+    for (let i = 0; i < expectedLen; i += 1) {
+      const title = screen.getByRole("heading", { level: 3 }).textContent;
+      round1Titles.push(title);
+      fireEvent.click(screen.getByTestId("listening-option-a"));
+      fireEvent.click(screen.getByTestId("listening-next-btn"));
+    }
+
+    expect(screen.getByTestId("listening-summary")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Luyện vòng mới/i }));
+    expect(screen.getByText(`Câu 1 / ${expectedLen}`)).toBeInTheDocument();
+
+    if (LISTENING_EXERCISES.length >= expectedLen * 2) {
+      const round2FirstTitle = screen.getByRole("heading", { level: 3 }).textContent;
+      expect(round1Titles).not.toContain(round2FirstTitle);
+    }
+  });
 });
 
 describe("PronunciationLab", () => {
@@ -340,6 +404,34 @@ describe("PronunciationLab", () => {
     expect(diffStrip).toHaveTextContent(/Cần: Sắc/i);
     expect(diffStrip).toHaveTextContent(/Nói: Huyền/i);
   });
+
+  it("displays dynamic tab counts and jumps to a different random exercise in both sub-modes", () => {
+    render(<PronunciationLab activeTopicId="all" />);
+
+    expect(screen.getByTestId("pronunciation-tab-pairs")).toHaveTextContent(
+      `6 thanh điệu & cặp từ (${TONE_MINIMAL_PAIRS.length})`
+    );
+    expect(screen.getByTestId("pronunciation-tab-shadowing")).toHaveTextContent(
+      `Luyện đọc câu (${PRONUNCIATION_SENTENCES.length})`
+    );
+
+    expect(
+      screen.getByText(`Cặp 1 / ${TONE_MINIMAL_PAIRS.length}`)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("pronunciation-pair-random"));
+    expect(
+      screen.queryByText(`Cặp 1 / ${TONE_MINIMAL_PAIRS.length}`)
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("pronunciation-tab-shadowing"));
+    expect(
+      screen.getByText(`Câu 1 / ${PRONUNCIATION_SENTENCES.length}`)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("pronunciation-sentence-random"));
+    expect(
+      screen.queryByText(`Câu 1 / ${PRONUNCIATION_SENTENCES.length}`)
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("DialogueRoleplay", () => {
@@ -402,6 +494,40 @@ describe("DialogueRoleplay", () => {
         skillTags: ["speaking", "listening", "pronunciation"],
       })
     );
+  });
+
+  it("shows dynamic scenario count, Xem cả N tình huống toggle, and inline topic filter", () => {
+    const foodScenarios = DIALOGUE_SCENARIOS.filter((s) => s.topicId === "food");
+    const selfScenarios = DIALOGUE_SCENARIOS.filter((s) => s.topicId === "self");
+
+    render(<DialogueRoleplay activeTopicId="food" />);
+
+    expect(screen.getByTestId("dialogue-scenario-count")).toHaveTextContent(
+      `${foodScenarios.length} tình huống`
+    );
+    const toggleBtn = screen.getByTestId("dialogue-toggle-all-btn");
+    expect(toggleBtn).toHaveTextContent(
+      `Xem cả ${DIALOGUE_SCENARIOS.length} tình huống`
+    );
+
+    fireEvent.click(toggleBtn);
+    expect(screen.getByTestId("dialogue-scenario-count")).toHaveTextContent(
+      `${DIALOGUE_SCENARIOS.length} tình huống`
+    );
+    expect(toggleBtn).toHaveTextContent("Chỉ xem chủ đề đang chọn");
+
+    if (DIALOGUE_SCENARIOS.length > 6) {
+      expect(screen.getByTestId("dialogue-topic-filter")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("dialogue-filter-self"));
+      expect(screen.getByTestId("dialogue-scenario-count")).toHaveTextContent(
+        `${selfScenarios.length} tình huống`
+      );
+      for (const sc of selfScenarios) {
+        expect(
+          screen.getByTestId(`dialogue-scenario-${sc.id}`)
+        ).toBeInTheDocument();
+      }
+    }
   });
 });
 
@@ -496,6 +622,53 @@ describe("ReadingVocabGame", () => {
       })
     );
   });
+
+  it("shows dynamic tab counts, distinct passage tabs, Bài tiếp navigation, inline topic filter, and 8-item all-topic builder round", () => {
+    render(<ReadingVocabGame activeTopicId="all" />);
+
+    expect(screen.getByTestId("reading-tab-passage")).toHaveTextContent(
+      `Đọc hiểu (${READING_PASSAGES.length})`
+    );
+    expect(screen.getByTestId("reading-tab-builder")).toHaveTextContent(
+      `Ghép câu (${SENTENCE_BUILDERS.length})`
+    );
+    expect(screen.getByTestId("reading-passage-counter")).toHaveTextContent(
+      `Bài 1 / ${READING_PASSAGES.length}`
+    );
+
+    const tabsContainer = screen.getByTestId("reading-passage-tabs");
+    const tabButtons = within(tabsContainer).getAllByRole("tab");
+    expect(tabButtons.length).toBe(READING_PASSAGES.length);
+    const distinctLabels = new Set(tabButtons.map((btn) => btn.textContent.trim()));
+    expect(distinctLabels.size).toBe(READING_PASSAGES.length);
+    expect(tabButtons[0]).toHaveAttribute("title", READING_PASSAGES[0].titleVi);
+
+    fireEvent.click(screen.getByTestId("reading-passage-next"));
+    expect(screen.getByTestId("reading-passage-counter")).toHaveTextContent(
+      `Bài 2 / ${READING_PASSAGES.length}`
+    );
+    expect(
+      screen.getByRole("heading", { name: READING_PASSAGES[1].titleVi })
+    ).toBeInTheDocument();
+
+    if (READING_PASSAGES.length > 6) {
+      expect(screen.getByTestId("reading-topic-filter")).toBeInTheDocument();
+      const foodPassages = READING_PASSAGES.filter((p) => p.topicId === "food");
+      fireEvent.click(screen.getByTestId("reading-filter-food"));
+      expect(screen.getByTestId("reading-passage-counter")).toHaveTextContent(
+        `Bài 1 / ${foodPassages.length}`
+      );
+      expect(
+        screen.getByRole("heading", { name: foodPassages[0].titleVi })
+      ).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByTestId("reading-tab-builder"));
+    const expectedBuilderRound = Math.min(8, SENTENCE_BUILDERS.length);
+    expect(
+      screen.getByText(`Câu 1 / ${expectedBuilderRound}`)
+    ).toBeInTheDocument();
+  });
 });
 
 describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
@@ -575,6 +748,28 @@ describe("Navbar Northern Voice Picker & TopicOverview Prefetch", () => {
       foodTopic.keyPhrases.slice(0, 3).map((p) => p.vi),
       { voice: "random" }
     );
+
+    const foodStats = getContentStats().byTopic.food;
+    expect(
+      screen.getByText(
+        `${foodStats.listeningExercises} bài nghe hội thoại theo ngữ cảnh`
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `${foodStats.minimalPairs} cặp từ · ${foodStats.pronunciationSentences} câu đọc mẫu`
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `${foodStats.dialogueScenarios} tình huống · 4 lượt hỏi đáp`
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `${foodStats.readingPassages} bài đọc · ${foodStats.sentenceBuilders} câu ghép`
+      )
+    ).toBeInTheDocument();
   });
 });
 
@@ -758,5 +953,165 @@ describe("SynonymAntonymChase", () => {
       "data-hurdle-state",
       "clearing"
     );
+  });
+});
+
+describe("4-Skill Curriculum Data Integrity & Coverage", () => {
+  const validTopicIds = new Set(TOPICS.map((t) => t.id));
+  const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  it("meets expanded 4-skill exercise coverage targets across all 6 topics", () => {
+    expect(TOPICS.length).toBe(6);
+    expect(LISTENING_EXERCISES.length).toBeGreaterThanOrEqual(42);
+    expect(READING_PASSAGES.length).toBeGreaterThanOrEqual(18);
+    expect(SENTENCE_BUILDERS.length).toBeGreaterThanOrEqual(42);
+    expect(TONE_MINIMAL_PAIRS.length).toBeGreaterThanOrEqual(30);
+    expect(PRONUNCIATION_SENTENCES.length).toBeGreaterThanOrEqual(42);
+    expect(DIALOGUE_SCENARIOS.length).toBeGreaterThanOrEqual(18);
+
+    const stats = getContentStats();
+    for (const topic of TOPICS) {
+      const ts = stats.byTopic[topic.id];
+      expect(ts.listeningExercises).toBeGreaterThanOrEqual(7);
+      expect(ts.readingPassages).toBeGreaterThanOrEqual(3);
+      expect(ts.sentenceBuilders).toBeGreaterThanOrEqual(7);
+      expect(ts.minimalPairs).toBeGreaterThanOrEqual(5);
+      expect(ts.pronunciationSentences).toBeGreaterThanOrEqual(7);
+      expect(ts.dialogueScenarios).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("ensures unique IDs and valid topicIds across all 6 curriculum datasets", () => {
+    const datasets = [
+      ["LISTENING_EXERCISES", LISTENING_EXERCISES],
+      ["READING_PASSAGES", READING_PASSAGES],
+      ["SENTENCE_BUILDERS", SENTENCE_BUILDERS],
+      ["TONE_MINIMAL_PAIRS", TONE_MINIMAL_PAIRS],
+      ["PRONUNCIATION_SENTENCES", PRONUNCIATION_SENTENCES],
+      ["DIALOGUE_SCENARIOS", DIALOGUE_SCENARIOS],
+    ];
+
+    for (const [, items] of datasets) {
+      const seenIds = new Set();
+      for (const item of items) {
+        expect(typeof item.id).toBe("string");
+        expect(item.id.length).toBeGreaterThan(0);
+        expect(seenIds.has(item.id)).toBe(false);
+        seenIds.add(item.id);
+        expect(validTopicIds.has(item.topicId)).toBe(true);
+      }
+    }
+  });
+
+  it("validates listening exercises have valid options and correctOptionId", () => {
+    for (const ex of LISTENING_EXERCISES) {
+      expect(ex.audioTextVi?.trim().length).toBeGreaterThan(0);
+      expect(ex.questionVi?.trim().length).toBeGreaterThan(0);
+      expect(Array.isArray(ex.options)).toBe(true);
+      expect(ex.options.length).toBeGreaterThanOrEqual(3);
+      const optionIds = ex.options.map((opt) => opt.id);
+      expect(new Set(optionIds).size).toBe(optionIds.length);
+      expect(optionIds).toContain(ex.correctOptionId);
+    }
+  });
+
+  it("validates reading passages have valid correctIndex and verbatim glossary matches", () => {
+    const seenQuestionIds = new Set();
+    for (const passage of READING_PASSAGES) {
+      expect(passage.titleVi?.trim().length).toBeGreaterThan(0);
+      expect(Array.isArray(passage.paragraphs)).toBe(true);
+      expect(passage.paragraphs.length).toBeGreaterThan(0);
+
+      const fullBody = passage.paragraphs.join(" ");
+      const glossaryEntries = Object.entries(passage.glossary || {});
+      expect(glossaryEntries.length).toBeGreaterThan(0);
+      for (const [term, entry] of glossaryEntries) {
+        expect(entry?.definitionVi?.trim().length).toBeGreaterThan(0);
+        const wholeWordRegex = new RegExp(
+          `(?<![\\p{L}\\p{M}])${escapeRegExp(term)}(?![\\p{L}\\p{M}])`,
+          "iu"
+        );
+        expect(wholeWordRegex.test(fullBody)).toBe(true);
+      }
+
+      expect(Array.isArray(passage.questions)).toBe(true);
+      expect(passage.questions.length).toBeGreaterThan(0);
+      for (const q of passage.questions) {
+        expect(seenQuestionIds.has(q.id)).toBe(false);
+        seenQuestionIds.add(q.id);
+        expect(Array.isArray(q.options)).toBe(true);
+        expect(q.options.length).toBeGreaterThanOrEqual(3);
+        expect(Number.isInteger(q.correctIndex)).toBe(true);
+        expect(q.correctIndex).toBeGreaterThanOrEqual(0);
+        expect(q.correctIndex).toBeLessThan(q.options.length);
+      }
+    }
+  });
+
+  it("validates every sentence builder satisfies chunks.join(' ') === targetSentenceVi", () => {
+    for (const item of SENTENCE_BUILDERS) {
+      expect(Array.isArray(item.chunks)).toBe(true);
+      expect(item.chunks.length).toBeGreaterThanOrEqual(3);
+      expect(item.chunks.join(" ")).toBe(item.targetSentenceVi);
+    }
+  });
+
+  it("validates pronunciation minimal pairs and shadowing sentences", () => {
+    for (const set of TONE_MINIMAL_PAIRS) {
+      expect(["tone", "vowel"]).toContain(set.contrastType);
+      expect(Array.isArray(set.items)).toBe(true);
+      expect(set.items.length).toBeGreaterThanOrEqual(2);
+      for (const item of set.items) {
+        expect(item.vi?.trim().length).toBeGreaterThan(0);
+        expect(item.tone?.trim().length).toBeGreaterThan(0);
+        expect(item.meaningVi?.trim().length).toBeGreaterThan(0);
+        expect(item.exampleVi?.trim().length).toBeGreaterThan(0);
+      }
+    }
+
+    for (const sentence of PRONUNCIATION_SENTENCES) {
+      expect(sentence.textVi?.trim().length).toBeGreaterThan(0);
+      expect(Array.isArray(sentence.difficultWords)).toBe(true);
+      const lowerText = sentence.textVi.toLowerCase();
+      for (const word of sentence.difficultWords) {
+        expect(lowerText).toContain(word.toLowerCase());
+      }
+    }
+  });
+
+  it("validates every dialogue scenario has an intact 4-turn nextTurnId chain", () => {
+    const seenTurnIds = new Set();
+    const seenResponseIds = new Set();
+
+    for (const scenario of DIALOGUE_SCENARIOS) {
+      expect(Array.isArray(scenario.turns)).toBe(true);
+      expect(scenario.turns.length).toBe(4);
+      expect(scenario.openingLineVi).toBe(scenario.turns[0].npcTextVi);
+
+      const turnMap = new Map();
+      for (const turn of scenario.turns) {
+        expect(seenTurnIds.has(turn.id)).toBe(false);
+        seenTurnIds.add(turn.id);
+        turnMap.set(turn.id, turn);
+      }
+
+      scenario.turns.forEach((turn, idx) => {
+        expect(Array.isArray(turn.expectedResponses)).toBe(true);
+        expect(turn.expectedResponses.length).toBeGreaterThanOrEqual(2);
+        const expectedNextTurnId =
+          idx < scenario.turns.length - 1 ? scenario.turns[idx + 1].id : null;
+
+        for (const resp of turn.expectedResponses) {
+          expect(seenResponseIds.has(resp.id)).toBe(false);
+          seenResponseIds.add(resp.id);
+          if (expectedNextTurnId === null) {
+            expect(resp.nextTurnId).toBeNull();
+          } else {
+            expect(turnMap.has(resp.nextTurnId)).toBe(true);
+            expect(resp.nextTurnId).toBe(expectedNextTurnId);
+          }
+        }
+      });
+    }
   });
 });
