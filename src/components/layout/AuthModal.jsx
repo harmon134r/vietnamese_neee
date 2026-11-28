@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import {
   AlertCircle,
+  BookOpen,
   Check,
   Copy,
   Eye,
   EyeOff,
+  GraduationCap,
   HardDrive,
   LogOut,
   RefreshCw,
@@ -12,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   isSupabaseConfigured,
+  isTeacherProfile,
   normalizeStudentName,
   resolveStudentDisplayName,
   signIn,
@@ -24,12 +27,12 @@ import { APP_ART } from "../../data/illustrations";
 const ENV_SNIPPET = `VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY`;
 
-function getStudentInitials(name) {
+function getAccountInitials(name, fallback = "HS") {
   const parts = normalizeStudentName(name).split(" ").filter(Boolean);
   if (parts.length >= 2) {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   }
-  return (parts[0] || "HS").slice(0, 2).toUpperCase();
+  return (parts[0] || fallback).slice(0, 2).toUpperCase();
 }
 
 export function AuthModal({
@@ -37,13 +40,16 @@ export function AuthModal({
   onClose,
   user,
   userProfile,
+  isTeacher: isTeacherProp,
   onAuthSuccess,
   onSynced,
   onNotify,
 }) {
-  const [mode, setMode] = useState("signin");
-  const [studentName, setStudentName] = useState("");
+  const [role, setRole] = useState("student"); // "student" | "teacher"
+  const [mode, setMode] = useState("signin"); // "signin" | "signup"
+  const [accountName, setAccountName] = useState("");
   const [password, setPassword] = useState("");
+  const [teacherCode, setTeacherCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -65,6 +71,29 @@ export function AuthModal({
 
   if (!isOpen) return null;
 
+  const isTeacherTab = role === "teacher";
+  const signedInIsTeacher =
+    typeof isTeacherProp === "boolean"
+      ? isTeacherProp
+      : Boolean(isTeacherProfile?.(userProfile, user));
+
+  const handleRoleChange = (nextRole) => {
+    if (nextRole === role) return;
+    setRole(nextRole);
+    setErrorMsg("");
+    setInfoMsg("");
+    if (nextRole === "student") {
+      setTeacherCode("");
+    }
+  };
+
+  const handleModeChange = (nextMode) => {
+    if (nextMode === mode) return;
+    setMode(nextMode);
+    setErrorMsg("");
+    setInfoMsg("");
+  };
+
   const handleCopyEnv = async () => {
     try {
       await navigator.clipboard.writeText(ENV_SNIPPET);
@@ -80,38 +109,59 @@ export function AuthModal({
     setErrorMsg("");
     setInfoMsg("");
 
-    const cleanName = normalizeStudentName(studentName);
+    const cleanName = normalizeStudentName(accountName);
+    const cleanCode = teacherCode.trim();
+    const roleLabel = isTeacherTab ? "giáo viên" : "học sinh";
+
     if (!cleanName || !password) {
-      setErrorMsg("Vui lòng nhập đầy đủ tên học sinh và mật khẩu.");
+      setErrorMsg(`Vui lòng nhập đầy đủ tên ${roleLabel} và mật khẩu.`);
       return;
     }
     if (cleanName.length < 2) {
-      setErrorMsg("Vui lòng nhập tên học sinh tối thiểu 2 ký tự.");
+      setErrorMsg(`Vui lòng nhập tên ${roleLabel} tối thiểu 2 ký tự.`);
       return;
     }
     if (password.length < 6) {
       setErrorMsg("Mật khẩu cần tối thiểu 6 ký tự.");
       return;
     }
+    if (isTeacherTab && mode === "signup" && !cleanCode) {
+      setErrorMsg("Vui lòng nhập mã giáo viên để tạo tài khoản giáo viên.");
+      return;
+    }
 
     setBusy(true);
     try {
       if (mode === "signin") {
-        const result = await signIn({ studentName: cleanName, password });
+        const isEmailInput = isTeacherTab && cleanName.includes("@");
+        const result = await signIn({
+          studentName: isEmailInput ? undefined : cleanName,
+          email: isEmailInput ? cleanName : undefined,
+          password,
+          expectedRole: role,
+        });
         const displayName = resolveStudentDisplayName(
           result.profile,
           result.user,
           cleanName
         );
         onAuthSuccess?.(result.user, result.profile);
-        onNotify?.(`Chào ${displayName}! Đã đăng nhập và bắt đầu đồng bộ dữ liệu.`, "success");
+        onNotify?.(
+          isTeacherTab
+            ? `Chào ${displayName}! Đã đăng nhập tài khoản giáo viên.`
+            : `Chào ${displayName}! Đã đăng nhập và bắt đầu đồng bộ dữ liệu.`,
+          "success"
+        );
         setPassword("");
+        setTeacherCode("");
         onClose();
       } else {
         const result = await signUp({
           studentName: cleanName,
           password,
           displayName: cleanName,
+          role,
+          ...(isTeacherTab ? { teacherCode: cleanCode } : {}),
         });
         if (result.needsEmailConfirmation) {
           setErrorMsg(
@@ -124,10 +174,16 @@ export function AuthModal({
             cleanName
           );
           onAuthSuccess?.(result.user, result.profile);
-          onNotify?.(`Chào mừng ${displayName}! Đã tạo tài khoản và đăng nhập.`, "success");
+          onNotify?.(
+            isTeacherTab
+              ? `Chào mừng ${displayName}! Đã tạo tài khoản giáo viên và đăng nhập.`
+              : `Chào mừng ${displayName}! Đã tạo tài khoản và đăng nhập.`,
+            "success"
+          );
           onClose();
         }
         setPassword("");
+        setTeacherCode("");
       }
     } catch (err) {
       setErrorMsg(err?.message || "Đã xảy ra lỗi xác thực. Vui lòng thử lại.");
@@ -177,8 +233,22 @@ export function AuthModal({
     }
   };
 
-  const resolvedName = resolveStudentDisplayName(userProfile, user, "Học sinh");
-  const initials = getStudentInitials(resolvedName);
+  const resolvedName = resolveStudentDisplayName(
+    userProfile,
+    user,
+    signedInIsTeacher ? "Giáo viên" : "Học sinh"
+  );
+  const initials = getAccountInitials(resolvedName, signedInIsTeacher ? "GV" : "HS");
+
+  const nameFieldLabel = isTeacherTab
+    ? mode === "signin"
+      ? "Tên giáo viên hoặc Email"
+      : "Tên giáo viên"
+    : "Tên học sinh";
+
+  const nameFieldPlaceholder = isTeacherTab
+    ? "Ví dụ: Cô Minh"
+    : "Ví dụ: Nguyễn Anh Thư";
 
   return (
     <div
@@ -219,8 +289,12 @@ export function AuthModal({
                 {!isSupabaseConfigured
                   ? "Thẻ từ và tiến độ đang được lưu trực tiếp trên trình duyệt này."
                   : user
-                    ? "Thẻ từ và lịch sử luyện tập đang đồng bộ qua Supabase."
-                    : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
+                    ? signedInIsTeacher
+                      ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp qua Supabase."
+                      : "Đồng bộ tiến độ & bài Flashcard giáo viên giao qua Supabase."
+                    : isTeacherTab
+                      ? "Tạo và giao bộ thẻ Flashcard từ file PDF cho toàn lớp học."
+                      : "Nhập tên học sinh và mật khẩu để lưu tiến độ học và bộ flashcard trên nhiều thiết bị."}
               </p>
             </div>
           </div>
@@ -249,7 +323,7 @@ export function AuthModal({
 
               <div>
                 <p style={{ margin: "0 0 6px", fontSize: "0.85rem", fontWeight: 500 }}>
-                  Bật đồng bộ tài khoản học sinh với Supabase
+                  Bật đồng bộ tài khoản Học sinh &amp; Giáo viên với Supabase
                 </p>
                 <p style={{ margin: "0 0 10px", fontSize: "0.82rem", color: "var(--text-muted)" }}>
                   Thêm 2 biến môi trường sau vào <code>.env.local</code> hoặc cấu hình deploy:
@@ -270,18 +344,18 @@ export function AuthModal({
 
               <ol className="vf-steps-list">
                 <li>
-                  Tạo project trên Supabase, chạy file{" "}
-                  <code>supabase/migrations/001_initial_schema.sql</code> trong SQL Editor và tắt{" "}
-                  <strong>Confirm email</strong> trong phần cài đặt Supabase Auth để học sinh đăng
-                  ký trực tiếp bằng tên và mật khẩu.
+                  Tạo project trên Supabase, chạy các file migration trong{" "}
+                  <code>supabase/migrations/</code> (bao gồm{" "}
+                  <code>003_teacher_student_roles.sql</code>) trong SQL Editor và tắt{" "}
+                  <strong>Confirm email</strong> trong cài đặt Supabase Auth.
                 </li>
                 <li>
                   Vào <strong>Project Settings → API</strong> để lấy Project URL và{" "}
                   <code>anon public</code> key.
                 </li>
                 <li>
-                  Cập nhật 2 biến trên và deploy lại để bật mục đăng nhập bằng tên học sinh và đồng
-                  bộ đám mây.
+                  Cập nhật 2 biến trên và deploy lại để bật đăng nhập Học sinh / Giáo viên và giao
+                  bộ thẻ PDF cho toàn lớp.
                 </li>
               </ol>
 
@@ -295,15 +369,29 @@ export function AuthModal({
           {isSupabaseConfigured && user && (
             <>
               <div className="vf-profile-card">
-                <div className="vf-avatar" aria-hidden="true">
+                <div
+                  className={`vf-avatar ${signedInIsTeacher ? "is-teacher" : ""}`}
+                  aria-hidden="true"
+                >
                   {initials}
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <p className="vf-profile-name">{resolvedName}</p>
-                  <p className="vf-profile-email">Tài khoản học sinh · Đang đồng bộ Supabase</p>
+                  <p className="vf-profile-email">
+                    {signedInIsTeacher
+                      ? "Có thể tạo & giao bộ thẻ PDF cho toàn lớp"
+                      : "Đồng bộ tiến độ & bài Flashcard giáo viên giao"}
+                  </p>
                   <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    <span
+                      className={`vf-tag ${signedInIsTeacher ? "vf-tag--teacher" : "vf-tag--good"}`}
+                    >
+                      {signedInIsTeacher ? "Giáo viên" : "Học sinh"}
+                    </span>
                     <span className="vf-tag vf-tag--good">Đang đồng bộ</span>
-                    <span className="vf-tag">{userProfile?.cefrLevel || "A2–B1"}</span>
+                    {!signedInIsTeacher && (
+                      <span className="vf-tag">{userProfile?.cefrLevel || "A2–B1"}</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -326,8 +414,16 @@ export function AuthModal({
                 <span style={{ fontSize: "0.86rem", fontWeight: 500 }}>
                   Gộp dữ liệu từ trình duyệt
                 </span>
-                <p style={{ margin: 0, fontSize: "0.81rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-                  Nếu bạn từng tạo thẻ hoặc làm bài trước khi đăng nhập, nhấn nút dưới để đẩy toàn bộ dữ liệu trên máy lên tài khoản.
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.81rem",
+                    color: "var(--text-secondary)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Nếu bạn từng tạo thẻ hoặc làm bài trước khi đăng nhập, nhấn nút dưới để đẩy toàn
+                  bộ dữ liệu trên máy lên tài khoản.
                 </p>
                 <button
                   type="button"
@@ -336,7 +432,9 @@ export function AuthModal({
                   disabled={syncing || busy}
                 >
                   <RefreshCw size={14} className={syncing ? "vf-spin" : ""} />
-                  <span>{syncing ? "Đang đồng bộ..." : "Đồng bộ dữ liệu từ máy"}</span>
+                  <span>
+                    {syncing ? "Đang đồng bộ..." : "Đồng bộ dữ liệu cục bộ lên Supabase"}
+                  </span>
                 </button>
               </div>
 
@@ -355,16 +453,40 @@ export function AuthModal({
           {/* Case 3: Guest Sign In / Sign Up */}
           {isSupabaseConfigured && !user && (
             <>
-              <div className="vf-auth-tabs" role="tablist">
+              <div
+                className="vf-role-switcher"
+                role="tablist"
+                aria-label="Chọn vai trò tài khoản"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={role === "student"}
+                  className={`vf-role-pill ${role === "student" ? "is-active" : ""}`}
+                  onClick={() => handleRoleChange("student")}
+                >
+                  <BookOpen size={14} aria-hidden="true" />
+                  <span>Học sinh</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={role === "teacher"}
+                  className={`vf-role-pill is-teacher ${role === "teacher" ? "is-active" : ""}`}
+                  onClick={() => handleRoleChange("teacher")}
+                >
+                  <GraduationCap size={14} aria-hidden="true" />
+                  <span>Giáo viên</span>
+                </button>
+              </div>
+
+              <div className="vf-auth-tabs" role="tablist" aria-label="Chế độ xác thực">
                 <button
                   type="button"
                   role="tab"
                   aria-selected={mode === "signin"}
                   className={`vf-auth-tab ${mode === "signin" ? "is-active" : ""}`}
-                  onClick={() => {
-                    setMode("signin");
-                    setErrorMsg("");
-                  }}
+                  onClick={() => handleModeChange("signin")}
                 >
                   Đăng nhập
                 </button>
@@ -373,10 +495,7 @@ export function AuthModal({
                   role="tab"
                   aria-selected={mode === "signup"}
                   className={`vf-auth-tab ${mode === "signup" ? "is-active" : ""}`}
-                  onClick={() => {
-                    setMode("signup");
-                    setErrorMsg("");
-                  }}
+                  onClick={() => handleModeChange("signup")}
                 >
                   Tạo tài khoản
                 </button>
@@ -398,14 +517,14 @@ export function AuthModal({
 
               <form className="vf-form" onSubmit={handleSubmit}>
                 <div className="vf-field">
-                  <label htmlFor="vf-auth-student-name">Tên học sinh</label>
+                  <label htmlFor="vf-auth-account-name">{nameFieldLabel}</label>
                   <input
-                    id="vf-auth-student-name"
+                    id="vf-auth-account-name"
                     type="text"
                     className="vf-input"
-                    placeholder="Ví dụ: Nguyễn Anh Thư"
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder={nameFieldPlaceholder}
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
                     autoComplete="username"
                     required
                   />
@@ -436,6 +555,25 @@ export function AuthModal({
                   </div>
                 </div>
 
+                {isTeacherTab && mode === "signup" && (
+                  <div className="vf-field">
+                    <label htmlFor="vf-auth-teacher-code">Mã giáo viên</label>
+                    <input
+                      id="vf-auth-teacher-code"
+                      type="text"
+                      className="vf-input vf-input--code"
+                      placeholder="Nhập mã giáo viên"
+                      value={teacherCode}
+                      onChange={(e) => setTeacherCode(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                    <p className="vf-field-helper">
+                      Dùng để xác nhận quyền giáo viên khi giao bài PDF cho học sinh.
+                    </p>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   className="vf-btn vf-btn--primary vf-btn--lg"
@@ -444,8 +582,12 @@ export function AuthModal({
                   {busy
                     ? "Đang xử lý..."
                     : mode === "signin"
-                      ? "Đăng nhập"
-                      : "Tạo tài khoản"}
+                      ? isTeacherTab
+                        ? "Đăng nhập giáo viên"
+                        : "Đăng nhập"
+                      : isTeacherTab
+                        ? "Tạo tài khoản giáo viên"
+                        : "Tạo tài khoản"}
                 </button>
               </form>
 

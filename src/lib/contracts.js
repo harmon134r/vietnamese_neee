@@ -5,6 +5,7 @@
 
 /** @typedef {"self" | "food" | "routine" | "weather" | "emotions" | "opinions"} TopicId */
 /** @typedef {"listening" | "speaking" | "reading" | "pronunciation"} SkillId */
+/** @typedef {"student" | "teacher"} UserRole */
 
 /**
  * @typedef {Object} Flashcard
@@ -34,6 +35,11 @@
  * @property {TopicId | null} topicId
  * @property {string} color
  * @property {boolean} isDefault
+ * @property {boolean} isAssigned
+ * @property {string} teacherName
+ * @property {string | null} assignedAt - ISO timestamp
+ * @property {string | null} ownerId
+ * @property {boolean} canEdit
  * @property {Flashcard[]} cards
  * @property {number} cardCount
  * @property {string} createdAt - ISO timestamp
@@ -89,12 +95,18 @@
  * @property {string} id
  * @property {string} email
  * @property {string} displayName
+ * @property {UserRole} role
  * @property {string | null} avatarUrl
  * @property {string} cefrLevel
  * @property {string} nativeLang
  * @property {number} dailyGoalMinutes
  * @property {Record<string, any>} preferences
  */
+
+export const USER_ROLES = Object.freeze({
+  STUDENT: "student",
+  TEACHER: "teacher",
+});
 
 /** @type {readonly TopicId[]} */
 export const TOPIC_IDS = Object.freeze([
@@ -322,6 +334,8 @@ export function normalizeDeck(raw = {}) {
     )
     .sort((a, b) => a.position - b.position);
 
+  const ownerCandidate = raw.ownerId ?? raw.user_id ?? null;
+
   return {
     id,
     title: String(raw.title || "Bộ thẻ mới").trim(),
@@ -329,6 +343,11 @@ export function normalizeDeck(raw = {}) {
     topicId: isValidTopicId(topicCandidate) ? topicCandidate : null,
     color: String(raw.color || (isValidTopicId(topicCandidate) ? TOPIC_META[topicCandidate].accent : "#38bdf8")),
     isDefault: Boolean(raw.isDefault ?? raw.is_default ?? false),
+    isAssigned: Boolean(raw.isAssigned ?? raw.is_assigned ?? false),
+    teacherName: String(raw.teacherName ?? raw.teacher_name ?? "").trim(),
+    assignedAt: raw.assignedAt ?? raw.assigned_at ?? null,
+    ownerId: ownerCandidate ? String(ownerCandidate) : null,
+    canEdit: raw.canEdit !== undefined ? Boolean(raw.canEdit) : true,
     cards,
     cardCount: cards.length,
     createdAt: raw.createdAt ?? raw.created_at ?? now,

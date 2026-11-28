@@ -9,7 +9,7 @@ import {
   Shuffle,
   Volume2,
 } from "lucide-react";
-import { resolveStudentDisplayName } from "../../lib/supabase";
+import { isTeacherProfile, resolveStudentDisplayName } from "../../lib/supabase";
 import * as speechApi from "../../lib/speech";
 import { APP_ART } from "../../data/illustrations";
 
@@ -142,6 +142,7 @@ export function Navbar({
   skillProgress,
   user,
   userProfile,
+  isTeacher: isTeacherProp,
   storageMode,
   isSupabaseConfigured,
   onOpenAuth,
@@ -281,13 +282,23 @@ export function Navbar({
   const xp = Math.round(Number(skillProgress?.xp || 0));
   const streakDays = Math.round(Number(skillProgress?.streakDays || 0));
   const isCloud = storageMode === "supabase" && Boolean(user);
+  const resolvedIsTeacher =
+    typeof isTeacherProp === "boolean"
+      ? isTeacherProp
+      : Boolean(isTeacherProfile?.(userProfile, user));
 
   const userDisplayName = user
-    ? resolveStudentDisplayName(userProfile, user, "Học sinh")
+    ? resolveStudentDisplayName(
+        userProfile,
+        user,
+        resolvedIsTeacher ? "Giáo viên" : "Học sinh"
+      )
     : "";
 
   const authButtonLabel = isCloud
-    ? userDisplayName || "Học sinh"
+    ? resolvedIsTeacher
+      ? `GV · ${userDisplayName || "Giáo viên"}`
+      : userDisplayName || "Học sinh"
     : isSupabaseConfigured
       ? "Đăng nhập"
       : "Lưu cục bộ";
@@ -479,18 +490,23 @@ export function Navbar({
 
             <button
               type="button"
-              className="vf-nav-auth-btn"
+              className={`vf-nav-auth-btn ${isCloud && resolvedIsTeacher ? "is-teacher" : ""}`}
               onClick={onOpenAuth}
               title={
                 isCloud
-                  ? `Đang đồng bộ tài khoản ${userDisplayName || ""}`
+                  ? resolvedIsTeacher
+                    ? `Tài khoản giáo viên · ${userDisplayName || ""}`
+                    : `Đang đồng bộ tài khoản ${userDisplayName || ""}`
                   : isSupabaseConfigured
                     ? "Đăng nhập để đồng bộ tiến độ giữa các thiết bị"
                     : "Đang lưu dữ liệu trên trình duyệt này"
               }
             >
               {isCloud && (
-                <span className="vf-status-dot is-cloud" aria-hidden="true" />
+                <span
+                  className={`vf-status-dot ${resolvedIsTeacher ? "is-teacher" : "is-cloud"}`}
+                  aria-hidden="true"
+                />
               )}
               <span>{authButtonLabel}</span>
             </button>

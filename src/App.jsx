@@ -25,7 +25,9 @@ import {
   getSession,
   getUserProfile,
   isSupabaseConfigured,
+  isTeacherProfile,
   onAuthStateChange,
+  resolveStudentDisplayName,
 } from "./lib/supabase";
 import { stopSpeaking } from "./lib/speech";
 import Navbar from "./components/layout/Navbar";
@@ -44,6 +46,8 @@ export function App() {
   const [initialGame, setInitialGame] = useState("hub");
   const [flashcardTopicFilter, setFlashcardTopicFilter] = useState("all");
   const [flashcardInitialTab, setFlashcardInitialTab] = useState("study");
+  const [flashcardCreatorTab, setFlashcardCreatorTab] = useState("single");
+  const [flashcardCreateNewDeck, setFlashcardCreateNewDeck] = useState(false);
 
   const [decks, setDecks] = useState([]);
   const [activeDeckId, setActiveDeckId] = useState("");
@@ -61,6 +65,25 @@ export function App() {
   const hydrateInFlightRef = useRef(null);
   const hydrateQueuedRef = useRef(false);
   const lastAuthUserIdRef = useRef(undefined);
+  const decksRef = useRef(decks);
+  decksRef.current = decks;
+
+  const isTeacher = useMemo(
+    () => Boolean(isTeacherProfile?.(userProfile, user)),
+    [userProfile, user]
+  );
+
+  const teacherName = useMemo(
+    () =>
+      user
+        ? resolveStudentDisplayName(
+            userProfile,
+            user,
+            isTeacher ? "Giáo viên" : "Học sinh"
+          )
+        : "",
+    [userProfile, user, isTeacher]
+  );
 
   const contentStats = useMemo(() => {
     try {
@@ -220,6 +243,8 @@ export function App() {
     }
     if (view === "flashcards") {
       setFlashcardInitialTab("study");
+      setFlashcardCreatorTab("single");
+      setFlashcardCreateNewDeck(false);
     }
     window.scrollTo?.({ top: 0, behavior: "smooth" });
   }, []);
@@ -233,12 +258,20 @@ export function App() {
   }, []);
 
   const handleOpenFlashcards = useCallback(
-    (topicId = "all", initialTab = "study") => {
+    (topicId = "all", initialTab = "study", options = {}) => {
       stopSpeaking();
       const validTopic = isValidTopicId(topicId) ? topicId : "all";
-      setFlashcardTopicFilter(validTopic);
+      const nextCreatorTab = options?.creatorTab || "single";
+      const nextNewDeck = Boolean(options?.newDeck);
+
+      setFlashcardTopicFilter(options?.deckId ? "all" : validTopic);
       setFlashcardInitialTab(initialTab);
-      if (validTopic !== "all") {
+      setFlashcardCreatorTab(nextCreatorTab);
+      setFlashcardCreateNewDeck(nextNewDeck);
+
+      if (options?.deckId) {
+        setActiveDeckId(options.deckId);
+      } else if (validTopic !== "all") {
         const matchingDeck = decks.find((d) => d.topicId === validTopic);
         if (matchingDeck) setActiveDeckId(matchingDeck.id);
       }
@@ -247,6 +280,17 @@ export function App() {
     },
     [decks]
   );
+
+  const handleOpenAssignedDeck = useCallback(
+    (deckId, initialTab = "study") => {
+      handleOpenFlashcards("all", initialTab, { deckId });
+    },
+    [handleOpenFlashcards]
+  );
+
+  const handleOpenTeacherPdfUpload = useCallback(() => {
+    handleOpenFlashcards("all", "create", { creatorTab: "pdf", newDeck: true });
+  }, [handleOpenFlashcards]);
 
   const handleCreateFlashcardShortcut = useCallback(() => {
     handleOpenFlashcards("all", "create");
@@ -269,7 +313,12 @@ export function App() {
       const created = await createDeck(deckInput);
       setDecks((prev) => [created, ...prev]);
       setActiveDeckId(created.id);
-      notify(`Đã tạo bộ thẻ “${created.title}”.`, "success");
+      notify(
+        created.isAssigned
+          ? `Đã tạo và giao bộ thẻ “${created.title}” cho học sinh.`
+          : `Đã tạo bộ thẻ “${created.title}”.`,
+        "success"
+      );
       return created;
     },
     [notify]
@@ -279,7 +328,13 @@ export function App() {
     async (deckId, updates) => {
       const updated = await updateDeck(deckId, updates);
       setDecks((prev) => prev.map((d) => (d.id === deckId ? updated : d)));
-      notify("Đã cập nhật thông tin bộ thẻ.", "success");
+      if (updates?.isAssigned === true) {
+        notify(`Đã giao bộ thẻ “${updated.title}” cho học sinh.`, "success");
+      } else if (updates?.isAssigned === false) {
+        notify(`Đã gỡ giao bộ thẻ “${updated.title}” khỏi danh sách lớp.`, "info");
+      } else {
+        notify("Đã cập nhật thông tin bộ thẻ.", "success");
+      }
       return updated;
     },
     [notify]
@@ -370,11 +425,28 @@ export function App() {
   );
 
   const handleUpdateMastery = useCallback(async (cardId, masteryLevel) => {
-    const updated = await setFlashcardMastery(cardId, masteryLevel);
+    const targetDeck = (decksRef.current || []).find((d) =>
+      (d.cards || []).some((c) => c.id === cardId)
+    );
+    const isAssignedDeck = Boolean(
+      targetDeck?.isAssigned && targetDeck?.canEdit === false
+    );
+    const updated = await setFlashcardMastery(cardId, masteryLevel, {
+      deckId: targetDeck?.id,
+      isAssignedDeck,
+    });
     setDecks((prev) =>
       prev.map((d) => ({
         ...d,
-        cards: d.cards.map((c) => (c.id === cardId ? updated : c)),
+        cards: d.cards.map((c) =>
+          c.id === cardId
+            ? {
+                ...c,
+                ...(updated && typeof updated === "object" ? updated : {}),
+                masteryLevel: updated?.masteryLevel ?? masteryLevel,
+              }
+            : c
+        ),
       }))
     );
     return updated;
@@ -462,6 +534,7 @@ export function App() {
         skillProgress={skillProgress}
         user={user}
         userProfile={userProfile}
+        isTeacher={isTeacher}
         storageMode={storageMode}
         isSupabaseConfigured={isSupabaseConfigured}
         onOpenAuth={() => setAuthModalOpen(true)}
@@ -484,8 +557,12 @@ export function App() {
                 contentStats={contentStats}
                 user={user}
                 userProfile={userProfile}
+                isTeacher={isTeacher}
+                teacherName={teacherName}
                 onLaunchGame={handleLaunchGame}
                 onOpenFlashcards={(topicId) => handleOpenFlashcards(topicId, "study")}
+                onOpenAssignedDeck={handleOpenAssignedDeck}
+                onOpenTeacherPdfUpload={handleOpenTeacherPdfUpload}
                 onCreateFlashcard={handleCreateFlashcardShortcut}
                 onOpenTopicOverview={handleOpenTopicOverview}
               />
@@ -525,6 +602,10 @@ export function App() {
                   onRecordPractice={handleRecordPractice}
                   initialTopicFilter={flashcardTopicFilter}
                   initialTab={flashcardInitialTab}
+                  initialCreatorTab={flashcardCreatorTab}
+                  initialCreateNewDeck={flashcardCreateNewDeck}
+                  isTeacher={isTeacher}
+                  teacherName={teacherName}
                 />
               </div>
             )}
@@ -553,6 +634,7 @@ export function App() {
         onClose={() => setAuthModalOpen(false)}
         user={user}
         userProfile={userProfile}
+        isTeacher={isTeacher}
         onAuthSuccess={handleAuthSuccess}
         onSynced={hydrateData}
         onNotify={notify}

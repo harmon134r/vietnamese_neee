@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { USER_ROLES } from "./contracts.js";
 
 const rawUrl = import.meta.env?.VITE_SUPABASE_URL?.trim() || "";
 const rawAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY?.trim() || "";
@@ -32,6 +33,43 @@ export const supabase = isSupabaseConfigured
   : null;
 
 export const STUDENT_EMAIL_DOMAIN = "students.vietflow.app";
+
+export const DEFAULT_TEACHER_CODE = (
+  import.meta.env?.VITE_TEACHER_CODE || "MUNNN01-GV"
+)
+  .trim()
+  .toUpperCase();
+
+/**
+ * Normalize a role string into `"teacher"` or `"student"`.
+ * @param {unknown} value
+ * @returns {import("./contracts.js").UserRole}
+ */
+function normalizeUserRole(value) {
+  return String(value || "").trim().toLowerCase() === USER_ROLES.TEACHER
+    ? USER_ROLES.TEACHER
+    : USER_ROLES.STUDENT;
+}
+
+/**
+ * Determine whether the active profile/user has the teacher role.
+ * Trusts the loaded `profile.role` when available; falls back to
+ * `user.user_metadata.role` only when `profile` has not loaded yet.
+ * @param {Record<string, any> | null | undefined} profile
+ * @param {import("@supabase/supabase-js").User | null | undefined} user
+ * @returns {boolean}
+ */
+export function isTeacherProfile(profile, user) {
+  if (
+    profile &&
+    typeof profile === "object" &&
+    profile.role !== undefined &&
+    profile.role !== null
+  ) {
+    return normalizeUserRole(profile.role) === USER_ROLES.TEACHER;
+  }
+  return normalizeUserRole(user?.user_metadata?.role) === USER_ROLES.TEACHER;
+}
 
 /**
  * Normalize a student's name: NFC Unicode form, trimmed, collapsed internal whitespace.
@@ -227,6 +265,11 @@ export function mapSupabaseAuthError(error, context = "signin") {
   return rawMessage;
 }
 
+const PROFILE_COLUMNS_WITH_ROLE =
+  "user_id,display_name,role,avatar_url,cefr_level,native_lang,daily_goal_minutes,preferences";
+const PROFILE_COLUMNS_LEGACY =
+  "user_id,display_name,avatar_url,cefr_level,native_lang,daily_goal_minutes,preferences";
+
 /**
  * Map a `user_profiles` row + auth user to a normalized UserProfile.
  * @param {Record<string, any> | null} profileRow
@@ -234,10 +277,20 @@ export function mapSupabaseAuthError(error, context = "signin") {
  * @returns {import("./contracts.js").UserProfile}
  */
 function toUserProfile(profileRow, user) {
+  const role =
+    profileRow && profileRow.role !== undefined && profileRow.role !== null
+      ? normalizeUserRole(profileRow.role)
+      : normalizeUserRole(user?.user_metadata?.role);
+
   return {
     id: user.id,
     email: isSyntheticStudentEmail(user.email) ? "" : user.email || "",
-    displayName: resolveStudentDisplayName(profileRow, user, "Học sinh"),
+    displayName: resolveStudentDisplayName(
+      profileRow,
+      user,
+      role === USER_ROLES.TEACHER ? "Giáo viên" : "Học sinh"
+    ),
+    role,
     avatarUrl: profileRow?.avatar_url || null,
     cefrLevel: profileRow?.cefr_level || "A2-B1",
     nativeLang: profileRow?.native_lang || "en",
@@ -277,19 +330,30 @@ export async function getCurrentUser() {
 /**
  * Fetch the signed-in user's profile row from `user_profiles`.
  * @param {string} [userId]
+ * @param {import("@supabase/supabase-js").User | null} [fallbackUser=null]
  * @returns {Promise<import("./contracts.js").UserProfile | null>}
  */
-export async function getUserProfile(userId) {
+export async function getUserProfile(userId, fallbackUser = null) {
   if (!supabase) return null;
-  const user = await getCurrentUser();
+  const user = (await getCurrentUser()) || fallbackUser;
   if (!user) return null;
 
   const targetId = userId || user.id;
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("user_profiles")
-    .select("user_id,display_name,avatar_url,cefr_level,native_lang,daily_goal_minutes,preferences")
+    .select(PROFILE_COLUMNS_WITH_ROLE)
     .eq("user_id", targetId)
     .maybeSingle();
+
+  if (error && String(error.message || "").toLowerCase().includes("role")) {
+    const legacyRes = await supabase
+      .from("user_profiles")
+      .select(PROFILE_COLUMNS_LEGACY)
+      .eq("user_id", targetId)
+      .maybeSingle();
+    data = legacyRes.data;
+    error = legacyRes.error;
+  }
 
   if (error) {
     console.warn("Could not load user_profiles row:", error.message);
@@ -319,22 +383,34 @@ export async function updateUserProfile(updates = {}) {
   }
   if (updates.preferences !== undefined) payload.preferences = updates.preferences;
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("user_profiles")
     .upsert(payload, { onConflict: "user_id" })
-    .select("user_id,display_name,avatar_url,cefr_level,native_lang,daily_goal_minutes,preferences")
+    .select(PROFILE_COLUMNS_WITH_ROLE)
     .single();
+
+  if (error && String(error.message || "").toLowerCase().includes("role")) {
+    const legacyRes = await supabase
+      .from("user_profiles")
+      .upsert(payload, { onConflict: "user_id" })
+      .select(PROFILE_COLUMNS_LEGACY)
+      .single();
+    data = legacyRes.data;
+    error = legacyRes.error;
+  }
 
   if (error) throw error;
   return toUserProfile(data, user);
 }
 
 /**
- * Sign in with student name (or legacy email) and password via Supabase Auth.
- * @param {{ studentName?: string, email?: string, password: string }} credentials
+ * Sign in with student/teacher name (or legacy email) and password via Supabase Auth.
+ * When `expectedRole` is provided (`"student"` or `"teacher"`), verifies the account's
+ * persisted role and signs out cleanly with a clear Vietnamese message on mismatch.
+ * @param {{ studentName?: string, email?: string, password: string, expectedRole?: import("./contracts.js").UserRole }} credentials
  * @returns {Promise<{ session: import("@supabase/supabase-js").Session | null, user: import("@supabase/supabase-js").User, profile: import("./contracts.js").UserProfile | null }>}
  */
-export async function signIn({ studentName, email, password } = {}) {
+export async function signIn({ studentName, email, password, expectedRole } = {}) {
   if (!supabase) {
     throw new Error("Supabase chưa được cấu hình. Ứng dụng đang chạy ở chế độ lưu cục bộ.");
   }
@@ -354,7 +430,31 @@ export async function signIn({ studentName, email, password } = {}) {
     throw new Error(mapSupabaseAuthError(error, "signin"));
   }
 
-  const profile = await getUserProfile(data.user.id);
+  const profile = await getUserProfile(data.user.id, data.user);
+  const normalizedExpectedRole = expectedRole
+    ? String(expectedRole).trim().toLowerCase()
+    : null;
+
+  if (
+    normalizedExpectedRole === USER_ROLES.TEACHER &&
+    profile?.role !== USER_ROLES.TEACHER
+  ) {
+    await signOut().catch(() => {});
+    throw new Error(
+      "Tài khoản này là tài khoản học sinh. Hãy chuyển sang tab Học sinh để đăng nhập."
+    );
+  }
+
+  if (
+    normalizedExpectedRole === USER_ROLES.STUDENT &&
+    profile?.role === USER_ROLES.TEACHER
+  ) {
+    await signOut().catch(() => {});
+    throw new Error(
+      "Tài khoản này là tài khoản giáo viên. Hãy chuyển sang tab Giáo viên để đăng nhập."
+    );
+  }
+
   return {
     session: data.session,
     user: data.user,
@@ -363,13 +463,30 @@ export async function signIn({ studentName, email, password } = {}) {
 }
 
 /**
- * Sign up a new student with student name (or legacy email) and password.
- * @param {{ studentName?: string, email?: string, password: string, displayName?: string }} params
+ * Sign up a new student or teacher account with name (or legacy email) and password.
+ * Students require zero email and zero teacher code; teachers must provide the valid teacher code.
+ * @param {{ studentName?: string, email?: string, password: string, displayName?: string, role?: import("./contracts.js").UserRole, teacherCode?: string }} params
  * @returns {Promise<{ session: import("@supabase/supabase-js").Session | null, user: import("@supabase/supabase-js").User | null, profile: import("./contracts.js").UserProfile | null, needsEmailConfirmation: boolean }>}
  */
-export async function signUp({ studentName, email, password, displayName = "" } = {}) {
+export async function signUp({
+  studentName,
+  email,
+  password,
+  displayName = "",
+  role = USER_ROLES.STUDENT,
+  teacherCode = "",
+} = {}) {
   if (!supabase) {
     throw new Error("Supabase chưa được cấu hình. Ứng dụng đang chạy ở chế độ lưu cục bộ.");
+  }
+
+  const normalizedRole = normalizeUserRole(role);
+  const cleanCode = String(teacherCode || "").trim().toUpperCase();
+
+  if (normalizedRole === USER_ROLES.TEACHER && cleanCode !== DEFAULT_TEACHER_CODE) {
+    throw new Error(
+      "Mã giáo viên không đúng. Vui lòng nhập đúng mã giáo viên để tạo tài khoản."
+    );
   }
 
   const rawIdentifier = studentName ?? email ?? "";
@@ -380,6 +497,7 @@ export async function signUp({ studentName, email, password, displayName = "" } 
   }
 
   const normalizedInput = normalizeStudentName(displayName || studentName);
+  const fallbackName = normalizedRole === USER_ROLES.TEACHER ? "Giáo viên" : "Học sinh";
   const cleanName =
     normalizedInput && !normalizedInput.includes("@")
       ? normalizedInput
@@ -387,15 +505,19 @@ export async function signUp({ studentName, email, password, displayName = "" } 
         (String(rawIdentifier).includes("@")
           ? normalizeStudentName(String(rawIdentifier).split("@")[0])
           : normalizeStudentName(rawIdentifier)) ||
-        "Học sinh";
+        fallbackName;
+
+  const metadata = {
+    display_name: cleanName,
+    role: normalizedRole,
+    ...(normalizedRole === USER_ROLES.TEACHER ? { teacher_code: cleanCode } : {}),
+  };
 
   const { data, error } = await supabase.auth.signUp({
     email: internalEmail,
     password: cleanPassword,
     options: {
-      data: {
-        display_name: cleanName,
-      },
+      data: metadata,
     },
   });
 
@@ -418,7 +540,10 @@ export async function signUp({ studentName, email, password, displayName = "" } 
     try {
       profile = await updateUserProfile({ displayName: cleanName });
     } catch {
-      profile = toUserProfile({ display_name: cleanName }, data.user);
+      profile = toUserProfile(
+        { display_name: cleanName, role: normalizedRole },
+        data.user
+      );
     }
   }
 

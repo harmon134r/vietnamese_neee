@@ -17,12 +17,57 @@ const STORAGE_KEYS = Object.freeze({
   PROGRESS: "vietflow_v1_skill_progress",
   SESSIONS: "vietflow_v1_game_sessions",
   PREFERENCES: "vietflow_v1_preferences",
+  ASSIGNED_MASTERY: "vietflow_v1_assigned_mastery",
 });
+
+const DECK_SELECT_BASE =
+  "id,user_id,title,description,topic_id,color,is_default,is_assigned,teacher_name,assigned_at,created_at,updated_at";
+const DECK_SELECT_BASE_LEGACY =
+  "id,user_id,title,description,topic_id,color,is_default,created_at,updated_at";
+const FLASHCARD_SELECT_FIELDS =
+  "id,deck_id,front_vi,pos,ipa,definition,example_vi,example_en,notes,topic_id,mastery_level,review_count,last_reviewed_at,position,created_at,updated_at";
+const DECK_SELECT_WITH_CARDS = `${DECK_SELECT_BASE},flashcards(${FLASHCARD_SELECT_FIELDS})`;
+const DECK_SELECT_WITH_CARDS_LEGACY = `${DECK_SELECT_BASE_LEGACY},flashcards(${FLASHCARD_SELECT_FIELDS})`;
 
 const memoryFallback = new Map();
 const inFlightCloudSeedByUser = new Map();
+const assignedCardsById = new Map();
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isMissingAssignedColumnError(err) {
+  const msg = String(err?.message || "").toLowerCase();
+  return (
+    msg.includes("is_assigned") ||
+    msg.includes("teacher_name") ||
+    msg.includes("assigned_at")
+  );
+}
+
+function readLocalAssignedMastery() {
+  const saved = readLocalJson(STORAGE_KEYS.ASSIGNED_MASTERY, {});
+  return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+}
+
+function writeLocalAssignedMastery(map) {
+  writeLocalJson(STORAGE_KEYS.ASSIGNED_MASTERY, map);
+}
+
+function mergeAssignedAndOwnDecks(assignedDecks, ownDecks) {
+  const merged = [];
+  const seenIds = new Set();
+  for (const deck of assignedDecks || []) {
+    if (!deck?.id || seenIds.has(deck.id)) continue;
+    seenIds.add(deck.id);
+    merged.push(deck);
+  }
+  for (const deck of ownDecks || []) {
+    if (!deck?.id || seenIds.has(deck.id)) continue;
+    seenIds.add(deck.id);
+    merged.push(deck);
+  }
+  return merged;
+}
 
 function isValidUuid(value) {
   return typeof value === "string" && UUID_PATTERN.test(value);
@@ -178,28 +223,147 @@ function toDbFlashcardRow(card, deckId, userId, position) {
 }
 
 /**
+ * Load all teacher-assigned decks from Supabase (publicly readable by students & guests)
+ * and overlay the current learner's private mastery progress on each card.
+ * Gracefully returns `[]` when unconfigured, offline, or before migration 003 runs.
+ * @param {string | null} [currentUserId=null]
+ * @returns {Promise<import("./contracts.js").Deck[]>}
+ */
+export async function loadAssignedDecksFromCloud(currentUserId = null) {
+  if (!isSupabaseConfigured || !supabase) return [];
+
+  try {
+    const { data: deckRows, error } = await supabase
+      .from("flashcard_decks")
+      .select("*, flashcards(*)")
+      .eq("is_assigned", true)
+      .order("assigned_at", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    if (!Array.isArray(deckRows) || deckRows.length === 0) return [];
+
+    const progressByCardId = new Map();
+    if (currentUserId) {
+      try {
+        const { data: progressRows, error: progressError } = await supabase
+          .from("student_card_progress")
+          .select("card_id,deck_id,mastery_level,review_count,last_reviewed_at")
+          .eq("user_id", currentUserId);
+
+        if (!progressError && Array.isArray(progressRows)) {
+          for (const row of progressRows) {
+            progressByCardId.set(String(row.card_id), {
+              masteryLevel: Math.round(clampNumber(row.mastery_level ?? 0, 0, 5)),
+              reviewCount: Math.max(0, Math.round(Number(row.review_count ?? 0) || 0)),
+              lastReviewedAt: row.last_reviewed_at ?? null,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load student_card_progress:", err?.message);
+      }
+    } else {
+      const localMap = readLocalAssignedMastery();
+      for (const [cardId, entry] of Object.entries(localMap)) {
+        if (entry && typeof entry === "object") {
+          progressByCardId.set(String(cardId), {
+            masteryLevel: Math.round(clampNumber(entry.masteryLevel ?? 0, 0, 5)),
+            reviewCount: Math.max(0, Math.round(Number(entry.reviewCount ?? 0) || 0)),
+            lastReviewedAt: entry.lastReviewedAt ?? null,
+          });
+        }
+      }
+    }
+
+    return deckRows.map((row) => {
+      const canEdit = Boolean(currentUserId && row.user_id === currentUserId);
+      const rawCards = Array.isArray(row.flashcards) ? row.flashcards : [];
+      const overlaidCards = rawCards.map((card) => {
+        const cardId = String(card.id);
+        const studentProgress = progressByCardId.get(cardId);
+        if (studentProgress) {
+          return {
+            ...card,
+            mastery_level: studentProgress.masteryLevel,
+            review_count: studentProgress.reviewCount,
+            last_reviewed_at: studentProgress.lastReviewedAt,
+          };
+        }
+        if (!canEdit) {
+          return {
+            ...card,
+            mastery_level: 0,
+            review_count: 0,
+            last_reviewed_at: null,
+          };
+        }
+        return card;
+      });
+
+      const normalized = normalizeDeck({
+        ...row,
+        isAssigned: true,
+        is_assigned: true,
+        teacherName: String(row.teacher_name || "").trim() || "Giáo viên",
+        ownerId: row.user_id ?? null,
+        canEdit,
+        flashcards: overlaidCards,
+      });
+
+      for (const card of normalized.cards) {
+        assignedCardsById.set(card.id, {
+          deckId: normalized.id,
+          canEdit,
+          card,
+        });
+      }
+
+      return normalized;
+    });
+  } catch (err) {
+    console.warn("Could not load assigned decks from cloud:", err?.message);
+    return [];
+  }
+}
+
+/**
  * Load all flashcard decks (with their nested flashcards).
- * If storage is empty and `seedDecks` is provided, seeds those decks once.
+ * Merges teacher-assigned cloud decks at the top (deduplicated by ID), even in guest mode
+ * when Supabase is configured. If personal storage is empty and `seedDecks` is provided,
+ * seeds those starter decks once.
  * @param {Array<Partial<import("./contracts.js").Deck>>} [seedDecks=[]]
  * @returns {Promise<import("./contracts.js").Deck[]>}
  */
 export async function loadDecks(seedDecks = []) {
   const user = await getCloudUser();
+  const assignedDecks = await loadAssignedDecksFromCloud(user?.id || null);
 
   if (user && supabase) {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("flashcard_decks")
-        .select(
-          "id,title,description,topic_id,color,is_default,created_at,updated_at,flashcards(id,deck_id,front_vi,pos,ipa,definition,example_vi,example_en,notes,topic_id,mastery_level,review_count,last_reviewed_at,position,created_at,updated_at)"
-        )
+        .select(DECK_SELECT_WITH_CARDS)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
+      if (error && isMissingAssignedColumnError(error)) {
+        const legacyRes = await supabase
+          .from("flashcard_decks")
+          .select(DECK_SELECT_WITH_CARDS_LEGACY)
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        data = legacyRes.data;
+        error = legacyRes.error;
+      }
+
       if (error) throw error;
 
-      const decks = (data || []).map(normalizeDeck);
-      if (decks.length === 0 && Array.isArray(seedDecks) && seedDecks.length > 0) {
+      let ownDecks = (data || []).map((row) =>
+        normalizeDeck({ ...row, ownerId: row.user_id ?? user.id, canEdit: true })
+      );
+
+      if (ownDecks.length === 0 && Array.isArray(seedDecks) && seedDecks.length > 0) {
         if (!inFlightCloudSeedByUser.has(user.id)) {
           const seedPromise = (async () => {
             const seeded = [];
@@ -212,57 +376,85 @@ export async function loadDecks(seedDecks = []) {
           });
           inFlightCloudSeedByUser.set(user.id, seedPromise);
         }
-        return await inFlightCloudSeedByUser.get(user.id);
+        ownDecks = await inFlightCloudSeedByUser.get(user.id);
       }
-      return decks;
+
+      return mergeAssignedAndOwnDecks(assignedDecks, ownDecks);
     } catch (err) {
       console.warn("Falling back to local decks after Supabase error:", err?.message);
     }
   }
 
-  const localDecks = getLocalDecksRaw();
-  if (localDecks !== null) {
-    return localDecks;
+  let localDecks = getLocalDecksRaw();
+  if (localDecks === null) {
+    if (Array.isArray(seedDecks) && seedDecks.length > 0) {
+      localDecks = saveLocalDecks(seedDecks.map(normalizeDeck));
+    } else {
+      localDecks = [];
+    }
   }
 
-  if (Array.isArray(seedDecks) && seedDecks.length > 0) {
-    return saveLocalDecks(seedDecks.map(normalizeDeck));
-  }
-
-  return [];
+  return mergeAssignedAndOwnDecks(assignedDecks, localDecks);
 }
 
 /**
- * Create a new flashcard deck, optionally with initial cards.
- * @param {{ title: string, description?: string, topicId?: import("./contracts.js").TopicId | null, color?: string, isDefault?: boolean, cards?: Array<Record<string, any>> }} input
+ * Create a new flashcard deck, optionally with initial cards and teacher assignment metadata.
+ * @param {{ title: string, description?: string, topicId?: import("./contracts.js").TopicId | null, color?: string, isDefault?: boolean, isAssigned?: boolean, teacherName?: string, assignedAt?: string | null, cards?: Array<Record<string, any>> }} input
  * @returns {Promise<import("./contracts.js").Deck>}
  */
 export async function createDeck(input) {
   const title = String(input?.title || "").trim();
   if (!title) throw new Error("Tên bộ thẻ không được để trống.");
 
+  const isAssigned = Boolean(input?.isAssigned ?? input?.is_assigned ?? false);
+  const teacherName = String(input?.teacherName ?? input?.teacher_name ?? "").trim();
+  const assignedAt = isAssigned
+    ? (input?.assignedAt ?? input?.assigned_at ?? new Date().toISOString())
+    : null;
+
   const requestedId = isValidUuid(input?.id) ? input.id : generateId();
   const deck = normalizeDeck({
     ...input,
     id: requestedId,
     title,
+    isAssigned,
+    teacherName,
+    assignedAt,
+    canEdit: true,
   });
 
   const user = await getCloudUser();
   if (user && supabase) {
-    const { data: deckRow, error: deckError } = await supabase
+    const baseInsert = {
+      id: deck.id,
+      user_id: user.id,
+      title: deck.title,
+      description: deck.description,
+      topic_id: deck.topicId,
+      color: deck.color,
+      is_default: deck.isDefault,
+    };
+
+    let { data: deckRow, error: deckError } = await supabase
       .from("flashcard_decks")
       .insert({
-        id: deck.id,
-        user_id: user.id,
-        title: deck.title,
-        description: deck.description,
-        topic_id: deck.topicId,
-        color: deck.color,
-        is_default: deck.isDefault,
+        ...baseInsert,
+        is_assigned: deck.isAssigned,
+        teacher_name: deck.teacherName,
+        assigned_at: deck.assignedAt,
       })
-      .select("id,title,description,topic_id,color,is_default,created_at,updated_at")
+      .select(DECK_SELECT_BASE)
       .single();
+
+    if (deckError && isMissingAssignedColumnError(deckError) && !deck.isAssigned) {
+      const legacyRes = await supabase
+        .from("flashcard_decks")
+        .insert(baseInsert)
+        .select(DECK_SELECT_BASE_LEGACY)
+        .single();
+      deckRow = legacyRes.data;
+      deckError = legacyRes.error;
+    }
 
     if (deckError) throw deckError;
 
@@ -279,9 +471,7 @@ export async function createDeck(input) {
       const { data: cardRows, error: cardsError } = await supabase
         .from("flashcards")
         .insert(rows)
-        .select(
-          "id,deck_id,front_vi,pos,ipa,definition,example_vi,example_en,notes,topic_id,mastery_level,review_count,last_reviewed_at,position,created_at,updated_at"
-        );
+        .select(FLASHCARD_SELECT_FIELDS);
       if (cardsError) {
         await supabase.from("flashcard_decks").delete().eq("id", deckRow.id);
         throw cardsError;
@@ -289,7 +479,12 @@ export async function createDeck(input) {
       savedCards = cardRows || [];
     }
 
-    return normalizeDeck({ ...deckRow, flashcards: savedCards });
+    return normalizeDeck({
+      ...deckRow,
+      ownerId: deckRow.user_id ?? user.id,
+      canEdit: true,
+      flashcards: savedCards,
+    });
   }
 
   const current = getLocalDecksRaw() || [];
@@ -299,13 +494,20 @@ export async function createDeck(input) {
 }
 
 /**
- * Update metadata of an existing deck.
+ * Update metadata (including teacher assignment state) of an existing deck.
  * @param {string} deckId
- * @param {{ title?: string, description?: string, topicId?: import("./contracts.js").TopicId | null, color?: string }} updates
+ * @param {{ title?: string, description?: string, topicId?: import("./contracts.js").TopicId | null, color?: string, isAssigned?: boolean, teacherName?: string, assignedAt?: string | null }} updates
  * @returns {Promise<import("./contracts.js").Deck>}
  */
 export async function updateDeck(deckId, updates = {}) {
   const topicInput = updates.topicId !== undefined ? updates.topicId : updates.topic_id;
+  const isAssignedInput =
+    updates.isAssigned !== undefined ? updates.isAssigned : updates.is_assigned;
+  const teacherNameInput =
+    updates.teacherName !== undefined ? updates.teacherName : updates.teacher_name;
+  const assignedAtInput =
+    updates.assignedAt !== undefined ? updates.assignedAt : updates.assigned_at;
+
   const user = await getCloudUser();
   if (user && supabase) {
     const payload = {};
@@ -315,19 +517,46 @@ export async function updateDeck(deckId, updates = {}) {
       payload.topic_id = isValidTopicId(topicInput) ? topicInput : null;
     }
     if (updates.color !== undefined) payload.color = String(updates.color);
+    if (isAssignedInput !== undefined) {
+      const nextAssigned = Boolean(isAssignedInput);
+      payload.is_assigned = nextAssigned;
+      payload.assigned_at = nextAssigned
+        ? (assignedAtInput ?? new Date().toISOString())
+        : null;
+    } else if (assignedAtInput !== undefined) {
+      payload.assigned_at = assignedAtInput;
+    }
+    if (teacherNameInput !== undefined) {
+      payload.teacher_name = String(teacherNameInput || "").trim();
+    }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("flashcard_decks")
       .update(payload)
       .eq("id", deckId)
       .eq("user_id", user.id)
-      .select(
-        "id,title,description,topic_id,color,is_default,created_at,updated_at,flashcards(id,deck_id,front_vi,pos,ipa,definition,example_vi,example_en,notes,topic_id,mastery_level,review_count,last_reviewed_at,position,created_at,updated_at)"
-      )
+      .select(DECK_SELECT_WITH_CARDS)
       .single();
 
+    if (
+      error &&
+      isMissingAssignedColumnError(error) &&
+      isAssignedInput === undefined &&
+      teacherNameInput === undefined
+    ) {
+      const legacyRes = await supabase
+        .from("flashcard_decks")
+        .update(payload)
+        .eq("id", deckId)
+        .eq("user_id", user.id)
+        .select(DECK_SELECT_WITH_CARDS_LEGACY)
+        .single();
+      data = legacyRes.data;
+      error = legacyRes.error;
+    }
+
     if (error) throw error;
-    return normalizeDeck(data);
+    return normalizeDeck({ ...data, ownerId: data?.user_id ?? user.id, canEdit: true });
   }
 
   const current = getLocalDecksRaw() || [];
@@ -336,6 +565,19 @@ export async function updateDeck(deckId, updates = {}) {
 
   const merged = { ...current[index], ...updates };
   if (topicInput !== undefined) merged.topicId = topicInput;
+  if (isAssignedInput !== undefined) {
+    const nextAssigned = Boolean(isAssignedInput);
+    merged.isAssigned = nextAssigned;
+    merged.assignedAt = nextAssigned
+      ? (assignedAtInput ?? current[index].assignedAt ?? new Date().toISOString())
+      : null;
+  } else if (assignedAtInput !== undefined) {
+    merged.assignedAt = assignedAtInput;
+  }
+  if (teacherNameInput !== undefined) {
+    merged.teacherName = String(teacherNameInput || "").trim();
+  }
+
   const updated = normalizeDeck({
     ...merged,
     id: deckId,
@@ -560,24 +802,149 @@ export async function deleteFlashcard(cardId) {
   saveLocalDecks(nextDecks);
 }
 
+async function saveAssignedCardMastery(cardId, masteryLevel, now, deckIdHint, user) {
+  const cached = assignedCardsById.get(cardId);
+  let resolvedDeckId = deckIdHint || cached?.deckId || "";
+
+  if (user && supabase) {
+    if (!resolvedDeckId) {
+      const { data: cardRow } = await supabase
+        .from("flashcards")
+        .select("deck_id")
+        .eq("id", cardId)
+        .maybeSingle();
+      resolvedDeckId = cardRow?.deck_id || "";
+    }
+
+    const { data: existingProgress } = await supabase
+      .from("student_card_progress")
+      .select("review_count")
+      .eq("user_id", user.id)
+      .eq("card_id", cardId)
+      .maybeSingle();
+
+    const nextReviewCount = Number(existingProgress?.review_count || 0) + 1;
+    const { data, error } = await supabase
+      .from("student_card_progress")
+      .upsert(
+        {
+          user_id: user.id,
+          card_id: cardId,
+          deck_id: resolvedDeckId,
+          mastery_level: masteryLevel,
+          review_count: nextReviewCount,
+          last_reviewed_at: now,
+        },
+        { onConflict: "user_id,card_id" }
+      )
+      .select("user_id,card_id,deck_id,mastery_level,review_count,last_reviewed_at,updated_at")
+      .single();
+
+    if (error) throw error;
+
+    const mergedCard = cached?.card
+      ? {
+          ...cached.card,
+          masteryLevel,
+          reviewCount: nextReviewCount,
+          lastReviewedAt: now,
+          updatedAt: data?.updated_at || now,
+        }
+      : {
+          id: cardId,
+          deckId: data?.deck_id || resolvedDeckId,
+          masteryLevel,
+          reviewCount: nextReviewCount,
+          lastReviewedAt: now,
+          updatedAt: data?.updated_at || now,
+        };
+
+    if (cached) {
+      assignedCardsById.set(cardId, { ...cached, deckId: mergedCard.deckId, card: mergedCard });
+    }
+    return mergedCard;
+  }
+
+  const localMap = readLocalAssignedMastery();
+  const prev = localMap[cardId];
+  const nextReviewCount = Number(prev?.reviewCount || 0) + 1;
+  const nextEntry = {
+    deckId: resolvedDeckId || prev?.deckId || "",
+    masteryLevel,
+    reviewCount: nextReviewCount,
+    lastReviewedAt: now,
+  };
+  writeLocalAssignedMastery({ ...localMap, [cardId]: nextEntry });
+
+  const mergedCard = cached?.card
+    ? {
+        ...cached.card,
+        masteryLevel,
+        reviewCount: nextReviewCount,
+        lastReviewedAt: now,
+        updatedAt: now,
+      }
+    : {
+        id: cardId,
+        deckId: nextEntry.deckId,
+        masteryLevel,
+        reviewCount: nextReviewCount,
+        lastReviewedAt: now,
+        updatedAt: now,
+      };
+
+  if (cached) {
+    assignedCardsById.set(cardId, { ...cached, deckId: mergedCard.deckId, card: mergedCard });
+  }
+  return mergedCard;
+}
+
 /**
  * Update a flashcard's mastery level (0..5), increment reviewCount, and timestamp lastReviewedAt.
+ * For teacher-assigned decks owned by another user, persists private progress to
+ * `student_card_progress` (signed-in) or localStorage `vietflow_v1_assigned_mastery` (guest)
+ * without ever attempting to UPDATE the teacher's `flashcards` row.
  * @param {string} cardId
  * @param {number} masteryLevel
+ * @param {{ deckId?: string, isAssignedDeck?: boolean }} [options={}]
  * @returns {Promise<import("./contracts.js").Flashcard>}
  */
-export async function setFlashcardMastery(cardId, masteryLevel) {
+export async function setFlashcardMastery(cardId, masteryLevel, options = {}) {
   const clamped = Math.round(clampNumber(masteryLevel, 0, 5));
   const now = new Date().toISOString();
-
   const user = await getCloudUser();
+
+  const cached = assignedCardsById.get(cardId);
+  const explicitAssigned = options?.isAssignedDeck === true;
+  const cachedNonOwnedAssigned =
+    options?.isAssignedDeck !== false && Boolean(cached && cached.canEdit === false);
+
+  if (explicitAssigned || cachedNonOwnedAssigned) {
+    return saveAssignedCardMastery(
+      cardId,
+      clamped,
+      now,
+      options?.deckId || cached?.deckId || "",
+      user
+    );
+  }
+
   if (user && supabase) {
     const { data: existing } = await supabase
       .from("flashcards")
-      .select("review_count")
+      .select("id,deck_id,user_id,review_count")
       .eq("id", cardId)
-      .eq("user_id", user.id)
       .maybeSingle();
+
+    if (existing && existing.user_id && existing.user_id !== user.id) {
+      return saveAssignedCardMastery(
+        cardId,
+        clamped,
+        now,
+        options?.deckId || existing.deck_id || "",
+        user
+      );
+    }
 
     return updateFlashcard(cardId, {
       masteryLevel: clamped,
@@ -588,12 +955,24 @@ export async function setFlashcardMastery(cardId, masteryLevel) {
 
   const current = getLocalDecksRaw() || [];
   let prevReviewCount = 0;
+  let foundDeck = null;
   for (const deck of current) {
     const found = deck.cards.find((c) => c.id === cardId);
     if (found) {
       prevReviewCount = found.reviewCount || 0;
+      foundDeck = deck;
       break;
     }
+  }
+
+  if (!foundDeck || (foundDeck.isAssigned && foundDeck.canEdit === false)) {
+    return saveAssignedCardMastery(
+      cardId,
+      clamped,
+      now,
+      options?.deckId || foundDeck?.id || cached?.deckId || "",
+      null
+    );
   }
 
   return updateFlashcard(cardId, {
@@ -895,7 +1274,7 @@ export async function syncLocalToCloud() {
   let syncedCards = 0;
   let syncedSessions = 0;
 
-  const localDecks = getLocalDecksRaw() || [];
+  const localDecks = (getLocalDecksRaw() || []).filter((deck) => deck.canEdit !== false);
   if (localDecks.length > 0) {
     const { data: existingDecks } = await supabase
       .from("flashcard_decks")
@@ -1039,6 +1418,7 @@ export async function syncLocalToCloud() {
  */
 export function clearLocalStorageData() {
   Object.values(STORAGE_KEYS).forEach(removeLocalKey);
+  assignedCardsById.clear();
 }
 
 export { SKILL_IDS, TOPIC_IDS };

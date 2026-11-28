@@ -33,6 +33,7 @@ import {
   SKILL_META,
   TOPIC_IDS,
   TOPIC_META,
+  USER_ROLES,
   createEmptySkillProgress,
   isValidSkillId,
   isValidTopicId,
@@ -55,6 +56,7 @@ import {
   deleteDeck,
   deleteFlashcard,
   getStorageMode,
+  loadAssignedDecksFromCloud,
   loadDecks,
   loadGameHistory,
   loadPreferences,
@@ -611,7 +613,49 @@ describe("src/lib/contracts.js", () => {
     });
     expect(deck.cardCount).toBe(2);
     expect(deck.isDefault).toBe(true);
+    expect(deck.isAssigned).toBe(false);
+    expect(deck.teacherName).toBe("");
+    expect(deck.assignedAt).toBeNull();
+    expect(deck.ownerId).toBeNull();
+    expect(deck.canEdit).toBe(true);
     expect(deck.cards.map((c) => c.frontVi)).toEqual(["ngon", "cay"]);
+
+    // USER_ROLES + teacher-assigned fields from snake_case and camelCase
+    expect(USER_ROLES).toEqual({ STUDENT: "student", TEACHER: "teacher" });
+    const assignedFromSnake = normalizeDeck({
+      id: "deck-assigned-1",
+      title: "Bài đọc Tuần 3",
+      user_id: "teacher-1",
+      is_assigned: true,
+      teacher_name: "Cô Minh",
+      assigned_at: "2026-05-12T08:00:00.000Z",
+      canEdit: false,
+      flashcards: [{ front_vi: "hội thoại", definition: "conversation" }],
+    });
+    expect(assignedFromSnake).toMatchObject({
+      id: "deck-assigned-1",
+      isAssigned: true,
+      teacherName: "Cô Minh",
+      assignedAt: "2026-05-12T08:00:00.000Z",
+      ownerId: "teacher-1",
+      canEdit: false,
+      cardCount: 1,
+    });
+
+    const assignedFromCamel = normalizeDeck({
+      title: "Nghe hiểu",
+      ownerId: "teacher-2",
+      isAssigned: true,
+      teacherName: "Thầy Nam",
+      assignedAt: "2026-05-13T09:00:00.000Z",
+    });
+    expect(assignedFromCamel).toMatchObject({
+      isAssigned: true,
+      teacherName: "Thầy Nam",
+      assignedAt: "2026-05-13T09:00:00.000Z",
+      ownerId: "teacher-2",
+      canEdit: true,
+    });
 
     const result = normalizeGameResult({
       game_type: "tone_radar",
@@ -830,11 +874,74 @@ describe("src/lib/storage.js (localStorage fallback mode)", () => {
     expect(prefs.autoPlayAudio).toBe(true);
     expect(loadPreferences()).toMatchObject({ autoPlayAudio: true, speechRate: 0.9 });
   });
+
+  it("preserves isAssigned/teacherName/assignedAt locally and stores guest assigned mastery in localStorage", async () => {
+    expect(await loadAssignedDecksFromCloud(null)).toEqual([]);
+
+    const created = await createDeck({
+      title: "Bài tập PDF tuần 1",
+      topicId: "food",
+      isAssigned: true,
+      teacherName: "Cô Minh",
+      cards: [{ frontVi: "nước chấm", definition: "dipping sauce" }],
+    });
+    expect(created.isAssigned).toBe(true);
+    expect(created.teacherName).toBe("Cô Minh");
+    expect(created.assignedAt).toBeTruthy();
+
+    const loaded = await loadDecks();
+    expect(loaded[0]).toMatchObject({
+      id: created.id,
+      isAssigned: true,
+      teacherName: "Cô Minh",
+    });
+
+    const unassigned = await updateDeck(created.id, { isAssigned: false });
+    expect(unassigned.isAssigned).toBe(false);
+    expect(unassigned.assignedAt).toBeNull();
+
+    const reassigned = await updateDeck(created.id, {
+      isAssigned: true,
+      teacherName: "Cô Lan",
+    });
+    expect(reassigned.isAssigned).toBe(true);
+    expect(reassigned.teacherName).toBe("Cô Lan");
+    expect(reassigned.assignedAt).toBeTruthy();
+
+    // Guest assigned mastery persists to vietflow_v1_assigned_mastery
+    const firstMastery = await setFlashcardMastery("assigned-card-1", 3, {
+      deckId: "assigned-deck-1",
+      isAssignedDeck: true,
+    });
+    expect(firstMastery).toMatchObject({
+      id: "assigned-card-1",
+      deckId: "assigned-deck-1",
+      masteryLevel: 3,
+      reviewCount: 1,
+    });
+
+    const secondMastery = await setFlashcardMastery("assigned-card-1", 5, {
+      deckId: "assigned-deck-1",
+      isAssignedDeck: true,
+    });
+    expect(secondMastery.masteryLevel).toBe(5);
+    expect(secondMastery.reviewCount).toBe(2);
+
+    const storedMap = JSON.parse(
+      globalThis.localStorage.getItem("vietflow_v1_assigned_mastery")
+    );
+    expect(storedMap["assigned-card-1"]).toMatchObject({
+      deckId: "assigned-deck-1",
+      masteryLevel: 5,
+      reviewCount: 2,
+    });
+  });
 });
 
 /**
  * In-memory Postgres-like Supabase mock enforcing global UUID PRIMARY KEY
- * constraints on flashcard_decks, flashcards, and game_sessions across users.
+ * constraints on flashcard_decks, flashcards, and game_sessions across users,
+ * plus student_card_progress composite PK and flashcards owner-only UPDATE RLS.
  */
 function createMockMultiUserSupabase() {
   const tables = {
@@ -842,15 +949,17 @@ function createMockMultiUserSupabase() {
     flashcards: [],
     game_sessions: [],
     skill_progress: [],
+    student_card_progress: [],
   };
 
   const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   let activeUser = null;
+  let flashcardUpdateAttempts = 0;
 
   function assertValidPk(tableName, row) {
-    if (tableName === "skill_progress") return;
+    if (tableName === "skill_progress" || tableName === "student_card_progress") return;
     if (!UUID_RE.test(String(row.id || ""))) {
       throw new Error(`invalid input syntax for type uuid: "${row.id}"`);
     }
@@ -867,7 +976,9 @@ function createMockMultiUserSupabase() {
       selectSpec: "*",
       selectOpts: {},
       filters: [],
+      orders: [],
       payload: null,
+      upsertOpts: {},
       single: false,
       maybeSingle: false,
     };
@@ -877,6 +988,18 @@ function createMockMultiUserSupabase() {
         let rows = tables[tableName].filter((r) =>
           state.filters.every(([k, v]) => r[k] === v)
         );
+        if (state.orders.length > 0) {
+          rows = [...rows].sort((a, b) => {
+            for (const [col, ascending] of state.orders) {
+              const av = a[col] ?? "";
+              const bv = b[col] ?? "";
+              if (av !== bv) {
+                return ascending ? (av > bv ? 1 : -1) : av < bv ? 1 : -1;
+              }
+            }
+            return 0;
+          });
+        }
         if (state.selectOpts?.head && state.selectOpts?.count === "exact") {
           return { data: null, count: rows.length, error: null };
         }
@@ -908,9 +1031,48 @@ function createMockMultiUserSupabase() {
         return { data: state.single ? inserted[0] : inserted, error: null };
       }
 
+      if (state.op === "update") {
+        if (tableName === "flashcards") {
+          flashcardUpdateAttempts += 1;
+        }
+        const now = new Date().toISOString();
+        const matched = [];
+        for (let i = 0; i < tables[tableName].length; i += 1) {
+          const row = tables[tableName][i];
+          if (!state.filters.every(([k, v]) => row[k] === v)) continue;
+          if (tableName === "flashcards" && activeUser && row.user_id !== activeUser.id) {
+            return {
+              data: null,
+              error: new Error("RLS violation: cannot update another user's flashcard"),
+            };
+          }
+          const nextRow = { ...row, ...state.payload, updated_at: now };
+          tables[tableName][i] = nextRow;
+          matched.push(
+            tableName === "flashcard_decks" && state.selectSpec.includes("flashcards(")
+              ? {
+                  ...nextRow,
+                  flashcards: tables.flashcards.filter((c) => c.deck_id === nextRow.id),
+                }
+              : nextRow
+          );
+        }
+        if (state.single) {
+          if (matched.length === 0) {
+            return { data: null, error: new Error("JSON object requested, multiple (or no) rows returned") };
+          }
+          return { data: matched[0], error: null };
+        }
+        return { data: matched, error: null };
+      }
+
       if (state.op === "upsert") {
         const item = state.payload;
-        const idx = tables[tableName].findIndex((r) => r.user_id === item.user_id);
+        const onConflict = String(state.upsertOpts?.onConflict || "user_id");
+        const keys = onConflict.split(",").map((k) => k.trim());
+        const idx = tables[tableName].findIndex((r) =>
+          keys.every((k) => r[k] === item[k])
+        );
         const fullRow = { updated_at: new Date().toISOString(), ...item };
         if (idx >= 0) tables[tableName][idx] = { ...tables[tableName][idx], ...fullRow };
         else tables[tableName].push(fullRow);
@@ -938,9 +1100,15 @@ function createMockMultiUserSupabase() {
         state.payload = payload;
         return builder;
       },
-      upsert(payload) {
+      update(payload) {
+        state.op = "update";
+        state.payload = payload;
+        return builder;
+      },
+      upsert(payload, opts = {}) {
         state.op = "upsert";
         state.payload = payload;
+        state.upsertOpts = opts;
         return builder;
       },
       delete() {
@@ -951,7 +1119,8 @@ function createMockMultiUserSupabase() {
         state.filters.push([col, val]);
         return builder;
       },
-      order() {
+      order(col, opts = {}) {
+        state.orders.push([col, opts?.ascending !== false]);
         return builder;
       },
       limit() {
@@ -974,6 +1143,10 @@ function createMockMultiUserSupabase() {
 
   return {
     tables,
+    getFlashcardUpdateAttempts: () => flashcardUpdateAttempts,
+    resetFlashcardUpdateAttempts: () => {
+      flashcardUpdateAttempts = 0;
+    },
     setUser(user) {
       activeUser = user;
     },
@@ -1127,5 +1300,179 @@ describe("src/lib/storage.js (multi-user Supabase PK isolation & sync)", () => {
     // Running sync a second time produces zero duplicates
     const secondSync = await cloudStorage.syncLocalToCloud();
     expect(secondSync).toEqual({ syncedDecks: 0, syncedCards: 0, syncedSessions: 0 });
+  });
+
+  it("loads teacher-assigned decks for teacher (deduplicated + editable), signed-in students (student_card_progress), and guests (localStorage)", async () => {
+    const mockDb = createMockMultiUserSupabase();
+    vi.resetModules();
+    vi.doMock("./supabase.js", () => ({
+      isSupabaseConfigured: true,
+      supabase: mockDb.client,
+      getCurrentUser: mockDb.getCurrentUser,
+    }));
+
+    const cloudStorage = await import("./storage.js");
+    cloudStorage.clearLocalStorageData();
+
+    // 1. Teacher creates a personal deck AND a teacher-assigned PDF deck
+    mockDb.setUser({ id: "teacher-minh" });
+    await cloudStorage.createDeck({
+      title: "Ghi chú riêng của GV",
+      topicId: "self",
+      isAssigned: false,
+      cards: [{ frontVi: "soạn bài", definition: "prepare lessons" }],
+    });
+    const assignedDeck = await cloudStorage.createDeck({
+      title: "PDF Bài 4: Ẩm thực Hà Nội",
+      topicId: "food",
+      isAssigned: true,
+      teacherName: "Cô Minh",
+      cards: [
+        { frontVi: "phở cuốn", definition: "fresh pho rolls", masteryLevel: 4 },
+        { frontVi: "bún thang", definition: "Hanoi noodle soup", masteryLevel: 2 },
+      ],
+    });
+    expect(assignedDeck.isAssigned).toBe(true);
+    expect(assignedDeck.teacherName).toBe("Cô Minh");
+    expect(assignedDeck.assignedAt).toBeTruthy();
+    expect(assignedDeck.canEdit).toBe(true);
+
+    // Teacher sees assigned deck ONCE at the top with canEdit: true
+    const teacherDecks = await cloudStorage.loadDecks();
+    expect(teacherDecks).toHaveLength(2);
+    expect(teacherDecks[0].id).toBe(assignedDeck.id);
+    expect(teacherDecks[0].isAssigned).toBe(true);
+    expect(teacherDecks[0].canEdit).toBe(true);
+    expect(teacherDecks[0].cards[0].masteryLevel).toBe(4);
+
+    // 2. Signed-in Student 1 loads decks: assigned deck appears at TOP with canEdit: false & clean 0 mastery
+    mockDb.setUser({ id: "student-an" });
+    const student1Decks = await cloudStorage.loadDecks([
+      {
+        title: "Starter Bản thân",
+        topicId: "self",
+        isDefault: true,
+        cards: [{ frontVi: "thân thiện", definition: "friendly" }],
+      },
+    ]);
+    expect(student1Decks).toHaveLength(2);
+    expect(student1Decks[0]).toMatchObject({
+      id: assignedDeck.id,
+      isAssigned: true,
+      teacherName: "Cô Minh",
+      canEdit: false,
+    });
+    expect(student1Decks[0].cards[0].masteryLevel).toBe(0);
+    expect(student1Decks[0].cards[0].reviewCount).toBe(0);
+    expect(student1Decks[1].canEdit).toBe(true);
+
+    // Student 1 marks mastery -> writes to student_card_progress, NEVER updates teacher's flashcards row
+    mockDb.resetFlashcardUpdateAttempts();
+    const targetCard = student1Decks[0].cards[0];
+    const m1 = await cloudStorage.setFlashcardMastery(targetCard.id, 4, {
+      deckId: assignedDeck.id,
+      isAssignedDeck: true,
+    });
+    expect(m1.masteryLevel).toBe(4);
+    expect(m1.reviewCount).toBe(1);
+    expect(m1.frontVi).toBe("phở cuốn");
+    expect(mockDb.getFlashcardUpdateAttempts()).toBe(0);
+    expect(mockDb.tables.student_card_progress).toHaveLength(1);
+    expect(mockDb.tables.student_card_progress[0]).toMatchObject({
+      user_id: "student-an",
+      card_id: targetCard.id,
+      deck_id: assignedDeck.id,
+      mastery_level: 4,
+      review_count: 1,
+    });
+
+    // Second review upserts on (user_id, card_id) and increments review_count to 2
+    const m2 = await cloudStorage.setFlashcardMastery(targetCard.id, 5, {
+      deckId: assignedDeck.id,
+      isAssignedDeck: true,
+    });
+    expect(m2.masteryLevel).toBe(5);
+    expect(m2.reviewCount).toBe(2);
+    expect(mockDb.tables.student_card_progress).toHaveLength(1);
+    expect(mockDb.getFlashcardUpdateAttempts()).toBe(0);
+
+    // Reloading Student 1 decks overlays Student 1's own mastery
+    const student1Reloaded = await cloudStorage.loadDecks();
+    expect(student1Reloaded[0].cards[0].masteryLevel).toBe(5);
+    expect(student1Reloaded[0].cards[0].reviewCount).toBe(2);
+
+    // Student 2 sees completely isolated mastery (0) on the same assigned deck
+    mockDb.setUser({ id: "student-binh" });
+    const student2Decks = await cloudStorage.loadDecks();
+    expect(student2Decks[0].id).toBe(assignedDeck.id);
+    expect(student2Decks[0].canEdit).toBe(false);
+    expect(student2Decks[0].cards[0].masteryLevel).toBe(0);
+
+    // 3. Guest (signed out, Supabase configured) STILL sees assigned decks at TOP & saves mastery in localStorage
+    mockDb.setUser(null);
+    const guestDecks = await cloudStorage.loadDecks([
+      {
+        title: "Local Starter",
+        topicId: "self",
+        isDefault: true,
+        cards: [{ frontVi: "xin chào", definition: "hello" }],
+      },
+    ]);
+    expect(guestDecks[0]).toMatchObject({
+      id: assignedDeck.id,
+      isAssigned: true,
+      teacherName: "Cô Minh",
+      canEdit: false,
+    });
+    expect(guestDecks[0].cards[0].masteryLevel).toBe(0);
+
+    const guestMastery = await cloudStorage.setFlashcardMastery(targetCard.id, 3, {
+      deckId: assignedDeck.id,
+      isAssignedDeck: true,
+    });
+    expect(guestMastery.masteryLevel).toBe(3);
+    expect(guestMastery.reviewCount).toBe(1);
+    expect(mockDb.tables.student_card_progress).toHaveLength(1); // unchanged!
+    expect(mockDb.getFlashcardUpdateAttempts()).toBe(0);
+
+    // Reloading guest decks overlays mastery from vietflow_v1_assigned_mastery
+    const guestReloaded = await cloudStorage.loadDecks();
+    expect(guestReloaded[0].cards[0].masteryLevel).toBe(3);
+    expect(guestReloaded[0].cards[0].reviewCount).toBe(1);
+
+    // 4. Teacher unassigns deck via updateDeck -> disappears from assigned list
+    mockDb.setUser({ id: "teacher-minh" });
+    const unassigned = await cloudStorage.updateDeck(assignedDeck.id, { isAssigned: false });
+    expect(unassigned.isAssigned).toBe(false);
+    expect(unassigned.assignedAt).toBeNull();
+    expect(await cloudStorage.loadAssignedDecksFromCloud("student-an")).toEqual([]);
+  });
+
+  it("returns [] gracefully from loadAssignedDecksFromCloud when migration 003 has not run yet", async () => {
+    const failingClient = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            order: () => ({
+              order: async () => ({
+                data: null,
+                error: new Error('column flashcard_decks.is_assigned does not exist'),
+              }),
+            }),
+          }),
+        }),
+      }),
+    };
+
+    vi.resetModules();
+    vi.doMock("./supabase.js", () => ({
+      isSupabaseConfigured: true,
+      supabase: failingClient,
+      getCurrentUser: async () => null,
+    }));
+
+    const cloudStorage = await import("./storage.js");
+    const result = await cloudStorage.loadAssignedDecksFromCloud("student-1");
+    expect(result).toEqual([]);
   });
 });

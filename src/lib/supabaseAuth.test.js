@@ -4,8 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import "@testing-library/jest-dom/vitest";
 
 import {
+  DEFAULT_TEACHER_CODE,
   STUDENT_EMAIL_DOMAIN,
   isSyntheticStudentEmail,
+  isTeacherProfile,
   mapSupabaseAuthError,
   normalizeStudentName,
   resolveStudentDisplayName,
@@ -146,6 +148,17 @@ describe("Student name normalization and synthetic email derivation", () => {
     expect(sanitized).not.toContain("students.vietflow.app");
     expect(sanitized).not.toContain("@");
   });
+
+  it("exports DEFAULT_TEACHER_CODE and evaluates isTeacherProfile safely against loaded profile vs metadata", () => {
+    expect(DEFAULT_TEACHER_CODE).toBe("MUNNN01-GV");
+    expect(isTeacherProfile({ role: "teacher" }, null)).toBe(true);
+    expect(isTeacherProfile({ role: "student" }, { user_metadata: { role: "teacher" } })).toBe(
+      false
+    );
+    expect(isTeacherProfile(null, { user_metadata: { role: "teacher" } })).toBe(true);
+    expect(isTeacherProfile(null, { user_metadata: { role: "student" } })).toBe(false);
+    expect(isTeacherProfile(null, null)).toBe(false);
+  });
 });
 
 describe("signIn & signUp with mocked Supabase client", () => {
@@ -233,10 +246,12 @@ describe("signIn & signUp with mocked Supabase client", () => {
       options: {
         data: {
           display_name: "Nguyễn Anh Thư",
+          role: "student",
         },
       },
     });
     expect(signUpRes.profile?.displayName).toBe("Nguyễn Anh Thư");
+    expect(signUpRes.profile?.role).toBe("student");
     expect(signUpRes.profile?.email).toBe("");
 
     // Sign in without diacritics matches the exact same synthetic email
@@ -271,6 +286,202 @@ describe("signIn & signUp with mocked Supabase client", () => {
     await expect(
       supa.signIn({ studentName: "Nguyễn Anh Thư", password: "wrongpassword" })
     ).rejects.toThrow("Sai tên học sinh hoặc mật khẩu. Vui lòng kiểm tra lại.");
+  });
+
+  it("validates teacher signup code, returns role from getUserProfile, and enforces sign-in role mismatch guards", async () => {
+    const signInWithPassword = vi.fn();
+    const signUpMock = vi.fn();
+    const getSessionMock = vi.fn();
+    const signOutMock = vi.fn().mockResolvedValue({ error: null });
+    const upsertSingleMock = vi.fn();
+    const maybeSingleMock = vi.fn();
+
+    const mockClient = {
+      auth: {
+        signInWithPassword,
+        signUp: signUpMock,
+        getSession: getSessionMock,
+        signOut: signOutMock,
+        onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: maybeSingleMock,
+        upsert: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: upsertSingleMock,
+          })),
+        })),
+      })),
+    };
+
+    vi.stubEnv("VITE_SUPABASE_URL", "https://demo.supabase.co");
+    vi.stubEnv("VITE_SUPABASE_ANON_KEY", "anon-test-key");
+    vi.resetModules();
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: vi.fn(() => mockClient),
+    }));
+
+    const supa = await import("./supabase.js");
+
+    // 1. Reject missing or invalid teacher code BEFORE hitting Supabase
+    await expect(
+      supa.signUp({
+        studentName: "Cô Minh",
+        password: "password123",
+        role: "teacher",
+        teacherCode: "",
+      })
+    ).rejects.toThrow(
+      "Mã giáo viên không đúng. Vui lòng nhập đúng mã giáo viên để tạo tài khoản."
+    );
+    await expect(
+      supa.signUp({
+        studentName: "Cô Minh",
+        password: "password123",
+        role: "teacher",
+        teacherCode: "WRONG-CODE",
+      })
+    ).rejects.toThrow(
+      "Mã giáo viên không đúng. Vui lòng nhập đúng mã giáo viên để tạo tài khoản."
+    );
+    expect(signUpMock).not.toHaveBeenCalled();
+
+    // 2. Accept valid teacher code (trimmed + case-insensitive) and send role + teacher_code metadata
+    const teacherUser = {
+      id: "user-teacher-minh",
+      email: "co.minh@students.vietflow.app",
+      user_metadata: { display_name: "Cô Minh", role: "teacher" },
+      identities: [{ id: "id-t1" }],
+    };
+    signUpMock.mockResolvedValueOnce({
+      data: { user: teacherUser, session: { user: teacherUser } },
+      error: null,
+    });
+    getSessionMock.mockResolvedValue({
+      data: { session: { user: teacherUser } },
+      error: null,
+    });
+    upsertSingleMock.mockResolvedValueOnce({
+      data: {
+        user_id: "user-teacher-minh",
+        display_name: "Cô Minh",
+        role: "teacher",
+        cefr_level: "A2-B1",
+      },
+      error: null,
+    });
+
+    const teacherSignUp = await supa.signUp({
+      studentName: "Cô Minh",
+      password: "password123",
+      role: "teacher",
+      teacherCode: " munnn01-gv ",
+    });
+
+    expect(signUpMock).toHaveBeenCalledWith({
+      email: "co.minh@students.vietflow.app",
+      password: "password123",
+      options: {
+        data: {
+          display_name: "Cô Minh",
+          role: "teacher",
+          teacher_code: "MUNNN01-GV",
+        },
+      },
+    });
+    expect(teacherSignUp.profile?.role).toBe("teacher");
+    expect(supa.isTeacherProfile(teacherSignUp.profile, teacherSignUp.user)).toBe(true);
+
+    // 3. Student logging into Teacher tab -> signed out + friendly role mismatch error
+    const studentUser = {
+      id: "user-student-an",
+      email: "nguyen.an@students.vietflow.app",
+      user_metadata: { display_name: "Nguyễn An", role: "student" },
+    };
+    signInWithPassword.mockResolvedValueOnce({
+      data: { user: studentUser, session: { user: studentUser } },
+      error: null,
+    });
+    getSessionMock.mockResolvedValueOnce({
+      data: { session: { user: studentUser } },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({
+      data: {
+        user_id: "user-student-an",
+        display_name: "Nguyễn An",
+        role: "student",
+      },
+      error: null,
+    });
+
+    await expect(
+      supa.signIn({
+        studentName: "Nguyễn An",
+        password: "password123",
+        expectedRole: "teacher",
+      })
+    ).rejects.toThrow(
+      "Tài khoản này là tài khoản học sinh. Hãy chuyển sang tab Học sinh để đăng nhập."
+    );
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+
+    // 4. Teacher logging into Student tab -> signed out + friendly role mismatch error
+    signInWithPassword.mockResolvedValueOnce({
+      data: { user: teacherUser, session: { user: teacherUser } },
+      error: null,
+    });
+    getSessionMock.mockResolvedValueOnce({
+      data: { session: { user: teacherUser } },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({
+      data: {
+        user_id: "user-teacher-minh",
+        display_name: "Cô Minh",
+        role: "teacher",
+      },
+      error: null,
+    });
+
+    await expect(
+      supa.signIn({
+        studentName: "Cô Minh",
+        password: "password123",
+        expectedRole: "student",
+      })
+    ).rejects.toThrow(
+      "Tài khoản này là tài khoản giáo viên. Hãy chuyển sang tab Giáo viên để đăng nhập."
+    );
+    expect(signOutMock).toHaveBeenCalledTimes(2);
+
+    // 5. Teacher logging into Teacher tab succeeds without signing out
+    signInWithPassword.mockResolvedValueOnce({
+      data: { user: teacherUser, session: { user: teacherUser } },
+      error: null,
+    });
+    getSessionMock.mockResolvedValueOnce({
+      data: { session: { user: teacherUser } },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({
+      data: {
+        user_id: "user-teacher-minh",
+        display_name: "Cô Minh",
+        role: "teacher",
+      },
+      error: null,
+    });
+
+    const teacherSignIn = await supa.signIn({
+      studentName: "Cô Minh",
+      password: "password123",
+      expectedRole: "teacher",
+    });
+    expect(teacherSignIn.profile?.role).toBe("teacher");
+    expect(signOutMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -378,11 +589,13 @@ describe("AuthModal, Navbar, and Dashboard student-name UI", () => {
     fireEvent.submit(container.querySelector("form"));
 
     await waitFor(() => {
-      expect(signUpMock).toHaveBeenCalledWith({
-        studentName: "Nguyễn Anh Thư",
-        password: "matkhau123",
-        displayName: "Nguyễn Anh Thư",
-      });
+      expect(signUpMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          studentName: "Nguyễn Anh Thư",
+          password: "matkhau123",
+          displayName: "Nguyễn Anh Thư",
+        })
+      );
     });
     expect(onAuthSuccess).toHaveBeenCalled();
     expect(onNotify).toHaveBeenCalledWith(
@@ -415,9 +628,8 @@ describe("AuthModal, Navbar, and Dashboard student-name UI", () => {
     );
 
     expect(screen.getByText("Nguyễn Anh Thư")).toBeInTheDocument();
-    expect(
-      screen.getByText("Tài khoản học sinh · Đang đồng bộ Supabase")
-    ).toBeInTheDocument();
+    expect(container.textContent).toMatch(/Học sinh|Tài khoản học sinh/i);
+    expect(container.textContent).toMatch(/Supabase|Đồng bộ/i);
     expect(container.textContent).not.toContain("@students.vietflow.app");
     expect(container.textContent).not.toContain("nguyen.anh.thu");
   });

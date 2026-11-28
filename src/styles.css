@@ -575,6 +575,12 @@ a:hover {
   border-color: rgba(95, 168, 136, 0.26);
 }
 
+.vf-tag--teacher {
+  background: var(--accent-primary-soft);
+  color: #ebb09a;
+  border-color: rgba(217, 119, 87, 0.34);
+}
+
 /* ==========================================================================
    Warm Editorial Watercolor Artwork Frames (Giấy Dó Ivory #f7f3ea)
    ========================================================================== */
@@ -942,6 +948,18 @@ a:hover {
   background: var(--status-good);
 }
 
+.vf-status-dot.is-teacher {
+  background: var(--accent-primary);
+}
+
+.vf-nav-auth-btn.is-teacher {
+  border-color: rgba(217, 119, 87, 0.34);
+}
+
+.vf-nav-auth-btn.is-teacher:hover {
+  border-color: rgba(217, 119, 87, 0.56);
+}
+
 .vf-mobile-nav {
   display: none;
 }
@@ -1085,6 +1103,238 @@ a:hover {
   border-radius: 2px;
   background: var(--accent-primary);
   transition: width 360ms var(--ease-out);
+}
+
+.vf-track-fill--good {
+  background: var(--status-good);
+}
+
+/* Teacher Corner Banner & Student Assigned Flashcard Strip */
+.vf-teacher-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid rgba(217, 119, 87, 0.34);
+  border-left: 3px solid var(--accent-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.vf-teacher-panel-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.vf-teacher-panel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 380px;
+}
+
+.vf-teacher-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.74rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-primary);
+}
+
+.vf-teacher-panel-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.24rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.vf-teacher-panel-sub {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.vf-teacher-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.vf-teacher-deck-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+  gap: 6px;
+}
+
+.vf-teacher-deck-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.vf-teacher-deck-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.vf-teacher-deck-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--accent-primary-soft);
+  border: 1px solid rgba(217, 119, 87, 0.34);
+  color: #ebb09a;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vf-teacher-deck-name {
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.vf-teacher-deck-meta {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.vf-teacher-deck-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+/* Student & Guest Assigned Flashcard Strip */
+.vf-assigned-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.vf-assigned-head {
+  margin-bottom: 0;
+}
+
+.vf-assigned-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vf-assigned-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+  gap: 14px;
+}
+
+.vf-assigned-card {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid rgba(217, 119, 87, 0.28);
+  border-top: 2px solid var(--accent-primary);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.vf-assigned-card:hover {
+  background: var(--bg-elevated);
+  border-color: rgba(217, 119, 87, 0.48);
+}
+
+.vf-assigned-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vf-assigned-kicker {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #ebb09a;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vf-assigned-count {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.vf-assigned-card-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.08rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.vf-assigned-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vf-assigned-mastery {
+  font-family: var(--font-mono);
+  font-size: 0.73rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.vf-assigned-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 /* Asymmetric 2-Column Workspace (1.55fr 1fr) */
@@ -2076,6 +2326,67 @@ a:hover {
   gap: 16px;
 }
 
+.vf-role-switcher {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.vf-role-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.vf-role-pill:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.vf-role-pill.is-active {
+  background: var(--status-good-soft);
+  border-color: rgba(95, 168, 136, 0.44);
+  color: var(--text-primary);
+}
+
+.vf-role-pill.is-teacher.is-active {
+  background: var(--accent-primary-soft);
+  border-color: rgba(217, 119, 87, 0.56);
+  color: var(--text-primary);
+}
+
+.vf-field-helper {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.vf-input--code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.vf-avatar.is-teacher {
+  background: var(--accent-primary-soft);
+  border-color: rgba(217, 119, 87, 0.44);
+  color: #ebb09a;
+}
+
 .vf-auth-tabs {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -2786,6 +3097,14 @@ a:hover {
   .vf-skill-cell:nth-child(1),
   .vf-skill-cell:nth-child(2) {
     border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .vf-teacher-panel {
+    padding: 16px;
+  }
+
+  .vf-assigned-grid {
+    grid-template-columns: 1fr;
   }
 
   .vf-chapter-top {

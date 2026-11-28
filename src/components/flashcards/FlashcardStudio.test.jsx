@@ -567,4 +567,168 @@ describe("FlashcardStudio", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(SCANNED_PDF_ERROR_VI);
     });
   });
+
+  it("shows teacher assignment toggle (default ON) in PDF creator and passes isAssigned + teacherName on PDF deck creation", async () => {
+    const onCreateDeck = vi.fn(() => Promise.resolve({ id: "deck-pdf-teacher" }));
+    extractTextFromStudyFile.mockResolvedValueOnce({
+      text: "tự tin | tính từ | tin vào khả năng của bản thân | Cô ấy thuyết trình rất tự tin.",
+      pageCount: 1,
+      isEmpty: false,
+      error: "",
+      fileType: "pdf",
+    });
+
+    render(
+      <FlashcardStudio
+        decks={MOCK_DECKS}
+        activeDeckId="deck-food"
+        isTeacher={true}
+        teacherName="Cô Minh"
+        initialTab="create"
+        initialCreatorTab="pdf"
+        initialCreateNewDeck={true}
+        onCreateDeck={onCreateDeck}
+      />
+    );
+
+    expect(screen.getByTestId("fc-pdf-panel")).toBeInTheDocument();
+    const assignCheckbox = screen.getByLabelText(/Giao bộ thẻ này cho học sinh/);
+    expect(assignCheckbox).toBeInTheDocument();
+    expect(assignCheckbox).toBeChecked();
+    expect(
+      screen.getByText(/Học sinh vào web sẽ thấy ngay bộ thẻ này để học và luyện phát âm/)
+    ).toBeInTheDocument();
+
+    const fileInput = screen.getByLabelText("Chọn file PDF hoặc TXT để tạo flashcard");
+    const mockPdf = new File(["%PDF-1.4"], "Tu_vung_tuan_3.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(fileInput, { target: { files: [mockPdf] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("fc-pdf-preview-list")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Tạo 1 flashcard & học ngay/ }));
+
+    await waitFor(() => {
+      expect(onCreateDeck).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Tu vung tuan 3",
+          isAssigned: true,
+          teacherName: "Cô Minh",
+        })
+      );
+    });
+  });
+
+  it("shows teacher assignment toggle button in Deck Manager and updates isAssigned state", async () => {
+    const onUpdateDeck = vi.fn(() => Promise.resolve());
+    const { rerender } = render(
+      <FlashcardStudio
+        decks={MOCK_DECKS}
+        activeDeckId="deck-food"
+        isTeacher={true}
+        teacherName="Cô Minh"
+        onUpdateDeck={onUpdateDeck}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /Quản lý/ }));
+    const assignBtn = screen.getByRole("button", { name: /Giao cho học sinh/ });
+    expect(assignBtn).toBeInTheDocument();
+
+    fireEvent.click(assignBtn);
+    await waitFor(() => {
+      expect(onUpdateDeck).toHaveBeenCalledWith("deck-food", {
+        isAssigned: true,
+        teacherName: "Cô Minh",
+      });
+    });
+
+    const assignedDecks = [
+      { ...MOCK_DECKS[0], isAssigned: true, teacherName: "Cô Minh", canEdit: true },
+    ];
+    rerender(
+      <FlashcardStudio
+        decks={assignedDecks}
+        activeDeckId="deck-food"
+        isTeacher={true}
+        teacherName="Cô Minh"
+        onUpdateDeck={onUpdateDeck}
+      />
+    );
+
+    const activeAssignBtn = screen.getByRole("button", { name: /Đang giao cho HS/ });
+    expect(activeAssignBtn).toBeInTheDocument();
+    fireEvent.click(activeAssignBtn);
+    await waitFor(() => {
+      expect(onUpdateDeck).toHaveBeenCalledWith("deck-food", {
+        isAssigned: false,
+        teacherName: "Cô Minh",
+      });
+    });
+  });
+
+  it("shows GV giao badge and read-only Deck Manager protection for students on assigned teacher decks while preserving flip and mastery", () => {
+    const onUpdateMastery = vi.fn();
+    const onUpdateDeck = vi.fn();
+    const onDeleteDeck = vi.fn();
+    const onUpdateCard = vi.fn();
+    const onDeleteCard = vi.fn();
+
+    const assignedDecks = [
+      {
+        ...MOCK_DECKS[0],
+        id: "deck-assigned-1",
+        title: "Từ vựng tuần 4",
+        isAssigned: true,
+        teacherName: "Cô Minh",
+        canEdit: false,
+      },
+    ];
+
+    render(
+      <FlashcardStudio
+        decks={assignedDecks}
+        activeDeckId="deck-assigned-1"
+        isTeacher={false}
+        onUpdateMastery={onUpdateMastery}
+        onUpdateDeck={onUpdateDeck}
+        onDeleteDeck={onDeleteDeck}
+        onUpdateCard={onUpdateCard}
+        onDeleteCard={onDeleteCard}
+      />
+    );
+
+    // Deck strip shows compact "GV giao" tag
+    const deckListbox = screen.getByRole("listbox", { name: "Danh sách bộ thẻ" });
+    expect(within(deckListbox).getByText("GV giao")).toBeInTheDocument();
+
+    // Student can flip & mark mastery cleanly
+    const card = screen.getByTestId("fc-flashcard");
+    fireEvent.click(card);
+    expect(card).toHaveClass("is-flipped");
+    fireEvent.click(within(card).getByRole("button", { name: /Đã thuộc/ }));
+    expect(onUpdateMastery).toHaveBeenCalledWith("card-1", MASTERY_LEVELS.MASTERED);
+
+    // Creator does not show teacher assign toggle for non-teachers
+    fireEvent.click(screen.getByRole("tab", { name: "Tạo thẻ mới" }));
+    expect(screen.queryByLabelText(/Giao bộ thẻ này cho học sinh/)).not.toBeInTheDocument();
+
+    // Deck Manager is read-only with warm teacher attribution banner & audio preserved
+    fireEvent.click(screen.getByRole("tab", { name: /Quản lý/ }));
+    const manager = screen.getByTestId("fc-deck-manager");
+    expect(within(manager).getByTestId("fc-assigned-readonly-bar")).toHaveTextContent(
+      "Bộ thẻ giáo viên giao (Cô Minh) · Bạn có thể học, nghe phát âm và lưu tiến độ thuộc thẻ của riêng mình."
+    );
+    expect(within(manager).queryByRole("button", { name: /Đổi tên/ })).not.toBeInTheDocument();
+    expect(within(manager).queryByRole("button", { name: /Xóa bộ thẻ/ })).not.toBeInTheDocument();
+    expect(within(manager).queryByRole("button", { name: /Thêm thẻ/ })).not.toBeInTheDocument();
+    expect(within(manager).queryByRole("button", { name: /Chỉnh sửa thẻ/ })).not.toBeInTheDocument();
+    expect(within(manager).queryByRole("button", { name: /Xóa thẻ/ })).not.toBeInTheDocument();
+    expect(
+      within(manager).getByRole("button", { name: "Nghe phát âm hài lòng" })
+    ).toBeInTheDocument();
+  });
 });

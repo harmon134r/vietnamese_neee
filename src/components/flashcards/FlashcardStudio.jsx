@@ -31,9 +31,14 @@ export function FlashcardStudio({
   onRecordPractice,
   initialTopicFilter = "all",
   initialTab = "study",
+  initialCreatorTab = "single",
+  initialCreateNewDeck = false,
+  isTeacher = false,
+  teacherName = "",
 }) {
   const [activeTab, setActiveTab] = useState(initialTab); // "study" | "create" | "manage"
-  const [createNewDeckMode, setCreateNewDeckMode] = useState(false);
+  const [createNewDeckMode, setCreateNewDeckMode] = useState(Boolean(initialCreateNewDeck));
+  const [creatorSubTab, setCreatorSubTab] = useState(initialCreatorTab || "single");
   const [topicFilter, setTopicFilter] = useState(initialTopicFilter || "all");
   const [masteryFilter, setMasteryFilter] = useState("all"); // "all" | "review" | "new" | "mastered"
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,6 +52,14 @@ export function FlashcardStudio({
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (initialCreatorTab) setCreatorSubTab(initialCreatorTab);
+  }, [initialCreatorTab]);
+
+  useEffect(() => {
+    setCreateNewDeckMode(Boolean(initialCreateNewDeck));
+  }, [initialCreateNewDeck]);
 
   const visibleDecks = useMemo(() => {
     if (!topicFilter || topicFilter === "all") return decks;
@@ -221,12 +234,17 @@ export function FlashcardStudio({
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                className={`fc-deck-item ${isSelected ? "is-active" : ""}`}
+                className={`fc-deck-item ${isSelected ? "is-active" : ""} ${
+                  deck.isAssigned ? "is-assigned" : ""
+                }`}
                 onClick={() => {
                   onSelectDeck?.(deck.id);
                   if (activeTab === "create") setCreateNewDeckMode(false);
                 }}
               >
+                {deck.isAssigned && (
+                  <span className="fc-deck-assigned-tag">GV giao</span>
+                )}
                 <span>{deck.title}</span>
                 <span className="fc-deck-count">{deck.cards?.length || 0} thẻ</span>
               </button>
@@ -374,7 +392,11 @@ export function FlashcardStudio({
           decks={decks}
           activeDeckId={activeDeck?.id || ""}
           defaultNewDeck={createNewDeckMode}
+          initialSubTab={creatorSubTab}
+          isTeacher={isTeacher}
+          teacherName={teacherName}
           onCreateDeck={onCreateDeck}
+          onUpdateDeck={onUpdateDeck}
           onAddCard={onAddCard}
           onAddCardsBulk={onAddCardsBulk}
           onCreatedAndStudy={handleCreatedAndStudy}
@@ -385,6 +407,8 @@ export function FlashcardStudio({
         <FlashcardDeckManager
           deck={activeDeck}
           cards={filteredCards}
+          isTeacher={isTeacher}
+          teacherName={teacherName}
           onUpdateDeck={onUpdateDeck}
           onDeleteDeck={onDeleteDeck}
           onUpdateCard={onUpdateCard}

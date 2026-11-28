@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Check, Pencil, Plus, Trash2, Volume2, X } from "lucide-react";
+import {
+  Check,
+  GraduationCap,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+  Volume2,
+  X,
+} from "lucide-react";
 import { MASTERY_LEVELS, TOPIC_IDS, TOPIC_META } from "../../lib/contracts.js";
 import { speakVietnamese } from "../../lib/speech.js";
 import { VIETNAMESE_POS_OPTIONS } from "../../lib/flashcardParser.js";
@@ -7,6 +16,8 @@ import { VIETNAMESE_POS_OPTIONS } from "../../lib/flashcardParser.js";
 export function FlashcardDeckManager({
   deck,
   cards = [],
+  isTeacher = false,
+  teacherName = "",
   onUpdateDeck,
   onDeleteDeck,
   onUpdateCard,
@@ -17,6 +28,7 @@ export function FlashcardDeckManager({
   const [deckTopicId, setDeckTopicId] = useState(deck?.topicId || "");
   const [isRenamingDeck, setIsRenamingDeck] = useState(false);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState(false);
+  const [togglingAssign, setTogglingAssign] = useState(false);
 
   const [editingCardId, setEditingCardId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
@@ -40,9 +52,13 @@ export function FlashcardDeckManager({
     );
   }
 
+  const isReadOnlyAssigned = Boolean(deck.isAssigned && deck.canEdit === false);
+  const canEditDeck = !isReadOnlyAssigned;
+  const canToggleAssign = Boolean(isTeacher && canEditDeck && onUpdateDeck);
+
   const handleSaveDeckMeta = async (e) => {
     e.preventDefault();
-    if (!deckTitle.trim()) return;
+    if (!deckTitle.trim() || !canEditDeck) return;
     await onUpdateDeck?.(deck.id, {
       title: deckTitle.trim(),
       topicId: deckTopicId || null,
@@ -50,7 +66,21 @@ export function FlashcardDeckManager({
     setIsRenamingDeck(false);
   };
 
+  const handleToggleAssignDeck = async () => {
+    if (!canToggleAssign || togglingAssign) return;
+    setTogglingAssign(true);
+    try {
+      await onUpdateDeck(deck.id, {
+        isAssigned: !deck.isAssigned,
+        teacherName: teacherName || deck.teacherName || "",
+      });
+    } finally {
+      setTogglingAssign(false);
+    }
+  };
+
   const handleStartEditCard = (card) => {
+    if (!canEditDeck) return;
     setEditingCardId(card.id);
     setEditDraft({
       frontVi: card.frontVi || "",
@@ -64,7 +94,7 @@ export function FlashcardDeckManager({
 
   const handleSaveCardEdit = async (e, cardId) => {
     e.preventDefault();
-    if (!editDraft?.frontVi?.trim() || !editDraft?.definition?.trim()) return;
+    if (!canEditDeck || !editDraft?.frontVi?.trim() || !editDraft?.definition?.trim()) return;
     setSavingId(cardId);
     try {
       await onUpdateCard?.(cardId, {
@@ -85,7 +115,7 @@ export function FlashcardDeckManager({
   return (
     <div className="fc-manager-panel" data-testid="fc-deck-manager">
       <div className="fc-manager-head">
-        {isRenamingDeck ? (
+        {isRenamingDeck && canEditDeck ? (
           <form className="fc-manager-deck-edit" onSubmit={handleSaveDeckMeta}>
             <input
               className="fc-input"
@@ -128,66 +158,114 @@ export function FlashcardDeckManager({
           <div className="fc-manager-title-wrap">
             <h3 className="fc-manager-title">
               <span>{deck.title}</span>
+              {deck.isAssigned && (
+                <span className="fc-deck-assigned-tag">GV giao</span>
+              )}
               <span className="fc-manager-count">{cards.length} thẻ</span>
             </h3>
             {deck.description && <p className="fc-manager-desc">{deck.description}</p>}
           </div>
         )}
 
-        <div className="fc-toolbar-actions">
-          <button type="button" className="fc-action-btn" onClick={onOpenCreate}>
-            <Plus size={14} />
-            <span>Thêm thẻ</span>
-          </button>
-          {!isRenamingDeck && (
-            <button
-              type="button"
-              className="fc-action-btn"
-              onClick={() => setIsRenamingDeck(true)}
-            >
-              <Pencil size={13} />
-              <span>Đổi tên</span>
+        {canEditDeck && (
+          <div className="fc-toolbar-actions">
+            {canToggleAssign && (
+              <button
+                type="button"
+                className={`fc-assign-toggle-btn ${deck.isAssigned ? "is-assigned" : ""}`}
+                onClick={handleToggleAssignDeck}
+                disabled={togglingAssign}
+                aria-pressed={Boolean(deck.isAssigned)}
+                data-testid="fc-manager-assign-btn"
+              >
+                {deck.isAssigned ? (
+                  <>
+                    <Check size={14} aria-hidden="true" />
+                    <span>Đang giao cho HS</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={13} aria-hidden="true" />
+                    <span>Giao cho học sinh</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <button type="button" className="fc-action-btn" onClick={onOpenCreate}>
+              <Plus size={14} />
+              <span>Thêm thẻ</span>
             </button>
-          )}
-          {onDeleteDeck &&
-            (confirmDeleteDeck ? (
-              <>
+
+            {!isRenamingDeck && (
+              <button
+                type="button"
+                className="fc-action-btn"
+                onClick={() => setIsRenamingDeck(true)}
+              >
+                <Pencil size={13} />
+                <span>Đổi tên</span>
+              </button>
+            )}
+
+            {onDeleteDeck &&
+              (confirmDeleteDeck ? (
+                <>
+                  <button
+                    type="button"
+                    className="fc-btn-danger"
+                    onClick={() => {
+                      onDeleteDeck(deck.id);
+                      setConfirmDeleteDeck(false);
+                    }}
+                  >
+                    Xác nhận xóa
+                  </button>
+                  <button
+                    type="button"
+                    className="fc-action-btn"
+                    onClick={() => setConfirmDeleteDeck(false)}
+                  >
+                    Hủy
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
                   className="fc-btn-danger"
-                  onClick={() => {
-                    onDeleteDeck(deck.id);
-                    setConfirmDeleteDeck(false);
-                  }}
+                  onClick={() => setConfirmDeleteDeck(true)}
+                  title="Xóa bộ thẻ này"
                 >
-                  Xác nhận xóa
+                  <Trash2 size={13} />
+                  <span>Xóa bộ thẻ</span>
                 </button>
-                <button
-                  type="button"
-                  className="fc-action-btn"
-                  onClick={() => setConfirmDeleteDeck(false)}
-                >
-                  Hủy
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                className="fc-btn-danger"
-                onClick={() => setConfirmDeleteDeck(true)}
-                title="Xóa bộ thẻ này"
-              >
-                <Trash2 size={13} />
-                <span>Xóa bộ thẻ</span>
-              </button>
-            ))}
-        </div>
+              ))}
+          </div>
+        )}
       </div>
+
+      {isReadOnlyAssigned && (
+        <div
+          className="fc-assigned-readonly-bar"
+          role="status"
+          data-testid="fc-assigned-readonly-bar"
+        >
+          <GraduationCap size={16} aria-hidden="true" />
+          <span>
+            Bộ thẻ giáo viên giao ({deck.teacherName || "Giáo viên"}) · Bạn có thể học, nghe phát âm
+            và lưu tiến độ thuộc thẻ của riêng mình.
+          </span>
+        </div>
+      )}
 
       {cards.length === 0 ? (
         <div className="fc-empty-card is-compact">
           <h3>Không có thẻ nào khớp bộ lọc</h3>
-          <p>Thêm thẻ từ vựng mới hoặc đặt lại bộ lọc để xem toàn bộ danh sách thẻ.</p>
+          <p>
+            {canEditDeck
+              ? "Thêm thẻ từ vựng mới hoặc đặt lại bộ lọc để xem toàn bộ danh sách thẻ."
+              : "Đặt lại bộ lọc để xem toàn bộ danh sách thẻ giáo viên giao."}
+          </p>
         </div>
       ) : (
         <div className="fc-table-shell">
@@ -200,7 +278,7 @@ export function FlashcardDeckManager({
 
           <div className="fc-card-list">
             {cards.map((card) => {
-              const isEditing = editingCardId === card.id;
+              const isEditing = canEditDeck && editingCardId === card.id;
               const isMastered = (card.masteryLevel || 0) >= MASTERY_LEVELS.STRONG;
               const isReview =
                 (card.masteryLevel || 0) >= MASTERY_LEVELS.REVIEW && !isMastered;
@@ -330,7 +408,7 @@ export function FlashcardDeckManager({
                     >
                       <Volume2 size={16} />
                     </button>
-                    {onUpdateCard && (
+                    {canEditDeck && onUpdateCard && (
                       <button
                         type="button"
                         className="fc-icon-ghost"
@@ -341,7 +419,7 @@ export function FlashcardDeckManager({
                         <Pencil size={15} />
                       </button>
                     )}
-                    {onDeleteCard && (
+                    {canEditDeck && onDeleteCard && (
                       <button
                         type="button"
                         className="fc-icon-ghost is-danger"

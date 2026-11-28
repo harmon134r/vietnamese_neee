@@ -11,6 +11,7 @@ import {
   EyeOff,
   FileText,
   FileUp,
+  GraduationCap,
   Layers,
   Loader2,
   Plus,
@@ -79,19 +80,29 @@ export function FlashcardCreator({
   decks = [],
   activeDeckId = "",
   defaultNewDeck = false,
+  initialSubTab = "single",
+  isTeacher = false,
+  teacherName = "",
   onCreateDeck,
+  onUpdateDeck,
   onAddCard,
   onAddCardsBulk,
   onCreatedAndStudy,
 }) {
-  const [subTab, setSubTab] = useState("single"); // "single" | "bulk" | "pdf"
-  const [targetDeckId, setTargetDeckId] = useState(() =>
-    defaultNewDeck || decks.length === 0
-      ? NEW_DECK_VALUE
-      : activeDeckId || decks[0]?.id || NEW_DECK_VALUE
+  const editableDecks = useMemo(
+    () => decks.filter((d) => d.canEdit !== false),
+    [decks]
   );
+
+  const [subTab, setSubTab] = useState(initialSubTab || "single"); // "single" | "bulk" | "pdf"
+  const [targetDeckId, setTargetDeckId] = useState(() => {
+    if (defaultNewDeck || editableDecks.length === 0) return NEW_DECK_VALUE;
+    const activeEditable = editableDecks.find((d) => d.id === activeDeckId);
+    return activeEditable ? activeEditable.id : editableDecks[0]?.id || NEW_DECK_VALUE;
+  });
   const [newDeckTitle, setNewDeckTitle] = useState("");
   const [newDeckTopicId, setNewDeckTopicId] = useState("");
+  const [assignToStudents, setAssignToStudents] = useState(Boolean(isTeacher));
 
   // Single card form state
   const [form, setForm] = useState(EMPTY_SINGLE_FORM);
@@ -133,20 +144,35 @@ export function FlashcardCreator({
   }, []);
 
   useEffect(() => {
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
+  useEffect(() => {
+    if (isTeacher) {
+      setAssignToStudents(true);
+    }
+  }, [isTeacher]);
+
+  useEffect(() => {
     if (defaultNewDeck) {
       setTargetDeckId(NEW_DECK_VALUE);
-    } else if (targetDeckId !== NEW_DECK_VALUE && activeDeckId) {
-      const exists = decks.some((d) => d.id === targetDeckId);
-      if (!exists) setTargetDeckId(activeDeckId);
+    } else if (targetDeckId !== NEW_DECK_VALUE) {
+      const exists = editableDecks.some((d) => d.id === targetDeckId);
+      if (!exists) {
+        const activeEditable = editableDecks.find((d) => d.id === activeDeckId);
+        setTargetDeckId(activeEditable?.id || editableDecks[0]?.id || NEW_DECK_VALUE);
+      }
     }
-  }, [defaultNewDeck, activeDeckId, decks, targetDeckId]);
+  }, [defaultNewDeck, activeDeckId, editableDecks, targetDeckId]);
 
   const resolvedTopicId = useMemo(() => {
-    const selectedDeck = decks.find((d) => d.id === targetDeckId);
+    const selectedDeck = editableDecks.find((d) => d.id === targetDeckId);
     return targetDeckId === NEW_DECK_VALUE
       ? newDeckTopicId || null
       : selectedDeck?.topicId || null;
-  }, [decks, targetDeckId, newDeckTopicId]);
+  }, [editableDecks, targetDeckId, newDeckTopicId]);
 
   const parsedBulk = useMemo(() => {
     if (!bulkText.trim()) return { cards: [], warnings: [] };
@@ -174,7 +200,7 @@ export function FlashcardCreator({
     setPdfWarnings(parsedPdf.warnings);
   }, [parsedPdf]);
 
-  const isCreatingNewDeck = targetDeckId === NEW_DECK_VALUE || decks.length === 0;
+  const isCreatingNewDeck = targetDeckId === NEW_DECK_VALUE || editableDecks.length === 0;
   const activeGuide = useMemo(
     () => PDF_FORMAT_EXAMPLES.find((ex) => ex.id === activeGuideId) || PDF_FORMAT_EXAMPLES[0],
     [activeGuideId]
@@ -199,11 +225,18 @@ export function FlashcardCreator({
       }
       const topicId = newDeckTopicId || null;
       const color = topicId && TOPIC_META[topicId] ? TOPIC_META[topicId].accent : "#d97757";
+      const teacherPayload = isTeacher
+        ? {
+            isAssigned: Boolean(assignToStudents),
+            teacherName: assignToStudents ? teacherName || "Giáo viên" : "",
+          }
+        : {};
       const createdDeck = await onCreateDeck?.({
         title: cleanTitle,
         description: `Bộ thẻ tự tạo (${cardsToSave.length} thẻ)`,
         topicId,
         color,
+        ...teacherPayload,
         cards: cardsToSave.map((c) => ({ ...c, topicId: c.topicId || topicId })),
       });
       const resolvedDeckId = createdDeck?.id || "";
@@ -218,7 +251,7 @@ export function FlashcardCreator({
       return { deckId: resolvedDeckId, count: cardsToSave.length };
     }
 
-    const deck = decks.find((d) => d.id === targetDeckId) || decks[0];
+    const deck = editableDecks.find((d) => d.id === targetDeckId) || editableDecks[0];
     if (!deck) {
       throw new Error("Vui lòng chọn hoặc tạo một bộ thẻ trước.");
     }
@@ -237,6 +270,13 @@ export function FlashcardCreator({
       for (const item of enriched) {
         await onAddCard(deck.id, item);
       }
+    }
+
+    if (isTeacher && assignToStudents && !deck.isAssigned && onUpdateDeck) {
+      await onUpdateDeck(deck.id, {
+        isAssigned: true,
+        teacherName: teacherName || deck.teacherName || "Giáo viên",
+      });
     }
 
     prefetchCreatedCards(enriched);
@@ -561,7 +601,7 @@ export function FlashcardCreator({
               }
             }}
           >
-            {decks.map((d) => (
+            {editableDecks.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.title} ({d.cards?.length || 0} thẻ)
               </option>
@@ -604,6 +644,30 @@ export function FlashcardCreator({
             </select>
           </div>
         </div>
+      )}
+
+      {isTeacher && (
+        <label
+          className={`fc-teacher-assign-box ${assignToStudents ? "is-checked" : ""}`}
+          htmlFor="fc-assign-to-students"
+          data-testid="fc-teacher-assign-toggle"
+        >
+          <input
+            id="fc-assign-to-students"
+            type="checkbox"
+            checked={assignToStudents}
+            onChange={(e) => setAssignToStudents(e.target.checked)}
+          />
+          <span className="fc-teacher-assign-copy">
+            <span className="fc-teacher-assign-title">
+              <GraduationCap size={15} aria-hidden="true" />
+              <span>Giao bộ thẻ này cho học sinh</span>
+            </span>
+            <span className="fc-teacher-assign-note">
+              Học sinh vào web sẽ thấy ngay bộ thẻ này để học và luyện phát âm.
+            </span>
+          </span>
+        </label>
       )}
 
       {/* TAB 1: Single Card Form */}

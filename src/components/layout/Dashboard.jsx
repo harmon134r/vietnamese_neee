@@ -3,13 +3,17 @@ import {
   ArrowRight,
   BookOpen,
   ChevronRight,
+  FileUp,
+  GraduationCap,
   Headphones,
+  Layers,
   MessageCircle,
   Mic,
   PawPrint,
+  Settings2,
 } from "lucide-react";
 import { GAME_TYPES, MASTERY_LEVELS, SKILL_META, TOPIC_META } from "../../lib/contracts";
-import { resolveStudentDisplayName } from "../../lib/supabase";
+import { isTeacherProfile, resolveStudentDisplayName } from "../../lib/supabase";
 import { APP_ART, TOPIC_ILLUSTRATIONS } from "../../data/illustrations";
 
 const SKILL_BAR_ITEMS = [
@@ -101,11 +105,22 @@ export function Dashboard({
   gameHistory = [],
   user,
   userProfile,
+  isTeacher: isTeacherProp,
+  teacherName = "",
   onLaunchGame,
   onOpenFlashcards,
+  onOpenAssignedDeck,
+  onOpenTeacherPdfUpload,
   onCreateFlashcard,
   onOpenTopicOverview,
 }) {
+  const isTeacher =
+    typeof isTeacherProp === "boolean"
+      ? isTeacherProp
+      : Boolean(isTeacherProfile?.(userProfile, user));
+
+  const assignedDecks = decks.filter((deck) => Boolean(deck?.isAssigned));
+
   const skillScores = {
     listening: Math.round(Number(skillProgress?.listening || 0)),
     speaking: Math.round(Number(skillProgress?.speaking || 0)),
@@ -135,10 +150,18 @@ export function Dashboard({
   }, {});
 
   const displayName = user
-    ? resolveStudentDisplayName(userProfile, user, "")
+    ? resolveStudentDisplayName(userProfile, user, teacherName || "")
     : "";
 
   const recentHistory = gameHistory.slice(0, 5);
+
+  const openDeckInStudio = (deckId, tab = "study") => {
+    if (typeof onOpenAssignedDeck === "function") {
+      onOpenAssignedDeck(deckId, tab);
+    } else {
+      onOpenFlashcards?.("all");
+    }
+  };
 
   return (
     <div className="vf-desk vf-view-enter">
@@ -210,6 +233,160 @@ export function Dashboard({
           })}
         </div>
       </section>
+
+      {/* Teacher Corner Panel — Assigned PDF Flashcards */}
+      {isTeacher && (
+        <section
+          className="vf-teacher-panel"
+          aria-labelledby="vf-teacher-corner-heading"
+          data-testid="vf-teacher-panel"
+        >
+          <div className="vf-teacher-panel-head">
+            <div className="vf-teacher-panel-copy">
+              <span className="vf-teacher-kicker">
+                <GraduationCap size={14} aria-hidden="true" />
+                <span>Góc giáo viên</span>
+              </span>
+              <h2 id="vf-teacher-corner-heading" className="vf-teacher-panel-title">
+                Góc giáo viên — Giao Flashcard từ PDF
+              </h2>
+              <p className="vf-teacher-panel-sub">
+                {assignedDecks.length > 0
+                  ? `Đang giao ${assignedDecks.length} bộ thẻ cho học sinh · Học sinh mở web sẽ thấy ngay ở đầu trang để học và luyện phát âm.`
+                  : "Đang giao 0 bộ thẻ cho học sinh · Tải file PDF có lớp chữ để tạo và giao ngay cho lớp."}
+              </p>
+            </div>
+
+            <div className="vf-teacher-panel-actions">
+              <button
+                type="button"
+                className="vf-btn vf-btn--primary"
+                onClick={() =>
+                  typeof onOpenTeacherPdfUpload === "function"
+                    ? onOpenTeacherPdfUpload()
+                    : onCreateFlashcard?.()
+                }
+              >
+                <FileUp size={15} aria-hidden="true" />
+                <span>Tải PDF giao bài mới</span>
+              </button>
+            </div>
+          </div>
+
+          {assignedDecks.length > 0 && (
+            <div className="vf-teacher-deck-list" aria-label="Các bộ thẻ đang giao cho học sinh">
+              {assignedDecks.map((deck) => {
+                const count = deck.cards?.length || deck.cardCount || 0;
+                const topicLabel = deck.topicId ? TOPIC_META[deck.topicId]?.titleVi : "";
+                return (
+                  <div key={deck.id} className="vf-teacher-deck-row">
+                    <div className="vf-teacher-deck-info">
+                      <span className="vf-teacher-deck-badge">GV giao</span>
+                      <span className="vf-teacher-deck-name">{deck.title}</span>
+                      <span className="vf-teacher-deck-meta">
+                        {count} thẻ{topicLabel ? ` · ${topicLabel}` : ""}
+                      </span>
+                    </div>
+                    <div className="vf-teacher-deck-actions">
+                      <button
+                        type="button"
+                        className="vf-btn vf-btn--ghost vf-btn--sm"
+                        onClick={() => openDeckInStudio(deck.id, "study")}
+                      >
+                        <Layers size={13} aria-hidden="true" />
+                        <span>Mở bộ thẻ</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="vf-btn vf-btn--secondary vf-btn--sm"
+                        onClick={() => openDeckInStudio(deck.id, "manage")}
+                      >
+                        <Settings2 size={13} aria-hidden="true" />
+                        <span>Quản lý</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Student & Guest Assigned Flashcards Strip */}
+      {!isTeacher && assignedDecks.length > 0 && (
+        <section
+          className="vf-assigned-section"
+          aria-labelledby="vf-assigned-heading"
+          data-testid="vf-assigned-section"
+        >
+          <div className="vf-col-head vf-assigned-head">
+            <div className="vf-assigned-head-title">
+              <h2 id="vf-assigned-heading" className="vf-col-title">
+                Flashcard giáo viên giao
+              </h2>
+              <span className="vf-tag vf-tag--teacher">
+                {assignedDecks.length} bộ thẻ
+              </span>
+            </div>
+            <button
+              type="button"
+              className="vf-text-link"
+              onClick={() => onOpenFlashcards("all")}
+            >
+              <span>Xem tất cả thẻ</span>
+              <ArrowRight size={14} aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="vf-assigned-grid">
+            {assignedDecks.map((deck) => {
+              const cardCount = deck.cards?.length || deck.cardCount || 0;
+              const masteredCount = (deck.cards || []).filter(
+                (card) => Number(card.masteryLevel || 0) >= MASTERY_LEVELS.STRONG
+              ).length;
+              const masteryPct =
+                cardCount > 0 ? Math.round((masteredCount / cardCount) * 100) : 0;
+              const assignedBy = deck.teacherName || "Giáo viên";
+
+              return (
+                <article key={deck.id} className="vf-assigned-card">
+                  <div className="vf-assigned-card-top">
+                    <span className="vf-assigned-kicker">
+                      Giáo viên giao · {assignedBy}
+                    </span>
+                    <span className="vf-assigned-count">{cardCount} thẻ</span>
+                  </div>
+
+                  <h3 className="vf-assigned-card-title">{deck.title}</h3>
+
+                  <div className="vf-assigned-progress">
+                    <div className="vf-track" aria-hidden="true">
+                      <span
+                        className="vf-track-fill vf-track-fill--good"
+                        style={{ width: `${masteryPct}%` }}
+                      />
+                    </div>
+                    <span className="vf-assigned-mastery">
+                      {masteredCount}/{cardCount} đã thuộc
+                    </span>
+                  </div>
+
+                  <div className="vf-assigned-card-foot">
+                    <button
+                      type="button"
+                      className="vf-btn vf-btn--primary vf-btn--sm"
+                      onClick={() => openDeckInStudio(deck.id, "study")}
+                    >
+                      <span>Làm ngay →</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Asymmetric 2-Column Main Workspace */}
       <div className="vf-desk-grid">
