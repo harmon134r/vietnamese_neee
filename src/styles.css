@@ -3227,160 +3227,282 @@ a:hover {
   animation: vfFireflyTwinkle 3.6s ease-in-out infinite;
 }
 
-/* f) Floating Cultural Motifs & Vietnamese Phrase Charms (Desktop >= 1080px wings only) */
+/* f) Twilight Village + 2-Fish Pond (Left) & Animated Wood-Chopping Bear (Right) */
 .vf-auth-wing {
   position: absolute;
   top: 53%;
-  width: clamp(188px, 17.5vw, 240px);
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
 }
 
 .vf-auth-wing--left {
-  left: clamp(22px, 3.6vw, 66px);
+  left: clamp(20px, 3.8vw, 76px);
+  top: 53%;
+  width: clamp(220px, 20.5vw, 278px);
 }
 
 .vf-auth-wing--right {
-  right: clamp(22px, 3.6vw, 66px);
+  right: clamp(24px, 4.2vw, 82px);
+  top: 54%;
+  width: clamp(188px, 17.5vw, 236px);
 }
 
-.vf-auth-lotus-stage {
+/* Left Wing: Twilight Village Vignette */
+.vf-auth-village-stage {
   position: relative;
-  width: 122px;
-  height: 122px;
-  display: grid;
-  place-items: center;
+  width: 100%;
+  aspect-ratio: 560 / 480;
+  z-index: 1;
 }
 
-.vf-auth-lotus-img {
-  position: relative;
-  z-index: 2;
-  width: 102px;
-  height: auto;
+.vf-auth-village-img {
+  width: 100%;
+  height: 100%;
   display: block;
-  opacity: 0.88;
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.34));
-  will-change: transform;
-  animation: vfLotusBob 6.8s ease-in-out infinite;
+  object-fit: contain;
+  opacity: 0.94;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.28));
 }
 
-.vf-auth-ripple {
+.vf-auth-village-glow {
   position: absolute;
-  left: 50%;
-  bottom: 10px;
-  width: 92px;
-  height: 24px;
-  margin-left: -46px;
   border-radius: 50%;
-  border: 1px solid rgba(108, 154, 124, 0.42);
+  background: radial-gradient(
+    circle,
+    rgba(255, 224, 152, 0.72) 0%,
+    rgba(224, 169, 109, 0.28) 46%,
+    rgba(224, 169, 109, 0) 74%
+  );
+  mix-blend-mode: screen;
   will-change: transform, opacity;
-  animation: vfWaterRipple 5.2s ease-out infinite;
+  animation: vfWindowGlimmer 3.8s ease-in-out infinite;
 }
 
-.vf-auth-ripple--2 {
+.vf-auth-village-glow--1 {
+  left: 20.5%;
+  top: 63.5%;
+  width: 24px;
+  height: 24px;
+}
+
+.vf-auth-village-glow--2 {
+  left: 36.5%;
+  top: 52.5%;
+  width: 22px;
+  height: 22px;
+  animation-duration: 4.5s;
+  animation-delay: -1.4s;
+}
+
+.vf-auth-village-glow--3 {
+  left: 72.5%;
+  top: 56.5%;
+  width: 24px;
+  height: 24px;
+  animation-duration: 4.1s;
   animation-delay: -2.6s;
 }
 
-.vf-auth-medallion {
-  width: 148px;
-  padding: 7px 7px 9px;
-  border-radius: 13px;
-  background: rgba(247, 243, 234, 0.94);
-  border: 1px solid rgba(236, 235, 228, 0.24);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.36);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  will-change: transform;
-  animation: vfMedallionBob 7.4s ease-in-out -1.5s infinite;
+.vf-auth-chimney-wisp {
+  position: absolute;
+  left: 33.2%;
+  top: 37.5%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(236, 235, 228, 0.36) 0%,
+    rgba(202, 198, 186, 0.14) 55%,
+    rgba(202, 198, 186, 0) 100%
+  );
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: vfChimneyWisp 4.8s ease-out infinite;
 }
 
-.vf-auth-medallion-frame {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #f5efe2;
+.vf-auth-chimney-wisp--2 {
+  width: 10px;
+  height: 10px;
+  left: 34.4%;
+  animation-duration: 5.4s;
+  animation-delay: -2.4s;
 }
 
-.vf-auth-medallion-img {
+/* Left Wing: Foreground Tranquil 2-Fish Pond */
+.vf-auth-pond {
+  position: relative;
+  width: 88%;
+  aspect-ratio: 260 / 114;
+  margin-top: -18px;
+  z-index: 2;
+}
+
+.vf-auth-pond-svg {
   width: 100%;
   height: 100%;
-  object-fit: cover;
   display: block;
+  overflow: visible;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.34));
 }
 
-.vf-auth-medallion-caption {
-  font-family: var(--font-serif);
-  font-size: 0.74rem;
-  font-weight: 500;
-  color: #3a3630;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+.vf-auth-lilypad {
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform;
+  animation: vfLilypadBob 6.4s ease-in-out infinite;
 }
 
-.vf-auth-charm-stack {
+.vf-auth-lilypad--2 {
+  animation-duration: 7.4s;
+  animation-delay: -2.8s;
+}
+
+.vf-auth-pond-ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(154, 196, 174, 0.34);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: vfPondRipple 5.4s ease-out infinite;
+}
+
+.vf-auth-pond-ripple--1 {
+  left: 26%;
+  top: 42%;
+  width: 58px;
+  height: 22px;
+}
+
+.vf-auth-pond-ripple--2 {
+  left: 55%;
+  top: 49%;
+  width: 48px;
+  height: 18px;
+  animation-delay: -2.7s;
+}
+
+.vf-auth-pond-fish {
+  position: absolute;
+  width: 34px;
+  height: 17px;
+  transform-origin: 55% 50%;
+  will-change: transform;
+}
+
+.vf-auth-pond-fish--1 {
+  left: 22%;
+  top: 42%;
+  animation: vfFishSwimA 11.5s linear infinite;
+}
+
+.vf-auth-pond-fish--2 {
+  left: 50%;
+  top: 48%;
+  width: 30px;
+  height: 15px;
+  animation: vfFishSwimB 13.8s linear -3.4s infinite;
+}
+
+.vf-auth-fish-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 2px 3px rgba(14, 24, 20, 0.55));
+}
+
+.vf-auth-fish-tail {
+  transform-box: fill-box;
+  transform-origin: 100% 50%;
+  will-change: transform;
+  animation: vfFishTailWag 0.55s ease-in-out infinite;
+}
+
+/* Right Wing: Wood-Chopping Bear */
+.vf-auth-bear-stage {
+  position: relative;
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-}
-
-.vf-auth-charm {
-  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  width: fit-content;
-  max-width: 100%;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: rgba(46, 46, 43, 0.72);
-  border: 1px solid rgba(236, 235, 228, 0.11);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: rgba(236, 235, 228, 0.84);
-  font-family: var(--font-serif);
-  font-size: 0.82rem;
-  line-height: 1.3;
-  white-space: nowrap;
-  will-change: transform;
-  animation: vfCharmFloat 7.2s ease-in-out infinite;
 }
 
-.vf-auth-charm--left {
-  align-self: flex-start;
-}
-
-.vf-auth-charm--right {
-  align-self: flex-end;
-}
-
-.vf-auth-charm--center {
-  align-self: center;
-}
-
-.vf-auth-charm-dot {
-  width: 6px;
-  height: 6px;
+.vf-auth-bear-ground {
+  position: absolute;
+  left: 8%;
+  right: 2%;
+  bottom: 2%;
+  height: 26px;
   border-radius: 50%;
-  flex-shrink: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(66, 92, 74, 0.42) 0%,
+    rgba(46, 66, 52, 0.18) 54%,
+    rgba(38, 38, 36, 0) 76%
+  );
 }
 
-.vf-auth-charm-dot--terracotta {
-  background: #d97757;
+.vf-auth-bear-shadow {
+  position: absolute;
+  left: 16%;
+  right: 8%;
+  bottom: 4.5%;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(12, 12, 10, 0.44);
+  filter: blur(4px);
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  animation: vfBearShadowPulse 1.56s ease-in-out infinite;
 }
 
-.vf-auth-charm-dot--amber {
-  background: #e0a96d;
+.vf-auth-bear-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 320 / 260;
+  overflow: hidden;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.34));
 }
 
-.vf-auth-charm-dot--sage {
-  background: #6c9a7c;
+.vf-auth-bear-sheet {
+  width: 400%;
+  height: 100%;
+  max-width: none;
+  display: block;
+  will-change: transform;
+  animation: vfBearChop 1.56s steps(4, end) infinite;
+}
+
+.vf-auth-woodchip {
+  position: absolute;
+  right: 16%;
+  bottom: 44%;
+  border-radius: 2px;
+  background: #c89660;
+  border: 1px solid rgba(46, 34, 24, 0.55);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.vf-auth-woodchip--1 {
+  width: 8px;
+  height: 4px;
+  animation: vfWoodchipPopA 1.56s ease-out infinite;
+}
+
+.vf-auth-woodchip--2 {
+  width: 6px;
+  height: 3.5px;
+  background: #e0b47c;
+  animation: vfWoodchipPopB 1.56s ease-out infinite;
+}
+
+.vf-auth-woodchip--3 {
+  width: 5px;
+  height: 3px;
+  animation: vfWoodchipPopC 1.56s ease-out infinite;
 }
 
 /* g) Soft Swaying Grass Horizon + Playful Dog & Cat Chase Cameo */
@@ -4107,47 +4229,191 @@ a:hover {
   }
 }
 
-@keyframes vfLotusBob {
+@keyframes vfWindowGlimmer {
   0%,
   100% {
-    transform: translate3d(0, 0, 0) rotate(-1.2deg);
+    opacity: 0.34;
+    transform: scale(0.92);
   }
   50% {
-    transform: translate3d(0, -7px, 0) rotate(1.4deg);
+    opacity: 0.78;
+    transform: scale(1.12);
   }
 }
 
-@keyframes vfWaterRipple {
+@keyframes vfChimneyWisp {
   0% {
-    transform: scale(0.68);
     opacity: 0;
+    transform: translate3d(0, 2px, 0) scale(0.65);
   }
-  18% {
-    opacity: 0.54;
+  20% {
+    opacity: 0.42;
+  }
+  75% {
+    opacity: 0.16;
   }
   100% {
-    transform: scale(1.42);
+    opacity: 0;
+    transform: translate3d(9px, -32px, 0) scale(1.85);
+  }
+}
+
+@keyframes vfLilypadBob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translate3d(0, -1.8px, 0) rotate(1.8deg);
+  }
+}
+
+@keyframes vfPondRipple {
+  0% {
+    transform: scale(0.56);
+    opacity: 0;
+  }
+  22% {
+    opacity: 0.52;
+  }
+  100% {
+    transform: scale(1.38);
     opacity: 0;
   }
 }
 
-@keyframes vfMedallionBob {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(2.4deg);
+@keyframes vfFishSwimA {
+  0% {
+    transform: translate3d(0px, 0px, 0) rotate(-6deg);
   }
-  50% {
-    transform: translate3d(0, -8px, 0) rotate(-1.2deg);
+  20% {
+    transform: translate3d(52px, -11px, 0) rotate(8deg);
+  }
+  42% {
+    transform: translate3d(84px, 5px, 0) rotate(74deg);
+  }
+  55% {
+    transform: translate3d(72px, 20px, 0) rotate(168deg);
+  }
+  76% {
+    transform: translate3d(14px, 15px, 0) rotate(188deg);
+  }
+  90% {
+    transform: translate3d(-10px, 3px, 0) rotate(266deg);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) rotate(354deg);
   }
 }
 
-@keyframes vfCharmFloat {
+@keyframes vfFishSwimB {
+  0% {
+    transform: translate3d(0px, 0px, 0) rotate(184deg);
+  }
+  24% {
+    transform: translate3d(-56px, -9px, 0) rotate(204deg);
+  }
+  44% {
+    transform: translate3d(-70px, 8px, 0) rotate(318deg);
+  }
+  70% {
+    transform: translate3d(-12px, 14px, 0) rotate(366deg);
+  }
+  88% {
+    transform: translate3d(20px, 2px, 0) rotate(474deg);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) rotate(544deg);
+  }
+}
+
+@keyframes vfFishTailWag {
   0%,
   100% {
-    transform: translate3d(0, 0, 0);
+    transform: rotate(-16deg);
   }
   50% {
-    transform: translate3d(0, -6px, 0);
+    transform: rotate(16deg);
+  }
+}
+
+@keyframes vfBearChop {
+  from {
+    transform: translate3d(0%, 0, 0);
+  }
+  to {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+@keyframes vfBearShadowPulse {
+  0%,
+  45%,
+  100% {
+    transform: scaleX(0.95);
+    opacity: 0.78;
+  }
+  55%,
+  72% {
+    transform: scaleX(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes vfWoodchipPopA {
+  0%,
+  49% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  53% {
+    opacity: 0.92;
+  }
+  74% {
+    opacity: 0;
+    transform: translate3d(22px, -24px, 0) rotate(48deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(22px, -24px, 0) rotate(48deg);
+  }
+}
+
+@keyframes vfWoodchipPopB {
+  0%,
+  49% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  54% {
+    opacity: 0.88;
+  }
+  76% {
+    opacity: 0;
+    transform: translate3d(-14px, -28px, 0) rotate(-62deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-14px, -28px, 0) rotate(-62deg);
+  }
+}
+
+@keyframes vfWoodchipPopC {
+  0%,
+  50% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  55% {
+    opacity: 0.82;
+  }
+  75% {
+    opacity: 0;
+    transform: translate3d(8px, -34px, 0) rotate(24deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(8px, -34px, 0) rotate(24deg);
   }
 }
 
@@ -4291,7 +4557,7 @@ a:hover {
   }
 }
 
-@media (max-width: 1079px) {
+@media (max-width: 1023px) {
   .vf-auth-wing {
     display: none;
   }
@@ -4609,10 +4875,15 @@ a:hover {
   .vf-auth-leaf,
   .vf-auth-firefly,
   .vf-auth-firefly-dot,
-  .vf-auth-lotus-img,
-  .vf-auth-ripple,
-  .vf-auth-medallion,
-  .vf-auth-charm,
+  .vf-auth-village-glow,
+  .vf-auth-chimney-wisp,
+  .vf-auth-lilypad,
+  .vf-auth-pond-ripple,
+  .vf-auth-pond-fish,
+  .vf-auth-fish-tail,
+  .vf-auth-bear-sheet,
+  .vf-auth-bear-shadow,
+  .vf-auth-woodchip,
   .vf-auth-grass-layer,
   .vf-auth-gate-emblem--animated,
   .vf-auth-rise,
@@ -4638,6 +4909,10 @@ a:hover {
     animation: none;
   }
 
+  .vf-auth-bear-sheet {
+    transform: translate3d(0, 0, 0);
+  }
+
   .vf-runner-track {
     transform: translate3d(16px, 0, 0);
   }
@@ -4653,7 +4928,9 @@ a:hover {
   .vf-runner-dust,
   .vf-auth-chase-dust,
   .vf-auth-leaf,
-  .vf-auth-ripple {
+  .vf-auth-woodchip,
+  .vf-auth-chimney-wisp,
+  .vf-auth-pond-ripple {
     display: none;
   }
 

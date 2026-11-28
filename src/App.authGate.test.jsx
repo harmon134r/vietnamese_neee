@@ -414,6 +414,23 @@ describe("Mandatory Auth Gate (App + AuthModal)", () => {
     expect(gateScene).toBeInTheDocument();
     expect(gateScene).toHaveAttribute("aria-hidden", "true");
 
+    // New twilight village + 2-fish pond (left) and wood-chopping bear (right) wings
+    const leftWing = within(gateScene).getByTestId("auth-left-village-pond");
+    expect(leftWing).toBeInTheDocument();
+    const pond = within(leftWing).getByTestId("auth-pond");
+    expect(pond).toBeInTheDocument();
+    expect(within(pond).getAllByTestId("auth-pond-fish")).toHaveLength(2);
+    expect(within(gateScene).getByTestId("auth-woodchop-bear")).toBeInTheDocument();
+
+    // Old phrase charms, lotus, and Cốm thu Hà Nội medallion are gone
+    expect(screen.queryByText("Xin chào!")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cà phê sữa đá")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cảm ơn nhiều")).not.toBeInTheDocument();
+    expect(screen.queryByText("Học vui nhé!")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bánh mì giòn")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hôm nay trời đẹp")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cốm thu Hà Nội")).not.toBeInTheDocument();
+
     // Sign in -> AuthGateScene must NOT render inside the Dashboard
     fireEvent.change(screen.getByLabelText("Tên học sinh"), {
       target: { value: "Nguyễn Anh Thư" },
@@ -427,6 +444,9 @@ describe("Mandatory Auth Gate (App + AuthModal)", () => {
       expect(screen.getByText(/Nguyễn Anh Thư, hôm nay luyện gì/i)).toBeInTheDocument();
     });
     expect(screen.queryByTestId("auth-gate-scene")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("auth-left-village-pond")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("auth-pond")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("auth-woodchop-bear")).not.toBeInTheDocument();
   });
 
   it("updates the reactive mascot greeting pill cleanly across role and mode switches", async () => {

@@ -4,6 +4,8 @@ import { APP_ART } from "../../data/illustrations";
 const CHASE_DOG_CELL_W = 340;
 const CHASE_CAT_CELL_W = 320;
 const CHASE_CELL_H = 240;
+const BEAR_CHOP_CELL_W = 320;
+const BEAR_CHOP_CELL_H = 260;
 
 const BAMBOO_LEAVES = [
   { id: "l1", side: "left", left: "4%", size: 25, duration: "13.5s", delay: "-2.1s", tone: "sage", variant: "a" },
@@ -31,17 +33,37 @@ const FIREFLIES = [
   { id: "f12", left: "83%", top: "83%", size: 3.5, path: "a", drift: "14.4s", twinkle: "3.2s", delay: "-6.9s" },
 ];
 
-const LEFT_CHARMS = [
-  { id: "lc1", text: "Xin chào!", dot: "terracotta", offset: "left", duration: "6.8s", delay: "-1.2s" },
-  { id: "lc2", text: "Cà phê sữa đá", dot: "amber", offset: "right", duration: "7.6s", delay: "-3.4s" },
-  { id: "lc3", text: "Cảm ơn nhiều", dot: "sage", offset: "center", duration: "7.2s", delay: "-5.1s" },
-];
-
-const RIGHT_CHARMS = [
-  { id: "rc1", text: "Học vui nhé!", dot: "sage", offset: "right", duration: "7.0s", delay: "-0.8s" },
-  { id: "rc2", text: "Bánh mì giòn", dot: "terracotta", offset: "left", duration: "7.9s", delay: "-2.9s" },
-  { id: "rc3", text: "Hôm nay trời đẹp", dot: "amber", offset: "center", duration: "6.6s", delay: "-4.5s" },
-];
+function KoiFishSvg({ bodyColor, accentColor, tailDuration, tailDelay }) {
+  return (
+    <svg viewBox="0 0 36 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="vf-auth-fish-svg">
+      <g
+        className="vf-auth-fish-tail"
+        style={{ animationDuration: tailDuration, animationDelay: tailDelay }}
+      >
+        <path
+          d="M11 9 C7 5.5, 2.5 3.5, 1 5.2 C3.2 7.8, 3.2 10.2, 1 12.8 C2.5 14.5, 7 12.5, 11 9 Z"
+          fill={accentColor}
+          opacity="0.9"
+        />
+      </g>
+      <path
+        d="M9.5 9 C12.5 4.2, 23 3.4, 32.5 9 C23 14.6, 12.5 13.8, 9.5 9 Z"
+        fill={bodyColor}
+      />
+      <path
+        d="M17.5 5.4 C20 6.2, 21.8 8.4, 19.6 10.6 C17.6 11.8, 15.2 10.8, 15.4 8.2 C15.6 6.4, 16.5 5.6, 17.5 5.4 Z"
+        fill={accentColor}
+        opacity="0.88"
+      />
+      <path
+        d="M24.2 6.2 C25.6 6.8, 26.2 8.2, 25 9.2 C23.8 9.8, 22.8 8.8, 23.1 7.4 Z"
+        fill={accentColor}
+        opacity="0.82"
+      />
+      <circle cx="29.4" cy="7.8" r="0.95" fill="#23221f" />
+    </svg>
+  );
+}
 
 function SilkLantern({ variant }) {
   const isLeft = variant === "left";
@@ -150,6 +172,8 @@ function GrassStrip({ className }) {
 export default function AuthGateScene() {
   const { src: dogSrc, frames: dogFrames = 4 } = APP_ART.chaseDogSheet;
   const { src: catSrc, frames: catFrames = 4 } = APP_ART.chaseCatSheet;
+  const { src: bearSrc, frames: bearFrames = 4 } = APP_ART.authBearChopSheet;
+  const { src: villageSrc } = APP_ART.authTwilightVillage;
 
   return (
     <div className="vf-auth-scene" data-testid="auth-gate-scene" aria-hidden="true">
@@ -238,57 +262,143 @@ export default function AuthGateScene() {
         ))}
       </div>
 
-      {/* f) Floating Cultural Motifs & Vietnamese Phrase Charms (Desktop >= 1080px wings only) */}
-      <div className="vf-auth-wing vf-auth-wing--left">
-        <div className="vf-auth-lotus-stage">
-          <span className="vf-auth-ripple vf-auth-ripple--1" />
-          <span className="vf-auth-ripple vf-auth-ripple--2" />
+      {/* f) Twilight Village + 2-Fish Pond (Left) & Wood-Chopping Bear (Right) — Desktop >= 1024px */}
+      <div className="vf-auth-wing vf-auth-wing--left" data-testid="auth-left-village-pond">
+        <div className="vf-auth-village-stage">
           <img
-            src={APP_ART.lotus.src}
+            src={villageSrc}
             alt=""
-            className="vf-auth-lotus-img"
+            className="vf-auth-village-img"
             draggable={false}
             decoding="async"
           />
+          <span className="vf-auth-village-glow vf-auth-village-glow--1" />
+          <span className="vf-auth-village-glow vf-auth-village-glow--2" />
+          <span className="vf-auth-village-glow vf-auth-village-glow--3" />
+          <span className="vf-auth-chimney-wisp vf-auth-chimney-wisp--1" />
+          <span className="vf-auth-chimney-wisp vf-auth-chimney-wisp--2" />
         </div>
-        <div className="vf-auth-charm-stack">
-          {LEFT_CHARMS.map((charm) => (
-            <span
-              key={charm.id}
-              className={`vf-auth-charm vf-auth-charm--${charm.offset}`}
-              style={{ animationDuration: charm.duration, animationDelay: charm.delay }}
-            >
-              <span className={`vf-auth-charm-dot vf-auth-charm-dot--${charm.dot}`} />
-              <span>{charm.text}</span>
-            </span>
-          ))}
+
+        <div className="vf-auth-pond" data-testid="auth-pond">
+          <svg
+            className="vf-auth-pond-svg"
+            viewBox="0 0 260 114"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <radialGradient id="vfPondWater" cx="48%" cy="46%" r="54%">
+                <stop offset="0%" stopColor="#3e5c52" />
+                <stop offset="68%" stopColor="#2f453e" />
+                <stop offset="100%" stopColor="#23332d" />
+              </radialGradient>
+              <linearGradient id="vfPondRim" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="rgba(132, 164, 144, 0.34)" />
+                <stop offset="50%" stopColor="rgba(76, 104, 88, 0.22)" />
+                <stop offset="100%" stopColor="rgba(116, 148, 128, 0.3)" />
+              </linearGradient>
+            </defs>
+
+            {/* Soft earthen / mossy shoreline outer shadow */}
+            <ellipse
+              cx="130"
+              cy="60"
+              rx="118"
+              ry="47"
+              fill="rgba(22, 28, 24, 0.56)"
+            />
+
+            {/* Main tranquil twilight pond basin */}
+            <ellipse
+              cx="130"
+              cy="57"
+              rx="112"
+              ry="43"
+              fill="url(#vfPondWater)"
+              stroke="url(#vfPondRim)"
+              strokeWidth="2.4"
+            />
+
+            {/* Inner water depth & subtle moonlight caustic highlights */}
+            <ellipse
+              cx="128"
+              cy="56"
+              rx="92"
+              ry="32"
+              fill="rgba(29, 44, 39, 0.36)"
+            />
+            <path
+              d="M62 45 Q96 38 128 43"
+              stroke="rgba(232, 214, 174, 0.16)"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+            <path
+              d="M144 68 Q174 73 202 64"
+              stroke="rgba(174, 212, 192, 0.14)"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+
+            {/* Two gently bobbing lily pads */}
+            <g className="vf-auth-lilypad vf-auth-lilypad--1">
+              <path
+                d="M54 67 A13 7.5 0 1 1 65 61 L59 66 Z"
+                fill="#4a6e58"
+                stroke="rgba(164, 198, 176, 0.28)"
+                strokeWidth="0.9"
+              />
+            </g>
+            <g className="vf-auth-lilypad vf-auth-lilypad--2">
+              <path
+                d="M196 44 A11.5 6.8 0 1 1 205 51 L198 46 Z"
+                fill="#527860"
+                stroke="rgba(164, 198, 176, 0.28)"
+                strokeWidth="0.9"
+              />
+            </g>
+          </svg>
+
+          <span className="vf-auth-pond-ripple vf-auth-pond-ripple--1" />
+          <span className="vf-auth-pond-ripple vf-auth-pond-ripple--2" />
+
+          <div className="vf-auth-pond-fish vf-auth-pond-fish--1" data-testid="auth-pond-fish">
+            <KoiFishSvg
+              bodyColor="#d97757"
+              accentColor="#f2c17e"
+              tailDuration="0.55s"
+              tailDelay="0s"
+            />
+          </div>
+          <div className="vf-auth-pond-fish vf-auth-pond-fish--2" data-testid="auth-pond-fish">
+            <KoiFishSvg
+              bodyColor="#ecebe4"
+              accentColor="#d97757"
+              tailDuration="0.64s"
+              tailDelay="-0.2s"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="vf-auth-wing vf-auth-wing--right">
-        <div className="vf-auth-medallion">
-          <div className="vf-auth-medallion-frame">
+      <div className="vf-auth-wing vf-auth-wing--right" data-testid="auth-right-bear">
+        <div className="vf-auth-bear-stage" data-testid="auth-woodchop-bear">
+          <span className="vf-auth-bear-ground" />
+          <span className="vf-auth-bear-shadow" />
+          <div className="vf-auth-bear-viewport">
             <img
-              src={APP_ART.comHanoi.src}
+              src={bearSrc}
               alt=""
-              className="vf-auth-medallion-img"
+              width={BEAR_CHOP_CELL_W * bearFrames}
+              height={BEAR_CHOP_CELL_H}
+              className="vf-auth-bear-sheet"
               draggable={false}
               decoding="async"
             />
           </div>
-          <span className="vf-auth-medallion-caption">Cốm thu Hà Nội</span>
-        </div>
-        <div className="vf-auth-charm-stack">
-          {RIGHT_CHARMS.map((charm) => (
-            <span
-              key={charm.id}
-              className={`vf-auth-charm vf-auth-charm--${charm.offset}`}
-              style={{ animationDuration: charm.duration, animationDelay: charm.delay }}
-            >
-              <span className={`vf-auth-charm-dot vf-auth-charm-dot--${charm.dot}`} />
-              <span>{charm.text}</span>
-            </span>
-          ))}
+          <span className="vf-auth-woodchip vf-auth-woodchip--1" />
+          <span className="vf-auth-woodchip vf-auth-woodchip--2" />
+          <span className="vf-auth-woodchip vf-auth-woodchip--3" />
         </div>
       </div>
 

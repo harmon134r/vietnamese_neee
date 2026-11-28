@@ -100,6 +100,18 @@ export const APP_ART = Object.freeze({
     frames: 4,
     aspectRatio: "340 / 240",
   },
+  authBearChopSheet: {
+    src: "/images/auth/bear-chop-sheet.png",
+    alt: "Chú gấu trắng đang bổ củi",
+    transparent: true,
+    frames: 4,
+    aspectRatio: "320 / 260",
+  },
+  authTwilightVillage: {
+    src: "/images/auth/twilight-village.png",
+    alt: "Ngôi làng đồi chiều hoàng hôn",
+    transparent: true,
+  },
 });
 
 export const TOPIC_ILLUSTRATIONS = Object.freeze({
